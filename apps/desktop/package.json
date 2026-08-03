@@ -14,9 +14,11 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
+    "@inwdeck/ui": "workspace:*",
     "@tauri-apps/api": "^2",
     "react": "^19",
-    "react-dom": "^19"
+    "react-dom": "^19",
+    "react-router-dom": "^7"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",

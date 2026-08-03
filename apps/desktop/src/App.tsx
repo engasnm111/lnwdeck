@@ -1,10 +1,16 @@
-import "./App.css";
+import { Routes, Route } from "react-router-dom";
+import { AppShell } from "./app/AppShell";
+import { OverviewPage } from "./pages/OverviewPage";
+import { ProvidersPage } from "./pages/ProvidersPage";
 
 function App() {
   return (
-    <div>
-      <h1>inwdeck</h1>
-    </div>
+    <Routes>
+      <Route element={<AppShell />}>
+        <Route index element={<OverviewPage />} />
+        <Route path="providers" element={<ProvidersPage />} />
+      </Route>
+    </Routes>
   );
 }
 
