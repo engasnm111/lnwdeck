@@ -4,4 +4,5 @@ members = [
     "apps/desktop/src-tauri",
     "crates/domain",
     "crates/security",
+    "crates/storage",
 ]
