@@ -9,4 +9,6 @@ members = [
     "crates/provider-runtime",
     "crates/hook-manager",
     "apps/native-messaging-host",
+    "crates/pricing",
+    "crates/analytics",
 ]

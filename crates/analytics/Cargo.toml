@@ -1,0 +1,10 @@
+[package]
+name = "inwdeck-analytics"
+version = "0.1.0"
+edition = "2021"
+description = "Usage analytics, rollups, budgets and forecast for inwdeck"
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
