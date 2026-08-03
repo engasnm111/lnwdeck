@@ -15,9 +15,9 @@ describe("AnalyticsPage", () => {
     expect(screen.getByLabelText("Confidence")).toBeInTheDocument();
   });
 
-  it("shows empty state when no data", () => {
+  it("shows empty state when no data", async () => {
     render(<AnalyticsPage />);
-    expect(screen.getByText(/no usage data yet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no usage data yet/i)).toBeInTheDocument();
   });
 
   it("all pages are keyboard reachable", () => {
