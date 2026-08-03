@@ -14,3 +14,68 @@ export interface OverviewData {
 export async function fetchOverview(): Promise<OverviewData> {
   return invoke<OverviewData>("get_overview");
 }
+
+export interface PipelineTotals {
+  events_seen: number;
+  events_parsed: number;
+  events_normalized: number;
+  events_rejected: number;
+  duplicates_skipped: number;
+  events_inserted: number;
+  quota_snapshots_inserted: number;
+  privacy_rejections: number;
+  last_successful_sync: string | null;
+  next_retry_at: string | null;
+}
+
+export interface ProviderStateRow {
+  provider_id: string;
+  display_name: string;
+  enabled: boolean;
+  detected: boolean;
+  detection_method: string;
+  source_type: string;
+  source_exists: boolean;
+  permission_state: string;
+  adapter_version: string;
+  last_detection_at: string | null;
+  detection_error_code: string;
+}
+
+export interface CollectorRunRow {
+  id: number;
+  provider_id: string;
+  collector_mode: string;
+  started_at: string;
+  finished_at: string;
+  duration_ms: number;
+  source_records_seen: number;
+  records_parsed: number;
+  events_normalized: number;
+  events_rejected: number;
+  duplicates_skipped: number;
+  events_inserted: number;
+  quota_snapshots_inserted: number;
+  warning_codes: string[];
+  error_code: string;
+  next_retry_at: string | null;
+}
+
+export interface PipelineDiagnostics {
+  app_version: string;
+  db_ok: boolean;
+  integrity_ok: boolean;
+  migration_version: number;
+  total_events: number;
+  totals: PipelineTotals;
+  providers: ProviderStateRow[];
+  runs: CollectorRunRow[];
+}
+
+export async function fetchPipelineDiagnostics(): Promise<PipelineDiagnostics> {
+  return invoke<PipelineDiagnostics>("get_pipeline_diagnostics");
+}
+
+export async function refreshAll(): Promise<CollectorRunRow[]> {
+  return invoke<CollectorRunRow[]>("refresh_all");
+}
