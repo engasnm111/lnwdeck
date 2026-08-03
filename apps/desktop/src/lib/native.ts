@@ -15,6 +15,54 @@ export async function fetchOverview(): Promise<OverviewData> {
   return invoke<OverviewData>("get_overview");
 }
 
+export interface AnalyticsRow {
+  id: string;
+  timestamp: string;
+  provider_id: string;
+  model: string;
+  tokens_input: number;
+  tokens_output: number;
+  confidence: "Low" | "Medium" | "High";
+  cost: string;
+}
+
+export interface AnalyticsResult {
+  rows: AnalyticsRow[];
+  available_providers: string[];
+  available_models: string[];
+}
+
+export interface AnalyticsFilter {
+  provider_id?: string;
+  model?: string;
+  confidence?: string;
+}
+
+export async function fetchAnalytics(
+  filter?: AnalyticsFilter,
+): Promise<AnalyticsResult> {
+  return invoke<AnalyticsResult>("get_analytics", { filter });
+}
+
+export interface DetailedProviderInfo {
+  provider_id: string;
+  display_name: string;
+  enabled: boolean;
+  detected: boolean;
+  source_type: string;
+  health_status: string;
+  event_count: number;
+  total_tokens: number;
+  last_sync: string | null;
+  quota_summary: string;
+  reset_at: string | null;
+  confidence: string;
+}
+
+export async function fetchProviders(): Promise<DetailedProviderInfo[]> {
+  return invoke<DetailedProviderInfo[]>("get_providers");
+}
+
 export interface PipelineTotals {
   events_seen: number;
   events_parsed: number;

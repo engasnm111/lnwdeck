@@ -45,6 +45,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             commands::overview::get_overview,
+            commands::analytics::get_analytics,
+            commands::providers::get_providers,
             commands::pipeline::refresh_all,
             commands::pipeline::get_pipeline_diagnostics,
             windows::show_widget,
