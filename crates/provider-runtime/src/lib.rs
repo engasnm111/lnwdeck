@@ -1,18 +1,22 @@
 pub mod adapter;
 pub mod collection;
+pub mod descriptor;
 pub mod detection;
 pub mod health;
 pub mod permissions;
 pub mod quota;
 pub mod registry;
 pub mod scheduler;
+pub mod token_scan;
 pub mod wasm;
 
-pub use adapter::ProviderAdapter;
+pub use adapter::{ProviderAdapter, NOT_SUPPORTED};
 pub use collection::{CollectionOutcome, CollectionResult};
+pub use descriptor::{AdapterDescriptor, AuthKind, ChannelSupport, SourceKind};
 pub use detection::DetectionResult;
 pub use health::{AdapterHealth, AdapterHealthStatus};
 pub use permissions::{Permission, Permissions};
 pub use quota::{QuotaCollectionOutcome, QuotaCollectionResult};
 pub use registry::AdapterRegistry;
 pub use scheduler::AdaptiveScheduler;
+pub use token_scan::{ScanBounds, ScanReport, TokenSample};

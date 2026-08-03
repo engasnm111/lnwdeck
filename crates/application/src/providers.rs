@@ -1,189 +1,187 @@
+//! Provider read model.
+//!
+//! One card per registered adapter. Everything on a card comes from real
+//! state: the adapter descriptor (identity and declared capabilities), the
+//! detection row written by the last refresh, the last collector run, the
+//! stored quota report, and the ingested usage events. Nothing is defaulted to
+//! a healthy or configured value, and the provider list is not restated here -
+//! it is read from the registry, so ids can never drift apart again.
+
 use lnwdeck_domain::{QuotaReport, QuotaStatus};
+use lnwdeck_provider_runtime::{AdapterRegistry, NOT_SUPPORTED};
 use lnwdeck_storage::repositories::DiagnosticsRepository;
 use rusqlite::Connection;
 
-#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, PartialEq)]
 pub struct DetailedProviderInfo {
     pub provider_id: String,
     pub display_name: String,
+    pub vendor: String,
     pub enabled: bool,
     pub detected: bool,
     pub source_type: String,
+    /// Declared usage-history support: "supported", "local estimate" or
+    /// "not supported".
+    pub usage_support: String,
+    /// Declared remaining-quota support, same vocabulary.
+    pub quota_support: String,
+    /// What the adapter needs: "none", "local files" or "API key".
+    pub auth_requirement: String,
     pub health_status: String,
     pub event_count: i64,
     pub total_tokens: i64,
     pub last_sync: Option<String>,
+    pub last_error_code: String,
     pub quota_summary: String,
     pub reset_at: Option<String>,
     pub confidence: String,
+    /// Cost coverage measured from the stored events, never assumed.
     pub cost_support: String,
 }
 
 pub struct ScanProviders;
 
-pub struct StandardProviderMeta {
-    pub id: &'static str,
-    pub display_name: &'static str,
-    pub source_type: &'static str,
-    pub default_health: &'static str,
-    pub cost_support: &'static str,
-    /// Adapter provider ids that may produce quota reports for this card.
-    pub quota_ids: &'static [&'static str],
-}
-
-pub const STANDARD_PROVIDERS: &[StandardProviderMeta] = &[
-    StandardProviderMeta {
-        id: "opencode",
-        display_name: "OpenCode",
-        source_type: "Local CLI / JSON",
-        default_health: "Detected",
-        cost_support: "Exact",
-        quota_ids: &["opencode"],
-    },
-    StandardProviderMeta {
-        id: "openai_codex",
-        display_name: "Codex (OpenAI)",
-        source_type: "API / Credential",
-        default_health: "Not configured",
-        cost_support: "Exact",
-        quota_ids: &["openai_codex"],
-    },
-    StandardProviderMeta {
-        id: "google_gemini",
-        display_name: "Gemini (Google)",
-        source_type: "API / Credential",
-        default_health: "Not configured",
-        cost_support: "Exact",
-        quota_ids: &["google_gemini"],
-    },
-    StandardProviderMeta {
-        id: "kiro_ai",
-        display_name: "Kiro",
-        source_type: "API / Credential",
-        default_health: "Not configured",
-        cost_support: "Estimated",
-        quota_ids: &["kiro_ai"],
-    },
-    StandardProviderMeta {
-        id: "anthropic_claude",
-        display_name: "Claude (Anthropic)",
-        source_type: "API / Credential",
-        default_health: "Not configured",
-        cost_support: "Exact",
-        quota_ids: &["anthropic_claude"],
-    },
-    StandardProviderMeta {
-        id: "copilot",
-        display_name: "GitHub Copilot",
-        source_type: "IDE Extension",
-        default_health: "Not configured",
-        cost_support: "Unavailable",
-        quota_ids: &["github_copilot"],
-    },
-    StandardProviderMeta {
-        id: "cursor",
-        display_name: "Cursor",
-        source_type: "Local Log / SQLite",
-        default_health: "Not configured",
-        cost_support: "Estimated",
-        quota_ids: &["cursor_ide"],
-    },
-    StandardProviderMeta {
-        id: "grok",
-        display_name: "Grok (xAI)",
-        source_type: "API / Credential",
-        default_health: "Not configured",
-        cost_support: "Exact",
-        quota_ids: &["xai_grok"],
-    },
-    StandardProviderMeta {
-        id: "ollama",
-        display_name: "Ollama",
-        source_type: "Local HTTP API",
-        default_health: "Not configured",
-        cost_support: "Free / Local",
-        quota_ids: &["ollama_local"],
-    },
-    StandardProviderMeta {
-        id: "openrouter",
-        display_name: "OpenRouter",
-        source_type: "API / Credential",
-        default_health: "Not configured",
-        cost_support: "Exact",
-        quota_ids: &["openrouter_api"],
-    },
-];
-
 impl ScanProviders {
-    pub fn execute(conn: &Connection) -> Result<Vec<DetailedProviderInfo>, rusqlite::Error> {
+    /// Builds one card per registered adapter, in registry order.
+    pub fn execute(
+        conn: &Connection,
+        registry: &AdapterRegistry,
+    ) -> Result<Vec<DetailedProviderInfo>, rusqlite::Error> {
         let diag = DiagnosticsRepository::new(conn);
-        let states = diag.provider_states().unwrap_or_default();
-        let runs = diag.latest_runs().unwrap_or_default();
-        let reports = lnwdeck_storage::repositories::QuotaRepository::new(conn)
-            .latest_all()
-            .unwrap_or_default();
+        let states = diag.provider_states()?;
+        let runs = diag.latest_runs()?;
+        let reports = lnwdeck_storage::repositories::QuotaRepository::new(conn).latest_all()?;
 
         let mut results: Vec<DetailedProviderInfo> = Vec::new();
-
-        for std_prov in STANDARD_PROVIDERS {
-            let state_opt = states.iter().find(|s| s.provider_id == std_prov.id);
-            let run_opt = runs.iter().find(|r| r.provider_id == std_prov.id);
-            let report = reports
+        for descriptor in registry.descriptors() {
+            let id = descriptor.id;
+            let state = states.iter().find(|s| s.provider_id == id);
+            // Prefer the usage run for the freshness column; fall back to any
+            // run for this provider.
+            let run = runs
                 .iter()
-                .find(|r| std_prov.quota_ids.contains(&r.provider_id.as_str()));
+                .find(|r| r.provider_id == id && r.collector_mode != "quota_collect")
+                .or_else(|| runs.iter().find(|r| r.provider_id == id));
+            let report = reports.iter().find(|r| r.provider_id == id);
 
-            let like_pat = format!("%{}%", std_prov.id);
-            let (event_count, total_tokens, last_ts): (i64, i64, Option<String>) = conn
-                .query_row(
-                    "SELECT COUNT(*), COALESCE(SUM(tokens_input + tokens_output), 0), MAX(timestamp)
-                     FROM usage_events WHERE provider_id = ? OR provider_id LIKE ?",
-                    [std_prov.id, &like_pat],
-                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-                )
-                .unwrap_or((0, 0, None));
+            let (event_count, total_tokens, priced_events, last_ts) = usage_totals(conn, id)?;
 
-            let detected = state_opt
-                .map(|s| s.detected)
-                .unwrap_or(std_prov.id == "opencode");
-            let enabled = state_opt.map(|s| s.enabled).unwrap_or(true);
+            let detected = state.map(|s| s.detected).unwrap_or(false);
+            let enabled = state.map(|s| s.enabled).unwrap_or(true);
+            let last_error_code = run.map(|r| r.error_code.clone()).unwrap_or_default();
 
-            let health = if let Some(r) = run_opt {
-                if !r.error_code.is_empty() {
-                    format!("Error ({})", r.error_code)
-                } else {
-                    "Healthy".to_string()
-                }
-            } else if detected && event_count > 0 {
-                "Healthy".to_string()
-            } else if detected {
-                "Detected".to_string()
-            } else {
-                std_prov.default_health.to_string()
-            };
+            let health_status = health_label(
+                &descriptor,
+                detected,
+                &last_error_code,
+                state.map(|s| s.detection_error_code.as_str()).unwrap_or(""),
+            );
 
             let (quota_summary, reset_at, confidence) = match report {
                 Some(report) => quota_card_fields(report),
+                None if !descriptor.quota_support.is_supported() => {
+                    ("Not supported".to_string(), None, "n/a".to_string())
+                }
                 None => ("No quota data".to_string(), None, "n/a".to_string()),
             };
 
             results.push(DetailedProviderInfo {
-                provider_id: std_prov.id.to_string(),
-                display_name: std_prov.display_name.to_string(),
+                provider_id: id.to_string(),
+                display_name: descriptor.display_name.to_string(),
+                vendor: descriptor.vendor.to_string(),
                 enabled,
                 detected,
-                source_type: std_prov.source_type.to_string(),
-                health_status: health,
+                source_type: descriptor.source_kind.label().to_string(),
+                usage_support: descriptor.usage_support.label().to_string(),
+                quota_support: descriptor.quota_support.label().to_string(),
+                auth_requirement: auth_label(descriptor.auth).to_string(),
+                health_status,
                 event_count,
                 total_tokens,
-                last_sync: last_ts.or_else(|| run_opt.map(|r| r.finished_at.clone())),
+                last_sync: last_ts.or_else(|| run.map(|r| r.finished_at.clone())),
+                last_error_code,
                 quota_summary,
                 reset_at,
                 confidence,
-                cost_support: std_prov.cost_support.to_string(),
+                cost_support: cost_label(event_count, priced_events),
             });
         }
 
         Ok(results)
+    }
+}
+
+/// Event count, token total, number of events that carry a computed cost, and
+/// the newest event timestamp for one provider.
+fn usage_totals(
+    conn: &Connection,
+    provider_id: &str,
+) -> Result<(i64, i64, i64, Option<String>), rusqlite::Error> {
+    conn.query_row(
+        "SELECT COUNT(*),
+                COALESCE(SUM(tokens_input + tokens_output), 0),
+                COALESCE(SUM(CASE WHEN cost IS NOT NULL AND cost <> '' THEN 1 ELSE 0 END), 0),
+                MAX(timestamp)
+         FROM usage_events WHERE provider_id = ?1",
+        [provider_id],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+    )
+}
+
+fn auth_label(auth: lnwdeck_provider_runtime::AuthKind) -> &'static str {
+    match auth {
+        lnwdeck_provider_runtime::AuthKind::None => "none",
+        lnwdeck_provider_runtime::AuthKind::LocalFiles => "local files",
+        lnwdeck_provider_runtime::AuthKind::ApiKey => "API key",
+    }
+}
+
+/// Cost coverage derived from stored events. With no events there is nothing
+/// to price, and that is stated rather than guessed.
+fn cost_label(event_count: i64, priced_events: i64) -> String {
+    if event_count == 0 {
+        return "No data".to_string();
+    }
+    if priced_events == 0 {
+        return "Missing pricing".to_string();
+    }
+    if priced_events == event_count {
+        "Priced".to_string()
+    } else {
+        format!("Partially priced ({priced_events}/{event_count})")
+    }
+}
+
+/// Health label for a provider card.
+///
+/// An adapter that declares no channel is "Not supported"; one that needs a
+/// key the user has not entered is "Not configured"; the rest reflect the last
+/// real detection and collection result.
+fn health_label(
+    descriptor: &lnwdeck_provider_runtime::AdapterDescriptor,
+    detected: bool,
+    last_error_code: &str,
+    detection_error_code: &str,
+) -> String {
+    if descriptor.is_inert() {
+        return "Not supported".to_string();
+    }
+    if detection_error_code == "NOT_CONFIGURED" {
+        return "Not configured".to_string();
+    }
+    if last_error_code == NOT_SUPPORTED {
+        return "Not supported".to_string();
+    }
+    if !last_error_code.is_empty() {
+        return format!("Error ({last_error_code})");
+    }
+    if detected {
+        return "Healthy".to_string();
+    }
+    if detection_error_code.is_empty() {
+        "Source not found".to_string()
+    } else {
+        format!("Source not found ({detection_error_code})")
     }
 }
 
@@ -242,8 +240,12 @@ fn quota_card_fields(report: &QuotaReport) -> (String, Option<String>, String) {
 
     let summary = if report.windows.iter().any(|w| w.is_unlimited) {
         "Local / Unlimited".to_string()
-    } else if let Some(window) = report.windows.iter().find(|w| w.limit > 0) {
-        let pct = window.remaining_percent.round() as u64;
+    } else if let Some(remaining_percent) = report
+        .windows
+        .iter()
+        .find_map(|window| window.remaining_percent)
+    {
+        let pct = remaining_percent.round() as u64;
         if let Some(reset) = reset_at.as_ref() {
             format!("{pct}% left · resets {reset}")
         } else {
@@ -271,6 +273,10 @@ fn quota_card_fields(report: &QuotaReport) -> (String, Option<String>, String) {
 mod tests {
     use super::*;
     use lnwdeck_domain::{Confidence, QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope};
+    use lnwdeck_provider_runtime::{
+        AdapterDescriptor, AuthKind, ChannelSupport, ProviderAdapter, SourceKind,
+    };
+    use lnwdeck_storage::repositories::{CollectorRunRow, ProviderStateRow};
     use lnwdeck_storage::{migrations::apply_all, Storage};
     use tempfile::tempdir;
 
@@ -283,19 +289,64 @@ mod tests {
         storage
     }
 
+    struct Fake(AdapterDescriptor);
+
+    impl ProviderAdapter for Fake {
+        fn descriptor(&self) -> AdapterDescriptor {
+            self.0
+        }
+    }
+
+    fn local_descriptor(id: &'static str, name: &'static str) -> AdapterDescriptor {
+        AdapterDescriptor {
+            id,
+            display_name: name,
+            vendor: "Vendor",
+            source_kind: SourceKind::LocalSqlite,
+            usage_support: ChannelSupport::LocalEstimate,
+            quota_support: ChannelSupport::LocalEstimate,
+            auth: AuthKind::LocalFiles,
+            adapter_version: "0.2.0",
+        }
+    }
+
+    fn api_descriptor(id: &'static str, name: &'static str) -> AdapterDescriptor {
+        AdapterDescriptor {
+            source_kind: SourceKind::RemoteApi,
+            usage_support: ChannelSupport::Unsupported,
+            quota_support: ChannelSupport::Native,
+            auth: AuthKind::ApiKey,
+            ..local_descriptor(id, name)
+        }
+    }
+
+    fn test_registry() -> AdapterRegistry {
+        let mut registry = AdapterRegistry::new();
+        registry
+            .register(Box::new(Fake(local_descriptor("opencode", "OpenCode"))))
+            .expect("opencode");
+        registry
+            .register(Box::new(Fake(api_descriptor(
+                "openrouter_api",
+                "OpenRouter",
+            ))))
+            .expect("openrouter");
+        registry
+    }
+
     fn window(key: &str, used: u64, limit: u64, reset: Option<&str>) -> QuotaWindow {
         let reset_at = reset.map(|s| {
             chrono::DateTime::parse_from_rfc3339(s)
                 .expect("rfc3339")
                 .with_timezone(&chrono::Utc)
         });
-        QuotaWindow::new(
+        QuotaWindow::with_limit(
             key,
             key,
             QuotaWindowScope::Weekly,
             QuotaKind::Tokens,
             used,
-            limit,
+            std::num::NonZeroU64::new(limit).expect("fixture limit is non-zero"),
             reset_at,
             Confidence::High,
         )
@@ -320,7 +371,15 @@ mod tests {
         let report = QuotaReport::new(
             "opencode",
             "local_estimate",
-            vec![window("5h", 775, 0, None)],
+            vec![QuotaWindow::usage_only(
+                "5h",
+                "5-hour",
+                QuotaWindowScope::Rolling,
+                QuotaKind::Tokens,
+                775,
+                None,
+                Confidence::High,
+            )],
             chrono::Duration::hours(1),
         );
         let (summary, reset_at, confidence) = quota_card_fields(&report);
@@ -354,7 +413,102 @@ mod tests {
     }
 
     #[test]
-    fn scan_providers_joins_quota_report_for_matching_adapter_id() {
+    fn cards_follow_the_registry_and_never_default_to_detected() {
+        let storage = open_test_db();
+        let cards = ScanProviders::execute(&storage.conn, &test_registry()).expect("scan");
+
+        assert_eq!(cards.len(), 2, "one card per registered adapter");
+        assert_eq!(cards[0].provider_id, "opencode");
+        assert_eq!(cards[1].provider_id, "openrouter_api");
+        for card in &cards {
+            assert!(
+                !card.detected,
+                "{} must not be reported as detected before a refresh",
+                card.provider_id
+            );
+            assert_eq!(card.event_count, 0);
+            assert_eq!(card.cost_support, "No data");
+        }
+        assert_eq!(cards[0].health_status, "Source not found");
+        assert_eq!(cards[0].usage_support, "local estimate");
+        assert_eq!(cards[0].auth_requirement, "local files");
+        assert_eq!(cards[1].usage_support, "not supported");
+        assert_eq!(cards[1].auth_requirement, "API key");
+    }
+
+    #[test]
+    fn detection_and_run_state_drive_the_health_label() {
+        let storage = open_test_db();
+        let diag = DiagnosticsRepository::new(&storage.conn);
+        diag.upsert_provider_state(&ProviderStateRow {
+            provider_id: "opencode".to_string(),
+            display_name: "OpenCode".to_string(),
+            enabled: true,
+            detected: true,
+            detection_method: "local_sqlite".to_string(),
+            source_type: "local_sqlite".to_string(),
+            source_exists: true,
+            permission_state: "read_ok".to_string(),
+            adapter_version: "0.2.0".to_string(),
+            last_detection_at: Some("2026-08-04T00:00:00+00:00".to_string()),
+            detection_error_code: String::new(),
+        })
+        .expect("state");
+        diag.upsert_provider_state(&ProviderStateRow {
+            provider_id: "openrouter_api".to_string(),
+            display_name: "OpenRouter".to_string(),
+            enabled: true,
+            detected: false,
+            detection_method: "credential".to_string(),
+            source_type: "remote_api".to_string(),
+            source_exists: false,
+            permission_state: "credential_required".to_string(),
+            adapter_version: "0.2.0".to_string(),
+            last_detection_at: Some("2026-08-04T00:00:00+00:00".to_string()),
+            detection_error_code: "NOT_CONFIGURED".to_string(),
+        })
+        .expect("state");
+
+        let cards = ScanProviders::execute(&storage.conn, &test_registry()).expect("scan");
+        assert_eq!(cards[0].health_status, "Healthy");
+        assert_eq!(
+            cards[1].health_status, "Not configured",
+            "a provider waiting for an API key is not an error"
+        );
+        assert_eq!(cards[1].quota_summary, "No quota data");
+    }
+
+    #[test]
+    fn collector_errors_surface_on_the_card() {
+        let storage = open_test_db();
+        let diag = DiagnosticsRepository::new(&storage.conn);
+        diag.insert_collector_run(&CollectorRunRow {
+            id: 0,
+            provider_id: "opencode".to_string(),
+            collector_mode: "local_scan".to_string(),
+            started_at: "2026-08-04T00:00:00+00:00".to_string(),
+            finished_at: "2026-08-04T00:00:01+00:00".to_string(),
+            duration_ms: 1000,
+            source_records_seen: 0,
+            records_parsed: 0,
+            events_normalized: 0,
+            events_rejected: 0,
+            duplicates_skipped: 0,
+            events_inserted: 0,
+            quota_snapshots_inserted: 0,
+            warning_codes: Vec::new(),
+            error_code: "SOURCE_UNAVAILABLE".to_string(),
+            next_retry_at: None,
+        })
+        .expect("run");
+
+        let cards = ScanProviders::execute(&storage.conn, &test_registry()).expect("scan");
+        assert_eq!(cards[0].health_status, "Error (SOURCE_UNAVAILABLE)");
+        assert_eq!(cards[0].last_error_code, "SOURCE_UNAVAILABLE");
+    }
+
+    #[test]
+    fn stored_quota_report_is_joined_by_canonical_provider_id() {
         let storage = open_test_db();
         let report = QuotaReport::new(
             "opencode",
@@ -366,8 +520,8 @@ mod tests {
             .upsert_report(&report)
             .expect("upsert");
 
-        let providers = ScanProviders::execute(&storage.conn).expect("scan");
-        let opencode = providers
+        let cards = ScanProviders::execute(&storage.conn, &test_registry()).expect("scan");
+        let opencode = cards
             .iter()
             .find(|p| p.provider_id == "opencode")
             .expect("opencode card");
@@ -376,26 +530,50 @@ mod tests {
     }
 
     #[test]
-    fn scan_providers_uses_quota_ids_for_adapter_mismatched_cards() {
+    fn unsupported_quota_channel_is_labelled_not_supported() {
         let storage = open_test_db();
-        let report = QuotaReport::new(
-            "ollama_local",
-            "local_api",
-            vec![QuotaWindow::unlimited(
-                QuotaWindowScope::Other,
-                QuotaKind::Requests,
-            )],
-            chrono::Duration::hours(1),
-        );
-        lnwdeck_storage::repositories::QuotaRepository::new(&storage.conn)
-            .upsert_report(&report)
-            .expect("upsert");
+        let mut registry = AdapterRegistry::new();
+        registry
+            .register(Box::new(Fake(AdapterDescriptor {
+                quota_support: ChannelSupport::Unsupported,
+                ..local_descriptor("usage_only_provider", "Usage Only")
+            })))
+            .expect("register");
 
-        let providers = ScanProviders::execute(&storage.conn).expect("scan");
-        let ollama = providers
-            .iter()
-            .find(|p| p.provider_id == "ollama")
-            .expect("ollama card");
-        assert_eq!(ollama.quota_summary, "Local / Unlimited");
+        let cards = ScanProviders::execute(&storage.conn, &registry).expect("scan");
+        assert_eq!(cards[0].quota_support, "not supported");
+        assert_eq!(cards[0].quota_summary, "Not supported");
+    }
+
+    #[test]
+    fn cost_coverage_is_measured_from_stored_events() {
+        let storage = open_test_db();
+        storage
+            .conn
+            .execute(
+                "INSERT INTO usage_events (id, batch_id, timestamp, provider_id, model,
+                     tokens_input, tokens_output, confidence, data_source, cost)
+                 VALUES ('e1', 'b1', '2026-08-04T00:00:00+00:00', 'opencode', 'm', 10, 5, 'Medium', 'local_sqlite', '0.01')",
+                [],
+            )
+            .expect("priced event");
+        storage
+            .conn
+            .execute(
+                "INSERT INTO usage_events (id, batch_id, timestamp, provider_id, model,
+                     tokens_input, tokens_output, confidence, data_source, cost)
+                 VALUES ('e2', 'b1', '2026-08-04T00:01:00+00:00', 'opencode', 'm', 20, 5, 'Medium', 'local_sqlite', '')",
+                [],
+            )
+            .expect("unpriced event");
+
+        let cards = ScanProviders::execute(&storage.conn, &test_registry()).expect("scan");
+        assert_eq!(cards[0].event_count, 2);
+        assert_eq!(cards[0].total_tokens, 40);
+        assert_eq!(cards[0].cost_support, "Partially priced (1/2)");
+        assert_eq!(
+            cards[0].last_sync.as_deref(),
+            Some("2026-08-04T00:01:00+00:00")
+        );
     }
 }

@@ -7,6 +7,7 @@ members = [
     "crates/storage",
     "crates/application",
     "crates/provider-runtime",
+    "crates/provider-http",
     "crates/hook-manager",
     "apps/native-messaging-host",
     "crates/pricing",

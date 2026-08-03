@@ -327,7 +327,13 @@ fn quota_estimate_returns_usage_windows_without_fake_limits() {
         .find(|w| w.window_key == "5h")
         .expect("5h window");
     assert_eq!(window.used, 775, "sum of input+output+reasoning tokens");
-    assert_eq!(window.limit, 0, "limit is unknown, never fabricated");
+    assert_eq!(window.limit, None, "limit is unknown, never fabricated");
+    assert_eq!(window.remaining, None);
+    assert_eq!(window.used_percent, None);
+    assert_eq!(
+        window.remaining_percent, None,
+        "an unknown limit must not produce a percentage"
+    );
     assert_eq!(window.confidence, lnwdeck_domain::Confidence::Medium);
 }
 

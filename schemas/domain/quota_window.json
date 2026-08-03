@@ -1,19 +1,15 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "QuotaWindow",
-  "description": "One quota window: used/limit/remaining for a single reset period.",
+  "description": "One quota window.\n\n`limit`, `remaining`, `used_percent` and `remaining_percent` are `None` whenever the provider does not report a real limit. They are never defaulted to zero or to one hundred percent, so a consumer cannot render a progress bar for a window whose limit is unknown.",
   "type": "object",
   "required": [
     "confidence",
     "is_unlimited",
     "kind",
     "label",
-    "limit",
-    "remaining",
-    "remaining_percent",
     "scope",
     "used",
-    "used_percent",
     "window_key"
   ],
   "properties": {
@@ -30,17 +26,26 @@
       "type": "string"
     },
     "limit": {
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint64",
       "minimum": 0.0
     },
     "remaining": {
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint64",
       "minimum": 0.0
     },
     "remaining_percent": {
-      "type": "number",
+      "type": [
+        "number",
+        "null"
+      ],
       "format": "double"
     },
     "reset_at": {
@@ -59,7 +64,10 @@
       "minimum": 0.0
     },
     "used_percent": {
-      "type": "number",
+      "type": [
+        "number",
+        "null"
+      ],
       "format": "double"
     },
     "window_key": {

@@ -1,11 +1,13 @@
-use lnwdeck_domain::{
-    QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope, UsageBatch, DEFAULT_FRESHNESS,
+use lnwdeck_domain::{QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope, DEFAULT_FRESHNESS};
+use lnwdeck_provider_runtime::{
+    AdapterDescriptor, AdapterHealth, AdapterHealthStatus, AuthKind, ChannelSupport, Permission,
+    ProviderAdapter, SourceKind,
 };
-use lnwdeck_provider_runtime::{AdapterHealth, AdapterHealthStatus, Permission, ProviderAdapter};
 use std::net::{SocketAddr, TcpStream};
 use std::time::Duration;
 
 const DEFAULT_HOST: &str = "127.0.0.1:11434";
+const ADAPTER_VERSION: &str = "0.2.0";
 
 /// Ollama is a local model runtime without subscription quota. When the
 /// local API is reachable the adapter reports a genuine `Local / Unlimited`
@@ -54,17 +56,18 @@ impl OllamaAdapter {
 }
 
 impl ProviderAdapter for OllamaAdapter {
-    fn id(&self) -> &str {
-        "ollama_local"
-    }
-    fn name(&self) -> &str {
-        "Ollama"
-    }
-    fn collect_usage(&self) -> Result<UsageBatch, String> {
-        Ok(UsageBatch {
-            batch_id: format!("ollama_{}", chrono::Utc::now().timestamp()),
-            events: vec![],
-        })
+    fn descriptor(&self) -> AdapterDescriptor {
+        AdapterDescriptor {
+            id: "ollama_local",
+            display_name: "Ollama",
+            vendor: "Ollama",
+            source_kind: SourceKind::LocalApi,
+            // The local API exposes running models, not a request history.
+            usage_support: ChannelSupport::Unsupported,
+            quota_support: ChannelSupport::Native,
+            auth: AuthKind::None,
+            adapter_version: ADAPTER_VERSION,
+        }
     }
     fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
         if self.probe(Duration::from_millis(500)) {

@@ -15,7 +15,9 @@ use lnwdeck_provider_kiro::KiroAdapter;
 use lnwdeck_provider_ollama::OllamaAdapter;
 use lnwdeck_provider_opencode::OpenCodeAdapter;
 use lnwdeck_provider_openrouter::OpenRouterAdapter;
-use lnwdeck_provider_runtime::ProviderAdapter;
+use lnwdeck_provider_runtime::{
+    AdapterHealthStatus, AdapterRegistry, ChannelSupport, ProviderAdapter, NOT_SUPPORTED,
+};
 use lnwdeck_security::PrivacyGuard;
 use std::collections::HashSet;
 
@@ -23,14 +25,14 @@ fn builtin_adapters() -> Vec<Box<dyn ProviderAdapter>> {
     vec![
         Box::new(ClaudeAdapter::new()),
         Box::new(CodexAdapter::new()),
-        Box::new(CopilotAdapter),
-        Box::new(CursorAdapter),
-        Box::new(GeminiAdapter),
-        Box::new(GrokAdapter),
-        Box::new(KiroAdapter),
+        Box::new(CopilotAdapter::new()),
+        Box::new(CursorAdapter::new()),
+        Box::new(GeminiAdapter::new()),
+        Box::new(GrokAdapter::new()),
+        Box::new(KiroAdapter::new()),
         Box::new(OllamaAdapter::new()),
         Box::new(OpenCodeAdapter::new(&[0u8; 32])),
-        Box::new(OpenRouterAdapter),
+        Box::new(OpenRouterAdapter::new()),
     ]
 }
 
@@ -124,23 +126,39 @@ fn quota_reports_never_fabricate_percentages() {
         let result = adapter.collect_quota_report();
         if let Some(report) = result.report {
             for window in &report.windows {
-                if window.limit == 0 && !window.is_unlimited {
+                window.check_invariants().unwrap_or_else(|err| {
+                    panic!(
+                        "{} window {} is internally inconsistent: {err}",
+                        adapter.id(),
+                        window.window_key
+                    )
+                });
+                if window.limit.is_none() {
                     assert_eq!(
                         window.used_percent,
-                        0.0,
-                        "{} window {} has unknown limit; used_percent must be 0, not fabricated",
+                        None,
+                        "{} window {} has an unknown limit; a used percentage would be fabricated",
+                        adapter.id(),
+                        window.window_key
+                    );
+                    assert_eq!(
+                        window.remaining_percent,
+                        None,
+                        "{} window {} has an unknown limit; a remaining percentage would be fabricated",
                         adapter.id(),
                         window.window_key
                     );
                 }
                 if window.is_unlimited {
-                    assert_eq!(window.limit, 0, "unlimited window has no limit");
-                    assert_eq!(window.used_percent, 0.0);
+                    assert_eq!(window.limit, None, "unlimited window has no limit");
+                    assert_eq!(window.used_percent, None);
                 }
-                assert!(
-                    (0.0..=100.0).contains(&window.remaining_percent),
-                    "remaining_percent in range"
-                );
+                if let Some(percent) = window.remaining_percent {
+                    assert!(
+                        (0.0..=100.0).contains(&percent),
+                        "remaining_percent in range"
+                    );
+                }
             }
         }
     }
@@ -177,4 +195,221 @@ fn success_outcomes_carry_a_usable_report() {
             assert!(report.is_usable(), "{} report is usable", adapter.id());
         }
     }
+}
+
+#[test]
+fn every_descriptor_is_internally_consistent() {
+    for adapter in builtin_adapters() {
+        let descriptor = adapter.descriptor();
+        descriptor
+            .check()
+            .unwrap_or_else(|err| panic!("descriptor for {} is invalid: {err}", adapter.id()));
+        assert_eq!(
+            descriptor.id,
+            adapter.id(),
+            "id must come from the descriptor"
+        );
+        assert_eq!(descriptor.display_name, adapter.name());
+        assert!(
+            !descriptor.vendor.trim().is_empty(),
+            "{} must name its vendor",
+            adapter.id()
+        );
+    }
+}
+
+#[test]
+fn all_adapters_register_in_one_registry_without_id_collisions() {
+    let mut registry = AdapterRegistry::new();
+    for adapter in builtin_adapters() {
+        let id = adapter.id();
+        registry
+            .register(adapter)
+            .unwrap_or_else(|err| panic!("registering {id} failed: {err}"));
+    }
+    assert_eq!(registry.len(), 10, "all built-in providers registered");
+    for descriptor in registry.descriptors() {
+        assert_eq!(
+            registry.display_name(descriptor.id),
+            Some(descriptor.display_name),
+            "the registry resolves the display name for {}",
+            descriptor.id
+        );
+        assert!(registry.rank(descriptor.id).is_some());
+        assert!(registry.find(descriptor.id).is_some());
+    }
+    assert_eq!(registry.display_name("not_a_provider"), None);
+}
+
+/// The defect this suite exists for: an adapter must not report a successful
+/// collection while returning nothing. Either the descriptor declares the
+/// channel unsupported (and the attempt is recorded as NOT_SUPPORTED), or the
+/// channel returns data or a sanitized error code.
+#[test]
+fn unsupported_channels_never_produce_a_successful_empty_collection() {
+    for adapter in builtin_adapters() {
+        let descriptor = adapter.descriptor();
+        let usage = adapter.collect_usage_with_cursor(None);
+
+        if !descriptor.usage_support.is_supported() {
+            assert!(
+                usage.batch.is_none(),
+                "{} declares no usage support but produced a batch",
+                adapter.id()
+            );
+            assert_eq!(
+                usage.outcome.error_code,
+                NOT_SUPPORTED,
+                "{} must record an unsupported usage attempt explicitly",
+                adapter.id()
+            );
+            continue;
+        }
+
+        if let Some(batch) = &usage.batch {
+            assert!(
+                usage.outcome.error_code.is_empty(),
+                "{} returned a batch together with error {}",
+                adapter.id(),
+                usage.outcome.error_code
+            );
+            assert_eq!(
+                usage.outcome.events_normalized as usize,
+                batch.events.len(),
+                "{} must report the number of events it normalized",
+                adapter.id()
+            );
+        } else {
+            assert!(
+                !usage.outcome.error_code.is_empty(),
+                "{} produced neither a batch nor an error code",
+                adapter.id()
+            );
+        }
+    }
+}
+
+#[test]
+fn quota_channels_match_their_declared_support() {
+    for adapter in builtin_adapters() {
+        let descriptor = adapter.descriptor();
+        let result = adapter.collect_quota_report();
+
+        if !descriptor.quota_support.is_supported() {
+            assert!(result.report.is_none());
+            assert_eq!(
+                result.outcome.error_code,
+                NOT_SUPPORTED,
+                "{} declares no quota support",
+                adapter.id()
+            );
+            continue;
+        }
+
+        match &result.report {
+            Some(report) => assert!(
+                report.is_usable(),
+                "{} returned an unusable report",
+                adapter.id()
+            ),
+            None => assert!(
+                !result.outcome.error_code.is_empty(),
+                "{} returned no report and no error code",
+                adapter.id()
+            ),
+        }
+    }
+}
+
+/// A provider whose source is absent must never look healthy. On a machine
+/// without a given tool installed the adapter reports Degraded, Unhealthy,
+/// NotConfigured or Unsupported, never Healthy.
+#[test]
+fn health_is_never_healthy_without_a_readable_source() {
+    for adapter in builtin_adapters() {
+        let detection = adapter.detect().expect("detect");
+        let health = adapter.health_check();
+        if !detection.detected {
+            assert_ne!(
+                health.status,
+                AdapterHealthStatus::Healthy,
+                "{} claims health while its source is not detected ({}), message: {}",
+                adapter.id(),
+                detection.permission_state,
+                health.message
+            );
+        }
+        assert!(
+            !health.message.contains(":\\") && !health.message.contains("Users"),
+            "{} health message must not leak a path: {}",
+            adapter.id(),
+            health.message
+        );
+    }
+}
+
+/// Credential-backed adapters must not perform any network request before the
+/// user has stored a key: they report NOT_CONFIGURED instead.
+#[test]
+fn credential_adapters_stay_inert_until_configured() {
+    for adapter in builtin_adapters() {
+        let descriptor = adapter.descriptor();
+        if !descriptor.needs_credentials() {
+            continue;
+        }
+        let detection = adapter.detect().expect("detect");
+        if !detection.detected {
+            assert_eq!(
+                detection.detection_error_code,
+                "NOT_CONFIGURED",
+                "{} must state that a credential is required",
+                adapter.id()
+            );
+            assert_eq!(
+                adapter.health_check().status,
+                AdapterHealthStatus::NotConfigured,
+                "{} must report itself as not configured",
+                adapter.id()
+            );
+        }
+    }
+}
+
+#[test]
+fn declared_support_covers_the_documented_provider_matrix() {
+    let mut by_id = std::collections::HashMap::new();
+    for adapter in builtin_adapters() {
+        by_id.insert(adapter.id(), adapter.descriptor());
+    }
+
+    for id in [
+        "anthropic_claude",
+        "openai_codex",
+        "opencode",
+        "google_gemini",
+        "cursor_ide",
+        "github_copilot",
+        "kiro_ai",
+    ] {
+        let descriptor = by_id.get(id).unwrap_or_else(|| panic!("{id} registered"));
+        assert_eq!(
+            descriptor.usage_support,
+            ChannelSupport::LocalEstimate,
+            "{id} collects usage from local artifacts"
+        );
+        assert_eq!(descriptor.quota_support, ChannelSupport::LocalEstimate);
+        assert!(!descriptor.needs_credentials());
+    }
+
+    for id in ["openrouter_api", "xai_grok"] {
+        let descriptor = by_id.get(id).unwrap_or_else(|| panic!("{id} registered"));
+        assert_eq!(descriptor.quota_support, ChannelSupport::Native);
+        assert_eq!(descriptor.usage_support, ChannelSupport::Unsupported);
+        assert!(descriptor.needs_credentials());
+    }
+
+    let ollama = by_id.get("ollama_local").expect("ollama registered");
+    assert_eq!(ollama.quota_support, ChannelSupport::Native);
+    assert_eq!(ollama.usage_support, ChannelSupport::Unsupported);
+    assert!(!ollama.needs_credentials());
 }

@@ -1,14 +1,27 @@
-use lnwdeck_domain::{QuotaReport, UsageBatch};
-use lnwdeck_provider_runtime::{AdapterHealth, AdapterHealthStatus, Permission, ProviderAdapter};
+use lnwdeck_domain::UsageBatch;
+use lnwdeck_provider_runtime::{
+    AdapterDescriptor, AdapterHealth, AdapterHealthStatus, AuthKind, ChannelSupport,
+    ProviderAdapter, SourceKind,
+};
+
+fn descriptor(id: &'static str, name: &'static str) -> AdapterDescriptor {
+    AdapterDescriptor {
+        id,
+        display_name: name,
+        vendor: "Test Vendor",
+        source_kind: SourceKind::LocalJsonl,
+        usage_support: ChannelSupport::LocalEstimate,
+        quota_support: ChannelSupport::Unsupported,
+        auth: AuthKind::LocalFiles,
+        adapter_version: "0.2.0",
+    }
+}
 
 struct TestAdapter;
 
 impl ProviderAdapter for TestAdapter {
-    fn id(&self) -> &str {
-        "test_adapter"
-    }
-    fn name(&self) -> &str {
-        "Test Adapter"
+    fn descriptor(&self) -> AdapterDescriptor {
+        descriptor("test_adapter", "Test Adapter")
     }
     fn collect_usage(&self) -> Result<UsageBatch, String> {
         Ok(UsageBatch {
@@ -16,43 +29,28 @@ impl ProviderAdapter for TestAdapter {
             events: vec![],
         })
     }
-    fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
-        Ok(None)
-    }
     fn health_check(&self) -> AdapterHealth {
         AdapterHealth {
             status: AdapterHealthStatus::Healthy,
             message: "ok".to_string(),
         }
     }
-    fn required_permissions(&self) -> Vec<Permission> {
-        vec![]
-    }
 }
 
 struct FailingAdapter;
 
 impl ProviderAdapter for FailingAdapter {
-    fn id(&self) -> &str {
-        "failing_adapter"
-    }
-    fn name(&self) -> &str {
-        "Failing Adapter"
+    fn descriptor(&self) -> AdapterDescriptor {
+        descriptor("failing_adapter", "Failing Adapter")
     }
     fn collect_usage(&self) -> Result<UsageBatch, String> {
         Err("SOURCE_UNAVAILABLE".to_string())
-    }
-    fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
-        Ok(None)
     }
     fn health_check(&self) -> AdapterHealth {
         AdapterHealth {
             status: AdapterHealthStatus::Unhealthy,
             message: "failing".to_string(),
         }
-    }
-    fn required_permissions(&self) -> Vec<Permission> {
-        vec![]
     }
 }
 
@@ -139,8 +137,10 @@ fn collection_outcome_serializes_without_forbidden_fields() {
 fn collection_result_exposes_diagnostic_fields() {
     let result = TestAdapter.collect_usage_with_cursor(None);
     let outcome = &result.outcome;
-    assert_eq!(outcome.collector_mode, "basic");
-    assert_eq!(outcome.duration_ms, 0, "basic mode reports zero duration");
+    assert_eq!(
+        outcome.collector_mode, "local_scan",
+        "the collector mode comes from the declared channel support"
+    );
     assert_eq!(outcome.source_records_seen, 0);
     assert_eq!(outcome.records_parsed, 0);
     assert_eq!(outcome.events_normalized, 0);
@@ -150,4 +150,75 @@ fn collection_result_exposes_diagnostic_fields() {
     assert_eq!(outcome.quota_snapshots_inserted, 0);
     assert!(outcome.warning_codes.is_empty());
     assert!(outcome.next_retry_at.is_none());
+}
+
+/// An adapter whose descriptor declares no usage support must never produce a
+/// successful collection: the channel is not called and the attempt is
+/// recorded as NOT_SUPPORTED.
+#[test]
+fn unsupported_channels_are_recorded_as_not_supported() {
+    struct InertAdapter;
+    impl ProviderAdapter for InertAdapter {
+        fn descriptor(&self) -> AdapterDescriptor {
+            AdapterDescriptor {
+                id: "inert",
+                display_name: "Inert",
+                vendor: "Test Vendor",
+                source_kind: SourceKind::None,
+                usage_support: ChannelSupport::Unsupported,
+                quota_support: ChannelSupport::Unsupported,
+                auth: AuthKind::None,
+                adapter_version: "0.2.0",
+            }
+        }
+        fn collect_usage(&self) -> Result<UsageBatch, String> {
+            panic!("an unsupported usage channel must never be invoked");
+        }
+    }
+
+    let usage = InertAdapter.collect_usage_with_cursor(Some("cursor-1"));
+    assert!(usage.batch.is_none(), "no batch is produced");
+    assert_eq!(usage.outcome.error_code, "NOT_SUPPORTED");
+    assert!(usage.outcome.is_not_supported());
+    assert_eq!(usage.outcome.events_normalized, 0);
+    assert_eq!(usage.outcome.collector_mode, "unsupported");
+    assert_eq!(
+        usage.next_cursor.as_deref(),
+        Some("cursor-1"),
+        "an unsupported attempt must not disturb the stored cursor"
+    );
+
+    let quota = InertAdapter.collect_quota_report();
+    assert!(quota.report.is_none());
+    assert_eq!(quota.outcome.error_code, "NOT_SUPPORTED");
+
+    let health = InertAdapter.health_check();
+    assert_eq!(
+        health.status,
+        AdapterHealthStatus::Unsupported,
+        "an adapter that collects nothing must never report itself healthy"
+    );
+
+    let detection = InertAdapter.detect().expect("detection must not fail");
+    assert!(!detection.detected);
+    assert_eq!(detection.detection_error_code, "NOT_SUPPORTED");
+}
+
+/// A supported channel that returns `Ok(None)` means the source was missing,
+/// which must stay distinguishable from an unimplemented integration.
+#[test]
+fn supported_channel_without_source_reports_source_unavailable() {
+    struct SourcelessAdapter;
+    impl ProviderAdapter for SourcelessAdapter {
+        fn descriptor(&self) -> AdapterDescriptor {
+            AdapterDescriptor {
+                quota_support: ChannelSupport::LocalEstimate,
+                ..descriptor("sourceless", "Sourceless")
+            }
+        }
+    }
+
+    let quota = SourcelessAdapter.collect_quota_report();
+    assert!(quota.report.is_none());
+    assert_eq!(quota.outcome.error_code, "SOURCE_UNAVAILABLE");
 }

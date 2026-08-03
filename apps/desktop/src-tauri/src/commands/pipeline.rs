@@ -10,7 +10,7 @@ use lnwdeck_provider_kiro::KiroAdapter;
 use lnwdeck_provider_ollama::OllamaAdapter;
 use lnwdeck_provider_opencode::OpenCodeAdapter;
 use lnwdeck_provider_openrouter::OpenRouterAdapter;
-use lnwdeck_provider_runtime::ProviderAdapter;
+use lnwdeck_provider_runtime::{AdapterRegistry, ProviderAdapter};
 use lnwdeck_storage::repositories::{
     AppSettingsRepository, CollectorRunRow, DiagnosticsRepository, PipelineTotals, ProviderStateRow,
 };
@@ -29,7 +29,7 @@ pub struct PipelineDiagnostics {
     pub runs: Vec<CollectorRunRow>,
 }
 
-fn load_or_create_hash_key(conn: &rusqlite::Connection) -> Result<Vec<u8>, String> {
+pub fn load_or_create_hash_key(conn: &rusqlite::Connection) -> Result<Vec<u8>, String> {
     let settings = AppSettingsRepository::new(conn);
     if let Some(stored) = settings.get("hash_key").map_err(|e| e.to_string())? {
         if stored.len() == 64 {
@@ -46,19 +46,44 @@ fn load_or_create_hash_key(conn: &rusqlite::Connection) -> Result<Vec<u8>, Strin
     Ok(key.to_vec())
 }
 
-fn builtin_adapters(hash_key: &[u8]) -> Vec<Box<dyn ProviderAdapter>> {
-    vec![
+/// Builds the provider registry.
+///
+/// Registration validates each descriptor and rejects duplicate ids, so a
+/// broken adapter surfaces here instead of silently shadowing another
+/// provider. The returned error is reported to the caller, never swallowed.
+fn build_registry(hash_key: &[u8]) -> Result<AdapterRegistry, String> {
+    let adapters: Vec<Box<dyn ProviderAdapter>> = vec![
         Box::new(OpenCodeAdapter::new(hash_key)),
         Box::new(CodexAdapter::new()),
-        Box::new(GeminiAdapter),
-        Box::new(KiroAdapter),
         Box::new(ClaudeAdapter::new()),
-        Box::new(CopilotAdapter),
-        Box::new(CursorAdapter),
-        Box::new(GrokAdapter),
+        Box::new(GeminiAdapter::new()),
+        Box::new(CursorAdapter::new()),
+        Box::new(CopilotAdapter::new()),
+        Box::new(KiroAdapter::new()),
         Box::new(OllamaAdapter::new()),
-        Box::new(OpenRouterAdapter),
-    ]
+        Box::new(OpenRouterAdapter::new()),
+        Box::new(GrokAdapter::new()),
+    ];
+    let mut registry = AdapterRegistry::new();
+    for adapter in adapters {
+        let id = adapter.id();
+        registry
+            .register(adapter)
+            .map_err(|err| format!("adapter {id} could not be registered: {err}"))?;
+    }
+    Ok(registry)
+}
+
+/// Returns the registry, building it on first use.
+pub fn ensure_registry<'a>(
+    state: &'a AppState,
+    hash_key: &[u8],
+) -> Result<std::sync::MutexGuard<'a, AdapterRegistry>, String> {
+    let mut guard = state.registry.lock().map_err(|e| e.to_string())?;
+    if guard.is_empty() {
+        *guard = build_registry(hash_key)?;
+    }
+    Ok(guard)
 }
 
 /// Runs detection and collection for every registered adapter, then
@@ -68,15 +93,10 @@ pub fn refresh_now(state: &AppState) -> Result<RefreshCycleOutcome, String> {
     let storage = storage_guard.as_ref().ok_or("storage not initialized")?;
     let hash_key = load_or_create_hash_key(&storage.conn)?;
 
-    let mut adapter_guard = state.adapters.lock().map_err(|e| e.to_string())?;
-    if adapter_guard.is_empty() {
-        *adapter_guard = builtin_adapters(&hash_key);
-    }
-    let adapters = adapter_guard;
-    let refs: Vec<&dyn ProviderAdapter> = adapters.iter().map(|a| a.as_ref()).collect();
+    let registry = ensure_registry(state, &hash_key)?;
     Ok(lnwdeck_application::refresh::RefreshAll::execute(
         &storage.conn,
-        &refs,
+        &registry.refs(),
     ))
 }
 
@@ -102,16 +122,11 @@ pub fn refresh_provider(
     let storage = storage_guard.as_ref().ok_or("storage not initialized")?;
     let hash_key = load_or_create_hash_key(&storage.conn)?;
 
-    let mut adapter_guard = state.adapters.lock().map_err(|e| e.to_string())?;
-    if adapter_guard.is_empty() {
-        *adapter_guard = builtin_adapters(&hash_key);
-    }
-    let adapter = adapter_guard
-        .iter()
-        .find(|a| a.id() == provider_id)
+    let registry = ensure_registry(&state, &hash_key)?;
+    let adapter = registry
+        .find(&provider_id)
         .ok_or_else(|| format!("unknown provider: {provider_id}"))?;
-    let cycle =
-        lnwdeck_application::refresh::RefreshAll::refresh_provider(&storage.conn, adapter.as_ref());
+    let cycle = lnwdeck_application::refresh::RefreshAll::refresh_provider(&storage.conn, adapter);
     let _ = app.emit("quota-updated", ());
     Ok(cycle)
 }
@@ -147,20 +162,27 @@ pub fn get_pipeline_diagnostics(state: State<'_, AppState>) -> Result<PipelineDi
 mod tests {
     use super::*;
     use chrono::DateTime;
-    use lnwdeck_domain::{Confidence, QuotaReport, UsageBatch, UsageEvent};
+    use lnwdeck_domain::{Confidence, UsageBatch, UsageEvent};
     use lnwdeck_provider_runtime::{
-        AdapterHealth, AdapterHealthStatus, DetectionResult, Permission,
+        AdapterDescriptor, AdapterHealth, AdapterHealthStatus, AuthKind, ChannelSupport,
+        DetectionResult, Permission, SourceKind,
     };
     use tempfile::tempdir;
 
     struct FakeAdapter;
 
     impl ProviderAdapter for FakeAdapter {
-        fn id(&self) -> &str {
-            "fake_provider"
-        }
-        fn name(&self) -> &str {
-            "Fake Provider"
+        fn descriptor(&self) -> AdapterDescriptor {
+            AdapterDescriptor {
+                id: "fake_provider",
+                display_name: "Fake Provider",
+                vendor: "Fixture",
+                source_kind: SourceKind::LocalJsonl,
+                usage_support: ChannelSupport::LocalEstimate,
+                quota_support: ChannelSupport::Unsupported,
+                auth: AuthKind::LocalFiles,
+                adapter_version: "0.2.0",
+            }
         }
         fn collect_usage(&self) -> Result<UsageBatch, String> {
             Ok(UsageBatch {
@@ -190,9 +212,6 @@ mod tests {
                     },
                 ],
             })
-        }
-        fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
-            Ok(None)
         }
         fn health_check(&self) -> AdapterHealth {
             AdapterHealth {
@@ -227,7 +246,12 @@ mod tests {
         let dir = std::mem::ManuallyDrop::new(dir);
         let db_path = dir.path().join("test.db");
         let state = AppState::new(db_path);
-        *state.adapters.lock().expect("lock") = vec![Box::new(FakeAdapter)];
+        {
+            let mut registry = state.registry.lock().expect("lock");
+            registry
+                .register(Box::new(FakeAdapter))
+                .expect("register fixture adapter");
+        }
         state
     }
 
@@ -250,7 +274,7 @@ mod tests {
         assert_eq!(cycle.usage[0].events_inserted, 2);
         assert_eq!(cycle.usage[0].error_code, "");
         assert_eq!(cycle.quota.len(), 1);
-        assert_eq!(cycle.quota[0].error_code, "UNSUPPORTED");
+        assert_eq!(cycle.quota[0].error_code, "NOT_SUPPORTED");
 
         let guard = state.ensure_storage().expect("storage");
         let storage = guard.as_ref().expect("storage value");
@@ -260,7 +284,11 @@ mod tests {
         assert!(totals.last_successful_sync.is_some());
         assert_eq!(diag.provider_states().expect("states").len(), 1);
         assert_eq!(diag.latest_runs().expect("runs").len(), 2);
-        assert_eq!(diag.migration_version().expect("migration"), 4);
+        assert_eq!(
+            diag.migration_version().expect("migration") as usize,
+            lnwdeck_storage::migrations::known_migrations().len(),
+            "every migration shipped in this build must be recorded"
+        );
     }
 
     #[test]

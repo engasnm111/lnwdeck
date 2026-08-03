@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/windows-schema.json",
+  "identifier": "main-window",
+  "description": "Permissions for the main dashboard window. Grants the core set so the webview can listen for backend events (update-available, quota-updated, provider refresh) and query its own window state. Application commands are invoked directly and are not part of the ACL.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

@@ -2,7 +2,8 @@ use chrono::DateTime;
 use lnwdeck_application::refresh::RefreshAll;
 use lnwdeck_domain::{Confidence, QuotaReport, UsageBatch, UsageEvent};
 use lnwdeck_provider_runtime::{
-    AdapterHealth, AdapterHealthStatus, DetectionResult, Permission, ProviderAdapter,
+    AdapterDescriptor, AdapterHealth, AdapterHealthStatus, AuthKind, ChannelSupport,
+    DetectionResult, Permission, ProviderAdapter, SourceKind,
 };
 use lnwdeck_storage::repositories::DiagnosticsRepository;
 use lnwdeck_storage::{migrations::apply_all, Storage};
@@ -22,14 +23,35 @@ fn event(id: &str, model: &str, input: u64, output: u64) -> UsageEvent {
     }
 }
 
+/// Descriptor for a fixture adapter. Usage is always declared as a local
+/// estimate so the runtime actually invokes `collect_usage`; the quota channel
+/// is declared per adapter.
+fn fixture_descriptor(
+    id: &'static str,
+    display_name: &'static str,
+    quota_support: ChannelSupport,
+) -> AdapterDescriptor {
+    AdapterDescriptor {
+        id,
+        display_name,
+        vendor: "Fixture",
+        source_kind: SourceKind::LocalJsonl,
+        usage_support: ChannelSupport::LocalEstimate,
+        quota_support,
+        auth: AuthKind::LocalFiles,
+        adapter_version: "0.2.0",
+    }
+}
+
 struct SuccessAdapter;
 
 impl ProviderAdapter for SuccessAdapter {
-    fn id(&self) -> &str {
-        "fake_provider"
-    }
-    fn name(&self) -> &str {
-        "Fake Provider"
+    fn descriptor(&self) -> AdapterDescriptor {
+        fixture_descriptor(
+            "fake_provider",
+            "Fake Provider",
+            ChannelSupport::Unsupported,
+        )
     }
     fn collect_usage(&self) -> Result<UsageBatch, String> {
         Ok(UsageBatch {
@@ -89,11 +111,12 @@ impl ProviderAdapter for SuccessAdapter {
 struct FailingAdapter;
 
 impl ProviderAdapter for FailingAdapter {
-    fn id(&self) -> &str {
-        "failing_provider"
-    }
-    fn name(&self) -> &str {
-        "Failing Provider"
+    fn descriptor(&self) -> AdapterDescriptor {
+        fixture_descriptor(
+            "failing_provider",
+            "Failing Provider",
+            ChannelSupport::Unsupported,
+        )
     }
     fn collect_usage(&self) -> Result<UsageBatch, String> {
         Err("SOURCE_UNAVAILABLE".to_string())
@@ -130,11 +153,12 @@ impl ProviderAdapter for FailingAdapter {
 struct ViolatingAdapter;
 
 impl ProviderAdapter for ViolatingAdapter {
-    fn id(&self) -> &str {
-        "violating_provider"
-    }
-    fn name(&self) -> &str {
-        "Violating Provider"
+    fn descriptor(&self) -> AdapterDescriptor {
+        fixture_descriptor(
+            "violating_provider",
+            "Violating Provider",
+            ChannelSupport::Unsupported,
+        )
     }
     fn collect_usage(&self) -> Result<UsageBatch, String> {
         let mut evt = event("evt_bad", "model-x", 1, 1);
@@ -200,7 +224,7 @@ fn refresh_persists_detection_collection_and_events() {
 
     let quota_outcome = &cycle.quota[0];
     assert_eq!(
-        quota_outcome.error_code, "UNSUPPORTED",
+        quota_outcome.error_code, "NOT_SUPPORTED",
         "adapter without quota support reports unsupported"
     );
     assert_eq!(quota_outcome.windows_collected, 0);
@@ -292,11 +316,12 @@ fn privacy_violation_rejects_batch_and_is_recorded() {
 struct QuotaAdapter;
 
 impl ProviderAdapter for QuotaAdapter {
-    fn id(&self) -> &str {
-        "quota_provider"
-    }
-    fn name(&self) -> &str {
-        "Quota Provider"
+    fn descriptor(&self) -> AdapterDescriptor {
+        fixture_descriptor(
+            "quota_provider",
+            "Quota Provider",
+            ChannelSupport::LocalEstimate,
+        )
     }
     fn collect_usage(&self) -> Result<UsageBatch, String> {
         Ok(UsageBatch {
@@ -305,23 +330,23 @@ impl ProviderAdapter for QuotaAdapter {
         })
     }
     fn collect_quota(&self) -> Result<Option<lnwdeck_domain::QuotaReport>, String> {
-        let window = lnwdeck_domain::QuotaWindow::new(
+        let window = lnwdeck_domain::QuotaWindow::with_limit(
             "5h",
             "5-hour",
             lnwdeck_domain::QuotaWindowScope::Rolling,
             lnwdeck_domain::QuotaKind::Requests,
             40,
-            100,
+            std::num::NonZeroU64::new(100).expect("fixture limit is non-zero"),
             None,
             Confidence::High,
         );
-        let window2 = lnwdeck_domain::QuotaWindow::new(
+        let window2 = lnwdeck_domain::QuotaWindow::with_limit(
             "7d",
             "7-day",
             lnwdeck_domain::QuotaWindowScope::Weekly,
             lnwdeck_domain::QuotaKind::Requests,
             300,
-            1000,
+            std::num::NonZeroU64::new(1000).expect("fixture limit is non-zero"),
             None,
             Confidence::High,
         );
@@ -346,11 +371,12 @@ impl ProviderAdapter for QuotaAdapter {
 struct UsageOkQuotaFailingAdapter;
 
 impl ProviderAdapter for UsageOkQuotaFailingAdapter {
-    fn id(&self) -> &str {
-        "mixed_provider"
-    }
-    fn name(&self) -> &str {
-        "Mixed Provider"
+    fn descriptor(&self) -> AdapterDescriptor {
+        fixture_descriptor(
+            "mixed_provider",
+            "Mixed Provider",
+            ChannelSupport::LocalEstimate,
+        )
     }
     fn collect_usage(&self) -> Result<UsageBatch, String> {
         Ok(UsageBatch {
@@ -375,11 +401,12 @@ impl ProviderAdapter for UsageOkQuotaFailingAdapter {
 struct QuotaLeakingAdapter;
 
 impl ProviderAdapter for QuotaLeakingAdapter {
-    fn id(&self) -> &str {
-        "leaking_provider"
-    }
-    fn name(&self) -> &str {
-        "Leaking Provider"
+    fn descriptor(&self) -> AdapterDescriptor {
+        fixture_descriptor(
+            "leaking_provider",
+            "Leaking Provider",
+            ChannelSupport::LocalEstimate,
+        )
     }
     fn collect_usage(&self) -> Result<UsageBatch, String> {
         Ok(UsageBatch {
@@ -423,7 +450,7 @@ fn quota_report_is_persisted_by_refresh_cycle() {
         .expect("latest")
         .expect("report exists");
     assert_eq!(report.windows.len(), 2);
-    assert_eq!(report.windows[0].remaining, 60);
+    assert_eq!(report.windows[0].remaining, Some(60));
     assert!(report.is_usable());
 
     let diag = DiagnosticsRepository::new(&storage.conn);
@@ -479,7 +506,7 @@ fn refresh_provider_isolates_a_single_adapter() {
     assert_eq!(cycle.quota.len(), 1, "exactly one quota outcome");
     assert_eq!(cycle.usage[0].provider_id, "fake_provider");
     assert_eq!(cycle.usage[0].events_inserted, 2);
-    assert_eq!(cycle.quota[0].error_code, "UNSUPPORTED");
+    assert_eq!(cycle.quota[0].error_code, "NOT_SUPPORTED");
 
     let failing_runs: i64 = storage
         .conn

@@ -1,3 +1,4 @@
+use crate::adapter::NOT_SUPPORTED;
 use chrono::{DateTime, Utc};
 use lnwdeck_domain::UsageBatch;
 use serde::Serialize;
@@ -91,6 +92,19 @@ impl CollectionOutcome {
         self.warning_codes.push(code.into());
         self
     }
+
+    /// Outcome for a channel the adapter does not implement. It is recorded
+    /// as an explicit `NOT_SUPPORTED` attempt so diagnostics never show a
+    /// successful run for a provider that collects nothing.
+    pub fn not_supported(provider_id: &str, started_at: DateTime<Utc>) -> Self {
+        Self::failure(provider_id, "unsupported", started_at, NOT_SUPPORTED)
+    }
+
+    /// True when this attempt collected nothing because the channel is not
+    /// implemented, as opposed to failing or finding no new data.
+    pub fn is_not_supported(&self) -> bool {
+        self.error_code == NOT_SUPPORTED
+    }
 }
 
 impl CollectionResult {
@@ -123,6 +137,20 @@ impl CollectionResult {
                 outcome: CollectionOutcome::failure(provider_id, collector_mode, started_at, code),
                 next_cursor: cursor.map(str::to_string),
             },
+        }
+    }
+
+    /// Result for a usage channel the adapter does not implement. No batch is
+    /// produced and the cursor is preserved untouched.
+    pub fn not_supported(
+        provider_id: &str,
+        started_at: DateTime<Utc>,
+        cursor: Option<&str>,
+    ) -> Self {
+        CollectionResult {
+            batch: None,
+            outcome: CollectionOutcome::not_supported(provider_id, started_at),
+            next_cursor: cursor.map(str::to_string),
         }
     }
 }

@@ -4,7 +4,8 @@ use lnwdeck_domain::{
     DEFAULT_FRESHNESS,
 };
 use lnwdeck_provider_runtime::{
-    AdapterHealth, AdapterHealthStatus, DetectionResult, Permission, ProviderAdapter,
+    AdapterDescriptor, AdapterHealth, AdapterHealthStatus, AuthKind, ChannelSupport,
+    DetectionResult, Permission, ProviderAdapter, SourceKind,
 };
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -145,33 +146,30 @@ impl ClaudeAdapter {
             return Ok(None);
         };
         let windows = vec![
-            QuotaWindow::new(
+            QuotaWindow::usage_only(
                 "5h",
                 "5-hour",
                 QuotaWindowScope::Rolling,
                 QuotaKind::Tokens,
                 five_h,
-                0,
                 None,
                 Confidence::Medium,
             ),
-            QuotaWindow::new(
+            QuotaWindow::usage_only(
                 "7d",
                 "7-day",
                 QuotaWindowScope::Weekly,
                 QuotaKind::Tokens,
                 seven_d,
-                0,
                 None,
                 Confidence::Medium,
             ),
-            QuotaWindow::new(
+            QuotaWindow::usage_only(
                 "30d",
                 "30-day",
                 QuotaWindowScope::Monthly,
                 QuotaKind::Tokens,
                 thirty_d,
-                0,
                 None,
                 Confidence::Medium,
             ),
@@ -242,11 +240,17 @@ fn parse_session_line(line: &str) -> Option<(i64, u64, u64)> {
 }
 
 impl ProviderAdapter for ClaudeAdapter {
-    fn id(&self) -> &str {
-        "anthropic_claude"
-    }
-    fn name(&self) -> &str {
-        "Claude"
+    fn descriptor(&self) -> AdapterDescriptor {
+        AdapterDescriptor {
+            id: "anthropic_claude",
+            display_name: "Claude",
+            vendor: "Anthropic",
+            source_kind: SourceKind::LocalJsonl,
+            usage_support: ChannelSupport::LocalEstimate,
+            quota_support: ChannelSupport::LocalEstimate,
+            auth: AuthKind::LocalFiles,
+            adapter_version: ADAPTER_VERSION,
+        }
     }
     fn collect_usage(&self) -> Result<UsageBatch, String> {
         Ok(UsageBatch {
@@ -365,7 +369,8 @@ mod tests {
         assert_eq!(five_h.used, 1500, "only sessions in last 5h");
         assert_eq!(seven_d.used, 2000, "both sessions within 7d");
         assert_eq!(thirty_d.used, 2000);
-        assert_eq!(five_h.limit, 0, "limit is unknown, never fabricated");
+        assert_eq!(five_h.limit, None, "limit is unknown, never fabricated");
+        assert_eq!(five_h.remaining_percent, None);
     }
 
     #[test]

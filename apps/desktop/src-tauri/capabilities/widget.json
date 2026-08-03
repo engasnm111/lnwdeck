@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/windows-schema.json",
+  "identifier": "widget-window",
+  "description": "Least-privilege permissions for the floating quota widget: listen for quota and widget-settings events, drag the frameless window by its drag region, and read its own position and monitor for clamping.",
+  "windows": ["widget"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-start-dragging",
+    "core:window:allow-outer-position",
+    "core:window:allow-outer-size",
+    "core:window:allow-current-monitor",
+    "core:window:allow-scale-factor",
+    "core:webview:default",
+    "core:app:default"
+  ]
+}

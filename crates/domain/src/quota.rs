@@ -1,6 +1,7 @@
 use chrono::{DateTime, Duration, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::num::NonZeroU64;
 
 use crate::Confidence;
 
@@ -60,13 +61,19 @@ impl QuotaStatus {
         match code {
             "AUTH_EXPIRED" | "AUTH_FAILED" | "TOKEN_EXPIRED" => Self::AuthExpired,
             "RATE_LIMITED" | "RATE_LIMIT" => Self::RateLimited,
-            "SOURCE_UNAVAILABLE" | "NOT_INSTALLED" | "UNSUPPORTED" => Self::Unavailable,
+            "SOURCE_UNAVAILABLE" | "NOT_INSTALLED" | "UNSUPPORTED" | "NOT_SUPPORTED"
+            | "NOT_CONFIGURED" => Self::Unavailable,
             _ => Self::Error,
         }
     }
 }
 
-/// One quota window: used/limit/remaining for a single reset period.
+/// One quota window.
+///
+/// `limit`, `remaining`, `used_percent` and `remaining_percent` are `None`
+/// whenever the provider does not report a real limit. They are never
+/// defaulted to zero or to one hundred percent, so a consumer cannot render
+/// a progress bar for a window whose limit is unknown.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct QuotaWindow {
     pub window_key: String,
@@ -74,46 +81,74 @@ pub struct QuotaWindow {
     pub scope: QuotaWindowScope,
     pub kind: QuotaKind,
     pub used: u64,
-    pub limit: u64,
-    pub remaining: u64,
-    pub used_percent: f64,
-    pub remaining_percent: f64,
+    pub limit: Option<u64>,
+    pub remaining: Option<u64>,
+    pub used_percent: Option<f64>,
+    pub remaining_percent: Option<f64>,
     pub reset_at: Option<DateTime<Utc>>,
     pub is_unlimited: bool,
     pub confidence: Confidence,
 }
 
 impl QuotaWindow {
-    /// Builds a window from raw used/limit values and derives remaining and
-    /// percentages. A `limit` of zero means the limit is unknown; such
-    /// windows are never rendered as 0% remaining.
+    /// Window with a real, provider-reported limit. Remaining and both
+    /// percentages are derived from `used` and `limit`.
+    ///
+    /// `limit` is a `NonZeroU64` on purpose: a caller that only has a
+    /// possibly-unknown limit must decide explicitly between this
+    /// constructor and [`QuotaWindow::usage_only`], instead of passing zero
+    /// and silently getting a fabricated full bar.
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub fn with_limit(
         window_key: impl Into<String>,
         label: impl Into<String>,
         scope: QuotaWindowScope,
         kind: QuotaKind,
         used: u64,
-        limit: u64,
+        limit: NonZeroU64,
         reset_at: Option<DateTime<Utc>>,
         confidence: Confidence,
     ) -> Self {
-        let remaining = limit.saturating_sub(used);
-        let used_percent = if limit > 0 {
-            (used as f64 / limit as f64 * 100.0).clamp(0.0, 100.0)
-        } else {
-            0.0
-        };
+        let limit_value = limit.get();
+        let used_percent = (used as f64 / limit_value as f64 * 100.0).clamp(0.0, 100.0);
         Self {
             window_key: window_key.into(),
             label: label.into(),
             scope,
             kind,
             used,
-            limit,
-            remaining,
-            used_percent,
-            remaining_percent: 100.0 - used_percent,
+            limit: Some(limit_value),
+            remaining: Some(limit_value.saturating_sub(used)),
+            used_percent: Some(used_percent),
+            remaining_percent: Some(100.0 - used_percent),
+            reset_at,
+            is_unlimited: false,
+            confidence,
+        }
+    }
+
+    /// Window that records real usage over a period while the provider's
+    /// limit is unknown. Consumers must render the used amount only; there
+    /// is no remaining value and no percentage to show.
+    pub fn usage_only(
+        window_key: impl Into<String>,
+        label: impl Into<String>,
+        scope: QuotaWindowScope,
+        kind: QuotaKind,
+        used: u64,
+        reset_at: Option<DateTime<Utc>>,
+        confidence: Confidence,
+    ) -> Self {
+        Self {
+            window_key: window_key.into(),
+            label: label.into(),
+            scope,
+            kind,
+            used,
+            limit: None,
+            remaining: None,
+            used_percent: None,
+            remaining_percent: None,
             reset_at,
             is_unlimited: false,
             confidence,
@@ -128,31 +163,52 @@ impl QuotaWindow {
             scope,
             kind,
             used: 0,
-            limit: 0,
-            remaining: 0,
-            used_percent: 0.0,
-            remaining_percent: 0.0,
+            limit: None,
+            remaining: None,
+            used_percent: None,
+            remaining_percent: None,
             reset_at: None,
             is_unlimited: true,
             confidence: Confidence::High,
         }
     }
 
-    /// Placeholder window when no data is available at all.
-    pub fn unknown(scope: QuotaWindowScope, kind: QuotaKind) -> Self {
-        Self {
-            window_key: "unknown".to_string(),
-            label: "Unknown".to_string(),
-            scope,
-            kind,
-            used: 0,
-            limit: 0,
-            remaining: 0,
-            used_percent: 0.0,
-            remaining_percent: 0.0,
-            reset_at: None,
-            is_unlimited: false,
-            confidence: Confidence::Low,
+    /// True when the provider reported a real limit, i.e. when a remaining
+    /// bar and percentage may be rendered.
+    pub fn limit_known(&self) -> bool {
+        self.limit.is_some()
+    }
+
+    /// Verifies the window's internal consistency. Returns the offending
+    /// field name when an invariant is broken, so contract tests and the
+    /// privacy guard can reject fabricated data instead of storing it.
+    pub fn check_invariants(&self) -> Result<(), String> {
+        match (
+            self.limit,
+            self.remaining,
+            self.used_percent,
+            self.remaining_percent,
+        ) {
+            (None, None, None, None) => Ok(()),
+            (Some(limit), Some(remaining), Some(used_percent), Some(remaining_percent)) => {
+                if self.is_unlimited {
+                    return Err("is_unlimited window must not carry a limit".to_string());
+                }
+                if limit == 0 {
+                    return Err("limit must be non-zero when present".to_string());
+                }
+                if remaining != limit.saturating_sub(self.used) {
+                    return Err("remaining does not match limit - used".to_string());
+                }
+                if !(0.0..=100.0).contains(&used_percent) {
+                    return Err("used_percent out of range".to_string());
+                }
+                if (used_percent + remaining_percent - 100.0).abs() > f64::EPSILON * 100.0 {
+                    return Err("percentages do not sum to 100".to_string());
+                }
+                Ok(())
+            }
+            _ => Err("limit, remaining and percentages must all be set or all absent".to_string()),
         }
     }
 }
@@ -236,65 +292,128 @@ mod tests {
         DateTime::from_timestamp(timestamp, 0).expect("valid timestamp")
     }
 
+    fn nz(value: u64) -> NonZeroU64 {
+        NonZeroU64::new(value).expect("non-zero limit")
+    }
+
     #[test]
     fn window_derives_remaining_and_percentages() {
-        let window = QuotaWindow::new(
+        let window = QuotaWindow::with_limit(
             "7d",
             "7-day",
             QuotaWindowScope::Weekly,
             QuotaKind::Tokens,
             3000,
-            5000,
+            nz(5000),
             Some(dt(1_800_000_000)),
             Confidence::High,
         );
-        assert_eq!(window.remaining, 2000);
-        assert_eq!(window.used_percent, 60.0);
-        assert_eq!(window.remaining_percent, 40.0);
+        assert_eq!(window.remaining, Some(2000));
+        assert_eq!(window.used_percent, Some(60.0));
+        assert_eq!(window.remaining_percent, Some(40.0));
         assert!(!window.is_unlimited);
+        assert!(window.limit_known());
+        window.check_invariants().expect("consistent window");
     }
 
     #[test]
     fn window_clamps_used_percent_at_100() {
-        let window = QuotaWindow::new(
+        let window = QuotaWindow::with_limit(
             "5h",
             "5-hour",
             QuotaWindowScope::Rolling,
             QuotaKind::Requests,
             120,
-            100,
+            nz(100),
             None,
             Confidence::Medium,
         );
-        assert_eq!(window.remaining, 0);
-        assert_eq!(window.used_percent, 100.0);
-        assert_eq!(window.remaining_percent, 0.0);
+        assert_eq!(window.remaining, Some(0));
+        assert_eq!(window.used_percent, Some(100.0));
+        assert_eq!(window.remaining_percent, Some(0.0));
+        window.check_invariants().expect("consistent window");
     }
 
     #[test]
-    fn unknown_limit_never_renders_zero_percent() {
-        let window = QuotaWindow::new(
+    fn usage_only_window_reports_no_limit_and_no_percentages() {
+        let window = QuotaWindow::usage_only(
             "monthly",
             "Monthly",
             QuotaWindowScope::Monthly,
             QuotaKind::Credits,
             50,
-            0,
             None,
             Confidence::Low,
         );
-        assert_eq!(window.remaining, 0);
-        assert_eq!(window.used_percent, 0.0);
-        assert_eq!(window.remaining_percent, 100.0);
+        assert_eq!(window.used, 50);
+        assert_eq!(window.limit, None, "unknown limit must stay unknown");
+        assert_eq!(window.remaining, None);
+        assert_eq!(
+            window.used_percent, None,
+            "a percentage without a limit would be fabricated"
+        );
+        assert_eq!(
+            window.remaining_percent, None,
+            "remaining percent must never default to 100"
+        );
+        assert!(!window.limit_known());
+        window.check_invariants().expect("consistent window");
     }
 
     #[test]
     fn unlimited_window_has_no_limit_and_no_bar() {
         let window = QuotaWindow::unlimited(QuotaWindowScope::Other, QuotaKind::Requests);
         assert!(window.is_unlimited);
-        assert_eq!(window.limit, 0);
+        assert_eq!(window.limit, None);
         assert_eq!(window.used, 0);
-        assert_eq!(window.used_percent, 0.0);
+        assert_eq!(window.used_percent, None);
+        assert_eq!(window.remaining_percent, None);
+        window.check_invariants().expect("consistent window");
+    }
+
+    #[test]
+    fn check_invariants_rejects_fabricated_windows() {
+        let mut half_set = QuotaWindow::usage_only(
+            "5h",
+            "5-hour",
+            QuotaWindowScope::Rolling,
+            QuotaKind::Tokens,
+            10,
+            None,
+            Confidence::Low,
+        );
+        half_set.remaining_percent = Some(100.0);
+        assert!(
+            half_set.check_invariants().is_err(),
+            "a percentage without a limit must be rejected"
+        );
+
+        let mut inconsistent = QuotaWindow::with_limit(
+            "5h",
+            "5-hour",
+            QuotaWindowScope::Rolling,
+            QuotaKind::Tokens,
+            10,
+            nz(100),
+            None,
+            Confidence::High,
+        );
+        inconsistent.remaining = Some(999);
+        assert!(
+            inconsistent.check_invariants().is_err(),
+            "remaining must match limit - used"
+        );
+
+        let mut unlimited_with_limit =
+            QuotaWindow::unlimited(QuotaWindowScope::Other, QuotaKind::Requests);
+        unlimited_with_limit.limit = Some(10);
+        unlimited_with_limit.remaining = Some(10);
+        unlimited_with_limit.used_percent = Some(0.0);
+        unlimited_with_limit.remaining_percent = Some(100.0);
+        assert!(
+            unlimited_with_limit.check_invariants().is_err(),
+            "an unlimited window must not carry a limit"
+        );
     }
 
     #[test]

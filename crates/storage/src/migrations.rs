@@ -15,29 +15,62 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "003_quota_reports",
         include_str!("../migrations/003_quota_reports.sql"),
     ),
+    (
+        "004_quota_window_nullable",
+        include_str!("../migrations/004_quota_window_nullable.sql"),
+    ),
+    (
+        "005_budgets_alerts_settings",
+        include_str!("../migrations/005_budgets_alerts_settings.sql"),
+    ),
 ];
 
+/// Names of every migration known to this build, oldest first.
+pub fn known_migrations() -> Vec<&'static str> {
+    MIGRATIONS.iter().map(|(name, _)| *name).collect()
+}
+
+/// Versions already recorded in `schema_migrations`.
+fn applied_versions(conn: &Connection) -> Result<Vec<String>, rusqlite::Error> {
+    let mut stmt = conn.prepare("SELECT version FROM schema_migrations")?;
+    let rows = stmt.query_map([], |row| row.get(0))?;
+    let mut versions = Vec::new();
+    for row in rows {
+        versions.push(row?);
+    }
+    Ok(versions)
+}
+
+/// Applies pending migrations only. Each migration runs in a transaction and
+/// its version is recorded in the same transaction, so a failure leaves the
+/// database on the previous version instead of half-migrated. Re-running is a
+/// no-op; migrations that rebuild tables are therefore never replayed.
 pub fn apply_all(conn: &Connection) -> Result<(), rusqlite::Error> {
+    // The tracking table itself must exist before it can be queried; its
+    // migration is written to be idempotent.
+    let (_, tracking_sql) = MIGRATIONS[0];
+    conn.execute_batch(tracking_sql)?;
+
+    let applied = applied_versions(conn)?;
     for (name, sql) in MIGRATIONS {
-        conn.execute_batch(sql)?;
-        let _ = conn.execute(
+        if applied.iter().any(|version| version == name) {
+            continue;
+        }
+        let tx = conn.unchecked_transaction()?;
+        tx.execute_batch(sql)?;
+        tx.execute(
             "INSERT OR REPLACE INTO schema_migrations (version) VALUES (?1)",
             [*name],
-        );
+        )?;
+        tx.commit()?;
     }
     Ok(())
 }
 
 pub fn migrate_with_backup(conn: &Connection, backup_dir: &Path) -> Result<(), rusqlite::Error> {
-    let applied: Vec<String> = {
-        let mut stmt = conn.prepare("SELECT version FROM schema_migrations")?;
-        let rows = stmt.query_map([], |row| row.get(0))?;
-        let mut versions = Vec::new();
-        for row in rows {
-            versions.push(row?);
-        }
-        versions
-    };
+    let (_, tracking_sql) = MIGRATIONS[0];
+    conn.execute_batch(tracking_sql)?;
+    let applied = applied_versions(conn)?;
 
     let pending: Vec<(&str, &str)> = MIGRATIONS
         .iter()
@@ -56,11 +89,13 @@ pub fn migrate_with_backup(conn: &Connection, backup_dir: &Path) -> Result<(), r
     }
 
     for (name, sql) in pending {
-        conn.execute_batch(sql)?;
-        let _ = conn.execute(
+        let tx = conn.unchecked_transaction()?;
+        tx.execute_batch(sql)?;
+        tx.execute(
             "INSERT OR REPLACE INTO schema_migrations (version) VALUES (?1)",
             [name],
-        );
+        )?;
+        tx.commit()?;
     }
 
     Ok(())

@@ -4,7 +4,8 @@ use lnwdeck_domain::{
     DEFAULT_FRESHNESS,
 };
 use lnwdeck_provider_runtime::{
-    AdapterHealth, AdapterHealthStatus, DetectionResult, Permission, ProviderAdapter,
+    AdapterDescriptor, AdapterHealth, AdapterHealthStatus, AuthKind, ChannelSupport,
+    DetectionResult, Permission, ProviderAdapter, SourceKind,
 };
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -137,33 +138,30 @@ impl CodexAdapter {
             return Ok(None);
         };
         let windows = vec![
-            QuotaWindow::new(
+            QuotaWindow::usage_only(
                 "5h",
                 "5-hour",
                 QuotaWindowScope::Rolling,
                 QuotaKind::Tokens,
                 five_h,
-                0,
                 None,
                 Confidence::Medium,
             ),
-            QuotaWindow::new(
+            QuotaWindow::usage_only(
                 "7d",
                 "7-day",
                 QuotaWindowScope::Weekly,
                 QuotaKind::Tokens,
                 seven_d,
-                0,
                 None,
                 Confidence::Medium,
             ),
-            QuotaWindow::new(
+            QuotaWindow::usage_only(
                 "30d",
                 "30-day",
                 QuotaWindowScope::Monthly,
                 QuotaKind::Tokens,
                 thirty_d,
-                0,
                 None,
                 Confidence::Medium,
             ),
@@ -238,11 +236,17 @@ fn parse_session_line(line: &str) -> Option<(i64, u64, u64)> {
 }
 
 impl ProviderAdapter for CodexAdapter {
-    fn id(&self) -> &str {
-        "openai_codex"
-    }
-    fn name(&self) -> &str {
-        "Codex"
+    fn descriptor(&self) -> AdapterDescriptor {
+        AdapterDescriptor {
+            id: "openai_codex",
+            display_name: "Codex",
+            vendor: "OpenAI",
+            source_kind: SourceKind::LocalJsonl,
+            usage_support: ChannelSupport::LocalEstimate,
+            quota_support: ChannelSupport::LocalEstimate,
+            auth: AuthKind::LocalFiles,
+            adapter_version: ADAPTER_VERSION,
+        }
     }
     fn collect_usage(&self) -> Result<UsageBatch, String> {
         Ok(UsageBatch {
@@ -358,7 +362,8 @@ mod tests {
             .unwrap();
         assert_eq!(five_h.used, 1000, "only sessions in last 5h");
         assert_eq!(seven_d.used, 1400, "both sessions within 7d");
-        assert_eq!(five_h.limit, 0, "limit is unknown, never fabricated");
+        assert_eq!(five_h.limit, None, "limit is unknown, never fabricated");
+        assert_eq!(five_h.remaining_percent, None);
     }
 
     #[test]

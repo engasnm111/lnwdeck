@@ -167,20 +167,30 @@ fn rand_f64() -> f64 {
 mod tests {
     use super::*;
     use crate::adapter::ProviderAdapter;
-    use crate::health::{AdapterHealth, AdapterHealthStatus};
+    use crate::descriptor::{AdapterDescriptor, AuthKind, ChannelSupport, SourceKind};
     use crate::permissions::Permission;
-    use lnwdeck_domain::{QuotaReport, UsageBatch};
+    use lnwdeck_domain::UsageBatch;
+
+    fn test_descriptor(id: &'static str) -> AdapterDescriptor {
+        AdapterDescriptor {
+            id,
+            display_name: "Test",
+            vendor: "Test Vendor",
+            source_kind: SourceKind::LocalJsonl,
+            usage_support: ChannelSupport::LocalEstimate,
+            quota_support: ChannelSupport::Unsupported,
+            auth: AuthKind::LocalFiles,
+            adapter_version: "0.2.0",
+        }
+    }
 
     struct TestAdapter {
-        id: String,
+        id: &'static str,
     }
 
     impl ProviderAdapter for TestAdapter {
-        fn id(&self) -> &str {
-            &self.id
-        }
-        fn name(&self) -> &str {
-            "Test"
+        fn descriptor(&self) -> AdapterDescriptor {
+            test_descriptor(self.id)
         }
         fn collect_usage(&self) -> Result<UsageBatch, String> {
             Ok(UsageBatch {
@@ -188,26 +198,14 @@ mod tests {
                 events: vec![],
             })
         }
-        fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
-            Ok(None)
-        }
-        fn health_check(&self) -> AdapterHealth {
-            AdapterHealth {
-                status: AdapterHealthStatus::Healthy,
-                message: "ok".to_string(),
-            }
-        }
-        fn required_permissions(&self) -> Vec<Permission> {
-            vec![]
-        }
     }
 
     #[test]
     fn backoff_increases_on_failure() {
         let mut registry = AdapterRegistry::new();
-        registry.register(Box::new(TestAdapter {
-            id: "a1".to_string(),
-        }));
+        registry
+            .register(Box::new(TestAdapter { id: "a1" }))
+            .expect("register a1");
         let scheduler = AdaptiveScheduler::new(registry);
 
         let before = scheduler
@@ -233,9 +231,9 @@ mod tests {
     #[test]
     fn backoff_resets_on_success() {
         let mut registry = AdapterRegistry::new();
-        registry.register(Box::new(TestAdapter {
-            id: "a1".to_string(),
-        }));
+        registry
+            .register(Box::new(TestAdapter { id: "a1" }))
+            .expect("register a1");
         let scheduler = AdaptiveScheduler::new(registry);
 
         scheduler.mark_failure("a1");
@@ -267,11 +265,8 @@ mod tests {
     fn manual_trigger_checks_permissions() {
         struct RestrictedAdapter;
         impl ProviderAdapter for RestrictedAdapter {
-            fn id(&self) -> &str {
-                "restricted"
-            }
-            fn name(&self) -> &str {
-                "Restricted"
+            fn descriptor(&self) -> AdapterDescriptor {
+                test_descriptor("restricted")
             }
             fn collect_usage(&self) -> Result<UsageBatch, String> {
                 Ok(UsageBatch {
@@ -279,22 +274,15 @@ mod tests {
                     events: vec![],
                 })
             }
-            fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
-                Ok(None)
-            }
-            fn health_check(&self) -> AdapterHealth {
-                AdapterHealth {
-                    status: AdapterHealthStatus::Healthy,
-                    message: "ok".to_string(),
-                }
-            }
             fn required_permissions(&self) -> Vec<Permission> {
                 vec![Permission::FileSystem]
             }
         }
 
         let mut registry = AdapterRegistry::new();
-        registry.register(Box::new(RestrictedAdapter));
+        registry
+            .register(Box::new(RestrictedAdapter))
+            .expect("register restricted");
         let scheduler = AdaptiveScheduler::new(registry);
 
         assert_eq!(scheduler.trigger_manual("restricted"), Some(false));
@@ -303,9 +291,9 @@ mod tests {
     #[test]
     fn cancel_stops_pending_work() {
         let mut registry = AdapterRegistry::new();
-        registry.register(Box::new(TestAdapter {
-            id: "a1".to_string(),
-        }));
+        registry
+            .register(Box::new(TestAdapter { id: "a1" }))
+            .expect("register a1");
         let scheduler = AdaptiveScheduler::new(registry);
 
         assert!(!scheduler.is_cancelled());

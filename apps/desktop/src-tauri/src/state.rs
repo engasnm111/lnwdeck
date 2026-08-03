@@ -2,12 +2,14 @@ use lnwdeck_storage::Storage;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use lnwdeck_provider_runtime::ProviderAdapter;
+use lnwdeck_provider_runtime::AdapterRegistry;
 
 pub struct AppState {
     pub storage: Mutex<Option<Storage>>,
     pub db_path: PathBuf,
-    pub adapters: Mutex<Vec<Box<dyn ProviderAdapter>>>,
+    /// Provider registry, built once on first use. It is the single source of
+    /// provider identity for every read model.
+    pub registry: Mutex<AdapterRegistry>,
 }
 
 impl AppState {
@@ -15,7 +17,7 @@ impl AppState {
         Self {
             storage: Mutex::new(None),
             db_path,
-            adapters: Mutex::new(Vec::new()),
+            registry: Mutex::new(AdapterRegistry::new()),
         }
     }
 

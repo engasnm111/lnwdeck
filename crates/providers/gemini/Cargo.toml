@@ -8,3 +8,6 @@ description = "Gemini/Google provider adapter for lnwdeck"
 lnwdeck-domain = { path = "../../domain" }
 lnwdeck-provider-runtime = { path = "../../provider-runtime" }
 chrono = { version = "0.4" }
+
+[dev-dependencies]
+tempfile = "3"

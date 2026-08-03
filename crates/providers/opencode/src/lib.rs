@@ -4,8 +4,8 @@ use lnwdeck_domain::{
     DEFAULT_FRESHNESS,
 };
 use lnwdeck_provider_runtime::{
-    AdapterHealth, AdapterHealthStatus, CollectionOutcome, CollectionResult, DetectionResult,
-    Permission, ProviderAdapter,
+    AdapterDescriptor, AdapterHealth, AdapterHealthStatus, AuthKind, ChannelSupport,
+    CollectionOutcome, CollectionResult, DetectionResult, Permission, ProviderAdapter, SourceKind,
 };
 use lnwdeck_security::IdentifierHasher;
 use rusqlite::{Connection, OpenFlags};
@@ -308,6 +308,8 @@ impl OpenCodeAdapter {
         ];
         let mut windows = Vec::with_capacity(buckets.len());
         for (key, label, scope, window_ms) in buckets {
+            // A query failure is reported, never silently counted as zero
+            // usage: a zero would be indistinguishable from "no activity".
             let used: i64 = conn
                 .query_row(
                     "SELECT COALESCE(SUM(tokens_input + tokens_output + tokens_reasoning), 0)
@@ -317,14 +319,15 @@ impl OpenCodeAdapter {
                     [now_ms - window_ms],
                     |row| row.get(0),
                 )
-                .unwrap_or(0);
-            windows.push(QuotaWindow::new(
+                .map_err(|_| "SOURCE_SCHEMA_MISMATCH".to_string())?;
+            // OpenCode does not publish plan limits, so the window records
+            // real usage with an unknown limit instead of a fake percentage.
+            windows.push(QuotaWindow::usage_only(
                 key,
                 label,
                 scope,
                 QuotaKind::Tokens,
                 used.max(0) as u64,
-                0,
                 None,
                 Confidence::Medium,
             ));
@@ -335,11 +338,17 @@ impl OpenCodeAdapter {
 }
 
 impl ProviderAdapter for OpenCodeAdapter {
-    fn id(&self) -> &str {
-        "opencode"
-    }
-    fn name(&self) -> &str {
-        "OpenCode"
+    fn descriptor(&self) -> AdapterDescriptor {
+        AdapterDescriptor {
+            id: "opencode",
+            display_name: "OpenCode",
+            vendor: "OpenCode",
+            source_kind: SourceKind::LocalSqlite,
+            usage_support: ChannelSupport::LocalEstimate,
+            quota_support: ChannelSupport::LocalEstimate,
+            auth: AuthKind::LocalFiles,
+            adapter_version: ADAPTER_VERSION,
+        }
     }
     fn collect_usage(&self) -> Result<UsageBatch, String> {
         self.collect(None)

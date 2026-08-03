@@ -1,56 +1,107 @@
 use chrono::Utc;
-use lnwdeck_application::{
-    overview::QueryOverview,
-    providers::{ScanProviders, STANDARD_PROVIDERS},
-};
+use lnwdeck_application::{overview::QueryOverview, providers::ScanProviders};
 use lnwdeck_domain::{Confidence, UsageBatch, UsageEvent};
 use lnwdeck_pricing::{calculator::calculate_cost_with_provider, catalog::PriceResolver};
+use lnwdeck_provider_runtime::{
+    AdapterDescriptor, AdapterRegistry, AuthKind, ChannelSupport, ProviderAdapter, SourceKind,
+};
 use lnwdeck_storage::{migrations::apply_all, repositories::UsageRepository, Storage};
 use serde_json::json;
 use tempfile::tempdir;
 
-#[test]
-fn provider_registry_includes_codex_gemini_kimi_claude() {
-    let provider_ids: Vec<&str> = STANDARD_PROVIDERS.iter().map(|p| p.id).collect();
-    assert!(
-        provider_ids.contains(&"openai_codex"),
-        "Codex must be in provider registry"
-    );
-    assert!(
-        provider_ids.contains(&"google_gemini"),
-        "Gemini must be in provider registry"
-    );
-    assert!(
-        provider_ids.contains(&"kiro_ai"),
-        "Kiro must be in provider registry"
-    );
-    assert!(
-        provider_ids.contains(&"anthropic_claude"),
-        "Claude must be in provider registry"
-    );
-    assert!(
-        provider_ids.contains(&"opencode"),
-        "OpenCode must be in provider registry"
-    );
+struct Fixture(AdapterDescriptor);
+
+impl ProviderAdapter for Fixture {
+    fn descriptor(&self) -> AdapterDescriptor {
+        self.0
+    }
+}
+
+/// Registry standing in for the shipped provider set: the read model must
+/// follow whatever the registry declares, not a table of its own.
+fn fixture_registry() -> AdapterRegistry {
+    let mut registry = AdapterRegistry::new();
+    for (id, name) in [
+        ("openai_codex", "Codex"),
+        ("google_gemini", "Gemini"),
+        ("kiro_ai", "Kiro"),
+        ("anthropic_claude", "Claude"),
+        ("opencode", "OpenCode"),
+    ] {
+        registry
+            .register(Box::new(Fixture(AdapterDescriptor {
+                id,
+                display_name: name,
+                vendor: "Vendor",
+                source_kind: SourceKind::LocalJsonl,
+                usage_support: ChannelSupport::LocalEstimate,
+                quota_support: ChannelSupport::LocalEstimate,
+                auth: AuthKind::LocalFiles,
+                adapter_version: "0.2.0",
+            })))
+            .expect("register fixture provider");
+    }
+    registry
 }
 
 #[test]
-fn provider_summary_query_returns_multiple_providers() {
+fn provider_cards_follow_the_registry() {
     let dir = tempdir().unwrap();
     let db_path = dir.path().join("test.db");
     let storage = Storage::open(&db_path).unwrap();
     apply_all(&storage.conn).unwrap();
 
-    let list = ScanProviders::execute(&storage.conn).unwrap();
-    assert!(
-        list.len() >= 5,
-        "ScanProviders must return multiple providers including Codex, Gemini, Kimi, Claude"
+    let registry = fixture_registry();
+    let list = ScanProviders::execute(&storage.conn, &registry).unwrap();
+    assert_eq!(
+        list.len(),
+        registry.len(),
+        "exactly one card per registered adapter"
     );
-    let ids: Vec<String> = list.into_iter().map(|p| p.provider_id).collect();
-    assert!(ids.contains(&"openai_codex".to_string()));
-    assert!(ids.contains(&"google_gemini".to_string()));
-    assert!(ids.contains(&"kiro_ai".to_string()));
-    assert!(ids.contains(&"anthropic_claude".to_string()));
+    let ids: Vec<String> = list.iter().map(|p| p.provider_id.clone()).collect();
+    for expected in [
+        "openai_codex",
+        "google_gemini",
+        "kiro_ai",
+        "anthropic_claude",
+        "opencode",
+    ] {
+        assert!(
+            ids.contains(&expected.to_string()),
+            "{expected} card missing"
+        );
+    }
+    assert_eq!(
+        ids,
+        vec![
+            "openai_codex",
+            "google_gemini",
+            "kiro_ai",
+            "anthropic_claude",
+            "opencode"
+        ],
+        "cards keep registration order"
+    );
+}
+
+#[test]
+fn provider_cards_report_no_data_before_any_refresh() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("test.db");
+    let storage = Storage::open(&db_path).unwrap();
+    apply_all(&storage.conn).unwrap();
+
+    let list = ScanProviders::execute(&storage.conn, &fixture_registry()).unwrap();
+    for card in list {
+        assert!(
+            !card.detected,
+            "{} must not claim detection",
+            card.provider_id
+        );
+        assert_eq!(card.event_count, 0);
+        assert_eq!(card.quota_summary, "No quota data");
+        assert_eq!(card.cost_support, "No data");
+    }
 }
 
 #[test]

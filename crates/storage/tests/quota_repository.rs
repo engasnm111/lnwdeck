@@ -17,15 +17,28 @@ fn open_test_db() -> Storage {
 }
 
 fn window(key: &str, used: u64, limit: u64) -> QuotaWindow {
-    QuotaWindow::new(
+    QuotaWindow::with_limit(
         key,
         key,
         QuotaWindowScope::Weekly,
         QuotaKind::Tokens,
         used,
-        limit,
+        std::num::NonZeroU64::new(limit).expect("test limit is non-zero"),
         None,
         Confidence::High,
+    )
+}
+
+/// Window whose provider does not report a limit at all.
+fn usage_only_window(key: &str, used: u64) -> QuotaWindow {
+    QuotaWindow::usage_only(
+        key,
+        key,
+        QuotaWindowScope::Rolling,
+        QuotaKind::Tokens,
+        used,
+        None,
+        Confidence::Low,
     )
 }
 
@@ -52,7 +65,7 @@ fn upsert_and_latest_roundtrip() {
     assert_eq!(latest.status, QuotaStatus::Fresh);
     assert_eq!(latest.windows.len(), 2);
     assert_eq!(latest.windows[0].window_key, "5h");
-    assert_eq!(latest.windows[0].remaining, 60);
+    assert_eq!(latest.windows[0].remaining, Some(60));
     assert_eq!(latest.windows[1].window_key, "7d");
     assert!(latest.is_usable());
 }
@@ -194,4 +207,72 @@ fn unknown_provider_returns_none() {
     let storage = open_test_db();
     let repo = QuotaRepository::new(&storage.conn);
     assert!(repo.latest_report("ghost").expect("latest").is_none());
+}
+
+#[test]
+fn usage_only_window_roundtrips_as_unknown_not_as_full() {
+    let storage = open_test_db();
+    let repo = QuotaRepository::new(&storage.conn);
+    let report = report("opencode", vec![usage_only_window("5h", 1234)]);
+
+    repo.upsert_report(&report).expect("upsert");
+
+    let latest = repo
+        .latest_report("opencode")
+        .expect("latest")
+        .expect("report exists");
+    let window = &latest.windows[0];
+    assert_eq!(window.used, 1234);
+    assert_eq!(window.limit, None, "unknown limit must round-trip as NULL");
+    assert_eq!(window.remaining, None);
+    assert_eq!(window.used_percent, None);
+    assert_eq!(
+        window.remaining_percent, None,
+        "a stored zero limit must not resurface as 100% remaining"
+    );
+    window
+        .check_invariants()
+        .expect("stored window is consistent");
+
+    // Verify at the SQL level that NULL, not 0, reached the column.
+    let stored: (Option<i64>, Option<f64>) = storage
+        .conn
+        .query_row(
+            "SELECT quota_limit, remaining_percent FROM quota_windows WHERE provider_id = 'opencode'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("row exists");
+    assert_eq!(stored, (None, None));
+}
+
+#[test]
+fn migrations_are_idempotent_and_preserve_quota_rows() {
+    let storage = open_test_db();
+    let repo = QuotaRepository::new(&storage.conn);
+    repo.upsert_report(&report("claude", vec![window("5h", 40, 100)]))
+        .expect("upsert");
+
+    // Re-running migrations must not rebuild tables or drop data.
+    apply_all(&storage.conn).expect("second migration pass");
+    apply_all(&storage.conn).expect("third migration pass");
+
+    let latest = repo
+        .latest_report("claude")
+        .expect("latest")
+        .expect("report survived");
+    assert_eq!(latest.windows.len(), 1);
+    assert_eq!(latest.windows[0].remaining, Some(60));
+
+    let applied: i64 = storage
+        .conn
+        .query_row("SELECT COUNT(*) FROM schema_migrations", [], |row| {
+            row.get(0)
+        })
+        .expect("count migrations");
+    assert_eq!(
+        applied as usize,
+        lnwdeck_storage::migrations::known_migrations().len(),
+        "each migration must be recorded exactly once"
+    );
 }

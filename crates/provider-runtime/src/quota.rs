@@ -77,11 +77,26 @@ impl QuotaCollectionResult {
         }
     }
 
-    /// Result for adapters without quota support (`Ok(None)`).
-    pub fn unsupported(provider_id: &str, started_at: DateTime<Utc>) -> Self {
+    /// Result for a quota channel the adapter does not implement. The
+    /// descriptor decides this, so the adapter is never called.
+    pub fn not_supported(provider_id: &str, started_at: DateTime<Utc>) -> Self {
         Self {
             report: None,
-            outcome: QuotaCollectionOutcome::failure(provider_id, started_at, "UNSUPPORTED"),
+            outcome: QuotaCollectionOutcome::failure(
+                provider_id,
+                started_at,
+                crate::adapter::NOT_SUPPORTED,
+            ),
+        }
+    }
+
+    /// Result for a supported channel whose source was not present on this
+    /// attempt (the adapter returned `Ok(None)`). Distinct from
+    /// `not_supported`: the integration exists, the data does not.
+    pub fn source_unavailable(provider_id: &str, started_at: DateTime<Utc>) -> Self {
+        Self {
+            report: None,
+            outcome: QuotaCollectionOutcome::failure(provider_id, started_at, "SOURCE_UNAVAILABLE"),
         }
     }
 
@@ -104,13 +119,13 @@ mod tests {
     use lnwdeck_domain::{Confidence, QuotaKind, QuotaWindow, QuotaWindowScope};
 
     fn sample_report() -> QuotaReport {
-        let window = QuotaWindow::new(
+        let window = QuotaWindow::with_limit(
             "5h",
             "5-hour",
             QuotaWindowScope::Rolling,
             QuotaKind::Requests,
             40,
-            100,
+            std::num::NonZeroU64::new(100).expect("fixture limit is non-zero"),
             None,
             Confidence::High,
         );
@@ -139,12 +154,23 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_maps_to_unavailable_status() {
-        let result = QuotaCollectionResult::unsupported("codex", Utc::now());
-        assert!(result.report.is_none());
-        assert_eq!(result.outcome.status, QuotaStatus::Unavailable);
-        assert_eq!(result.outcome.error_code, "UNSUPPORTED");
-        assert_eq!(result.outcome.windows_collected, 0);
+    fn not_supported_and_source_unavailable_are_distinct() {
+        let not_supported = QuotaCollectionResult::not_supported("cursor_ide", Utc::now());
+        assert!(not_supported.report.is_none());
+        assert_eq!(not_supported.outcome.status, QuotaStatus::Unavailable);
+        assert_eq!(
+            not_supported.outcome.error_code,
+            crate::adapter::NOT_SUPPORTED
+        );
+        assert_eq!(not_supported.outcome.windows_collected, 0);
+
+        let unavailable = QuotaCollectionResult::source_unavailable("codex", Utc::now());
+        assert!(unavailable.report.is_none());
+        assert_eq!(unavailable.outcome.status, QuotaStatus::Unavailable);
+        assert_eq!(
+            unavailable.outcome.error_code, "SOURCE_UNAVAILABLE",
+            "a supported channel with a missing source must not read as unimplemented"
+        );
     }
 
     #[test]
