@@ -23,7 +23,7 @@ fn provider_state(provider_id: &str, detected: bool) -> ProviderStateRow {
         source_type: "sqlite".to_string(),
         source_exists: detected,
         permission_state: "read_ok".to_string(),
-        adapter_version: "0.1.0".to_string(),
+        adapter_version: "0.2.0".to_string(),
         last_detection_at: Some("2026-08-03T00:00:00Z".to_string()),
         detection_error_code: String::new(),
     }
