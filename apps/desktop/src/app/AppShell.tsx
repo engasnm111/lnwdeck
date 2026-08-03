@@ -3,6 +3,11 @@ import { Link, NavLink, Outlet } from "react-router-dom";
 const navItems = [
   { to: "/", label: "Overview" },
   { to: "/providers", label: "Providers" },
+  { to: "/analytics", label: "Analytics" },
+  { to: "/costs", label: "Costs" },
+  { to: "/budgets", label: "Budgets" },
+  { to: "/models", label: "Models" },
+  { to: "/alerts", label: "Alerts" },
 ];
 
 export function AppShell() {
