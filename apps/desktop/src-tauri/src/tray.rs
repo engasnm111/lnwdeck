@@ -4,17 +4,22 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     use tauri::menu::{MenuBuilder, MenuItemBuilder};
     use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
-    let show = MenuItemBuilder::with_id("show", "Show").build(app)?;
+    let show = MenuItemBuilder::with_id("show", "Show lnwdeck").build(app)?;
     let widget_toggle = MenuItemBuilder::with_id("widget", "Toggle Widget").build(app)?;
-    let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
+    let quit = MenuItemBuilder::with_id("quit", "Quit lnwdeck").build(app)?;
     let menu = MenuBuilder::new(app)
         .item(&show)
         .item(&widget_toggle)
         .item(&quit)
         .build()?;
 
-    let _tray = TrayIconBuilder::new()
-        .menu(&menu)
+    let mut builder = TrayIconBuilder::new().menu(&menu).tooltip("lnwdeck");
+
+    if let Some(icon) = app.default_window_icon() {
+        builder = builder.icon(icon.clone());
+    }
+
+    builder
         .on_menu_event(move |app, event| match event.id().as_ref() {
             "show" => {
                 if let Some(window) = app.get_webview_window("main") {

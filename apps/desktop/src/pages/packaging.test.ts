@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import fs from "fs";
+import path from "path";
 
 describe("Packaging configuration", () => {
   it("package-config.json has all three architectures", () => {
@@ -37,6 +39,22 @@ describe("Packaging configuration", () => {
     ];
     for (const name of expected) {
       expect(name).toMatch(/^lnwdeck_0\.1\.0/);
+    }
+  });
+
+  it("tray icon configuration exists and build references valid icon assets", () => {
+    const tauriConfPath = path.resolve(__dirname, "../../src-tauri/tauri.conf.json");
+    const tauriConf = JSON.parse(fs.readFileSync(tauriConfPath, "utf-8"));
+    expect(tauriConf.productName).toBe("lnwdeck");
+    expect(tauriConf.bundle.icon).toContain("icons/icon.ico");
+
+    const iconsDir = path.resolve(__dirname, "../../src-tauri/icons");
+    const sizes = ["16x16.png", "24x24.png", "32x32.png", "48x48.png", "64x64.png", "128x128.png", "256x256.png", "icon.ico"];
+    for (const s of sizes) {
+      const filePath = path.join(iconsDir, s);
+      expect(fs.existsSync(filePath)).toBe(true);
+      const stat = fs.statSync(filePath);
+      expect(stat.size).toBeGreaterThan(100);
     }
   });
 });
