@@ -52,6 +52,7 @@ pub fn run() {
             windows::show_widget,
             windows::hide_widget,
             windows::set_widget_opacity,
+            windows::show_main_window,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

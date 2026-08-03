@@ -1,0 +1,172 @@
+.tray-window {
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  background-color: transparent;
+  padding: 16px;
+  width: 360px;
+  box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.tray-card {
+  background: #ffffff;
+  border-radius: 18px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.06), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.tray-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tray-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tray-brand-icon {
+  width: 26px;
+  height: 26px;
+}
+
+.tray-brand-title {
+  font-size: 19px;
+  font-weight: 500;
+  color: #94a3b8;
+  letter-spacing: -0.2px;
+}
+
+.tray-badge-ok {
+  border: 1px solid #e2e8f0;
+  color: #10b981;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 2px 10px;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.tray-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 2px;
+}
+
+.tray-metric-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tray-metric-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tray-icon-container {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tray-icon-t {
+  color: #3b82f6;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.tray-icon-dollar {
+  color: #d97706;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.tray-icon-cube {
+  color: #0284c7;
+}
+
+.tray-icon-chart {
+  color: #64748b;
+}
+
+.tray-metric-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: #475569;
+}
+
+.tray-metric-value {
+  font-size: 17px;
+  font-weight: 600;
+  color: #818cf8;
+}
+
+.tray-action-btn {
+  width: 100%;
+  padding: 11px 0;
+  margin-top: 4px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  color: #94a3b8;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+  outline: none;
+}
+
+.tray-action-btn:hover {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+  color: #64748b;
+}
+
+.tray-action-btn:focus-visible {
+  outline: 2px solid #818cf8;
+}
+
+.tray-footer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+  padding-right: 4px;
+}
+
+.tray-footer-status {
+  font-size: 14px;
+  font-weight: 500;
+  color: #475569;
+}
+
+.tray-badge-lnwdev {
+  border: 1px solid #e2e8f0;
+  color: #059669;
+  font-weight: 600;
+  padding: 3px 12px;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+}
+
+.tray-loading {
+  padding: 30px;
+  text-align: center;
+  color: #64748b;
+  font-size: 14px;
+}

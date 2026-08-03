@@ -10,6 +10,7 @@ import { AlertsPage } from "./pages/alerts/AlertsPage";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { SystemPage } from "./pages/system/SystemPage";
 import { FloatingWidget } from "./windows/widget/FloatingWidget";
+import { TrayPopup } from "./windows/tray/TrayPopup";
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
         <Route path="system" element={<SystemPage />} />
       </Route>
       <Route path="widget" element={<FloatingWidget />} />
+      <Route path="tray" element={<TrayPopup />} />
     </Routes>
   );
 }

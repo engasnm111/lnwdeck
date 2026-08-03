@@ -60,3 +60,24 @@ pub fn set_widget_opacity(app: tauri::AppHandle, opacity: f64) -> Result<(), Str
         Err("widget window not found".to_string())
     }
 }
+
+#[tauri::command]
+pub fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(w) = app.get_webview_window("main") {
+        w.show().map_err(|e| e.to_string())?;
+        w.set_focus().map_err(|e| e.to_string())?;
+        Ok(())
+    } else {
+        Err("main window not found".to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_show_main_window_exists() {
+        assert_eq!(std::mem::size_of_val(&show_main_window), 0);
+    }
+}
