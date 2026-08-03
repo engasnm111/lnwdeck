@@ -1,6 +1,6 @@
 [package]
 name = "lnwdeck-pricing"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Provider pricing and cost calculation for lnwdeck"
 

@@ -32,13 +32,13 @@ describe("Packaging configuration", () => {
 
   it("artifact names follow documented pattern", () => {
     const expected = [
-      "lnwdeck_0.1.0_x64-setup.exe",
-      "lnwdeck_0.1.0_arm64-setup.exe",
-      "lnwdeck_0.1.0_x86-setup.exe",
-      "lnwdeck_0.1.0_portable.zip",
+      "lnwdeck_0.2.0_x64-setup.exe",
+      "lnwdeck_0.2.0_arm64-setup.exe",
+      "lnwdeck_0.2.0_x86-setup.exe",
+      "lnwdeck_0.2.0_portable.zip",
     ];
     for (const name of expected) {
-      expect(name).toMatch(/^lnwdeck_0\.1\.0/);
+      expect(name).toMatch(/^lnwdeck_0\.2\.0/);
     }
   });
 

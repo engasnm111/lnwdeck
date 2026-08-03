@@ -3,14 +3,29 @@ name: Release
 on:
   push:
     tags:
-      - "v*"
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+"
 
 permissions:
   contents: write
 
 jobs:
-  publish:
-    name: Publish ${{ matrix.target }}
+  validate:
+    name: Validate release version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check tag matches application versions
+        run: node scripts/check-release-version.mjs "${{ github.ref_name }}"
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: validate
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -40,46 +55,72 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build and publish
+      - name: Build signed bundles (no publish)
         uses: tauri-apps/tauri-action@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           # Password is intentionally empty (key generated with --ci).
           # GitHub Actions sets CI=true, which makes the Tauri CLI fall back to
           # an empty password when TAURI_SIGNING_PRIVATE_KEY_PASSWORD is unset.
         with:
           projectPath: apps/desktop/src-tauri
-          tagName: ${{ github.ref_name }}
-          releaseName: lnwdeck ${{ github.ref_name }}
-          releaseBody: |
-            ## lnwdeck — local-first AI usage & cost tracker
-
-            All metadata stays on your machine. No cloud accounts, no sync.
-
-            ### Highlights
-            - Local-only usage tracking (SQLite) with passive collectors
-            - Overview, Analytics, Provider health, Costs, Budgets and Alerts views
-            - System tray widget with at-a-glance usage
-            - Automatic updates: signed installers verified with the public key in `tauri.conf.json`
-            - Privacy-first: prompts, responses and file paths are never stored
-
-            ### Providers
-            | Provider | Mode | Status |
-            |---|---|---|
-            | OpenCode | Local CLI | Active |
-            | Codex (OpenAI) | API / Credential | Requires API key |
-            | Gemini (Google) | API / Credential | Requires API key |
-            | Kimi | API / Credential | Requires API key |
-            | Claude (Anthropic) | API / Credential | Requires API key |
-
-            ### Requirements
-            - Windows 10 22H2 or later (x64 / ARM64 Tier 1, x86 compatibility)
-            - WebView2 Runtime
-
-            See the assets below to download and install this version.
-          generateReleaseNotes: true
-          releaseDraft: true
-          prerelease: false
-          updaterJsonPreferNsis: true
+          publish: false
           args: --target ${{ matrix.target }}
+
+      - name: Package portable ZIP
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File scripts/package-portable.ps1 `
+            -BuildDir "apps/desktop/src-tauri/target/release"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundles-${{ matrix.target }}
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/**/*.exe
+            apps/desktop/src-tauri/target/release/bundle/**/*.sig
+            lnwdeck_*_portable.zip
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-assets
+          merge-multiple: true
+
+      - name: Generate updater latest.json
+        run: node scripts/generate-updater-json.mjs "${{ github.ref_name }}" dist-assets
+
+      - name: Resolve release notes file
+        id: notes
+        run: |
+          BASE=$(echo "${{ github.ref_name }}" | sed -E 's/-rc\.[0-9]+$//')
+          FILE="docs/releases/${BASE}.md"
+          if [ ! -f "$FILE" ]; then
+            echo "missing release notes: $FILE" >&2
+            exit 1
+          fi
+          echo "path=$FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" dist-assets/* \
+            --repo "${{ github.repository }}" \
+            --title "lnwdeck ${{ github.ref_name }}" \
+            --notes-file "${{ steps.notes.outputs.path }}" \
+            --draft=false \
+            --prerelease=${{ contains(github.ref_name, '-') }}

@@ -78,3 +78,4 @@ keys/
 
 /prompts/*
 scripts/validate_prompt_plan_sync.py
+repomix-output.xml

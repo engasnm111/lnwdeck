@@ -97,7 +97,7 @@ export function AppShell() {
           </ul>
         </div>
         <div className="app-sidebar-footer">
-          {!collapsed && <span>v0.1.0</span>}
+          {!collapsed && <span>v0.2.0</span>}
           <Badge tone="success">Local</Badge>
         </div>
       </nav>

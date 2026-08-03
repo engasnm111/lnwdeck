@@ -9,7 +9,9 @@
     "test:ts": "pnpm -r run test",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "tauri:dev": "pnpm --filter @lnwdeck/desktop tauri dev",
-    "tauri:build": "pnpm --filter @lnwdeck/desktop tauri build"
+    "tauri:build": "pnpm --filter @lnwdeck/desktop tauri build",
+    "release:check-version": "node scripts/check-release-version.mjs",
+    "release:test": "node --test scripts/check-release-version.test.mjs scripts/generate-updater-json.test.mjs"
   },
   "devDependencies": {
     "vitest": "^3"

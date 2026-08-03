@@ -21,7 +21,7 @@ What you expected to happen.
 
 **Environment:**
 
-- lnwdeck version: [e.g. 0.1.0]
+- lnwdeck version: [e.g. 0.2.0]
 - Windows version: [e.g. Windows 11 24H2]
 - Architecture: [x64 / ARM64 / x86]
 
