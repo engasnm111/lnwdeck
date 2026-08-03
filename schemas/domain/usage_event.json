@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "UsageEvent",
+  "type": "object",
+  "required": [
+    "confidence",
+    "cost",
+    "data_source",
+    "id",
+    "model",
+    "provider_id",
+    "timestamp",
+    "tokens_input",
+    "tokens_output"
+  ],
+  "properties": {
+    "confidence": {
+      "$ref": "#/definitions/Confidence"
+    },
+    "cost": {
+      "type": "string"
+    },
+    "data_source": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "provider_id": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tokens_input": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "tokens_output": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    }
+  },
+  "definitions": {
+    "Confidence": {
+      "type": "string",
+      "enum": [
+        "Low",
+        "Medium",
+        "High"
+      ]
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ProviderDescriptor",
+  "type": "object",
+  "required": [
+    "adapter_id",
+    "enabled",
+    "id",
+    "name"
+  ],
+  "properties": {
+    "adapter_id": {
+      "type": "string"
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    }
+  }
+}
