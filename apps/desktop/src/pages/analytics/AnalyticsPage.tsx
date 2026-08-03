@@ -64,7 +64,7 @@ export function AnalyticsPage() {
       </div>
 
       {/* Dynamic Filter Controls */}
-      <Card className="mb-4" style={{ marginBottom: "1.5rem" }}>
+      <Card>
         <div
           role="region"
           aria-label="Filters"

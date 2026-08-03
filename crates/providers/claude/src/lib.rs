@@ -3,6 +3,7 @@ use lnwdeck_domain::{
     Confidence, QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope, UsageBatch,
     DEFAULT_FRESHNESS,
 };
+use lnwdeck_provider_runtime::token_scan::{scan_directory, usage_events, ScanBounds, TokenSample};
 use lnwdeck_provider_runtime::{
     AdapterDescriptor, AdapterHealth, AdapterHealthStatus, AuthKind, ChannelSupport,
     DetectionResult, Permission, ProviderAdapter, SourceKind,
@@ -138,6 +139,20 @@ impl ClaudeAdapter {
         Ok(any.then_some(sums))
     }
 
+    /// Scans the bounded session files and returns every token sample found.
+    ///
+    /// The shared scanner is used so the sample shape, the bounds and the
+    /// privacy rules are identical across the local collectors.
+    fn scan_samples(&self) -> Result<Vec<TokenSample>, String> {
+        let bounds = ScanBounds {
+            max_files: MAX_FILES,
+            max_total_bytes: MAX_TOTAL_BYTES,
+            ..ScanBounds::default()
+        };
+        let report = scan_directory(&self.projects_dir, &bounds);
+        Ok(report.samples)
+    }
+
     fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
         if !self.projects_dir.is_dir() {
             return Ok(None);
@@ -253,9 +268,18 @@ impl ProviderAdapter for ClaudeAdapter {
         }
     }
     fn collect_usage(&self) -> Result<UsageBatch, String> {
+        if !self.projects_dir.is_dir() {
+            return Err("SOURCE_UNAVAILABLE".to_string());
+        }
+        let samples = self.scan_samples()?;
         Ok(UsageBatch {
             batch_id: format!("claude_{}", chrono::Utc::now().timestamp()),
-            events: vec![],
+            events: usage_events(
+                "anthropic_claude",
+                "local_jsonl",
+                &samples,
+                Confidence::Medium,
+            ),
         })
     }
     fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
@@ -428,5 +452,48 @@ mod tests {
                 "quota report must pass the privacy guard"
             );
         }
+    }
+
+    #[test]
+    fn collect_usage_emits_real_events_from_local_sessions() {
+        let dir = tempdir().expect("temp dir");
+        let root = dir.path().join("projects");
+        std::fs::create_dir_all(&root).expect("create root");
+        let recent = (chrono::Utc::now() - chrono::Duration::minutes(10)).to_rfc3339();
+        std::fs::write(
+            root.join("session.jsonl"),
+            format!(
+                r#"{{"type":"assistant","timestamp":"{recent}","message":{{"id":"m1","role":"assistant","model":"claude-e2e","usage":{{"input_tokens":300,"output_tokens":100}}}}}}"#
+            ),
+        )
+        .expect("write session");
+
+        let adapter = ClaudeAdapter::with_paths(root.clone(), root.join(".credentials.json"));
+        let batch = adapter.collect_usage().expect("usage");
+        assert_eq!(
+            batch.events.len(),
+            1,
+            "a real session record must become a usage event, not an empty success"
+        );
+        assert_eq!(batch.events[0].provider_id, "anthropic_claude");
+        assert_eq!(batch.events[0].tokens_input, 300);
+        assert_eq!(batch.events[0].tokens_output, 100);
+        assert_eq!(batch.events[0].model, "claude-e2e");
+        assert!(
+            batch.events[0].cost.is_empty(),
+            "a collector must not invent a cost"
+        );
+    }
+
+    #[test]
+    fn collect_usage_reports_a_missing_source_instead_of_an_empty_batch() {
+        let adapter = ClaudeAdapter::with_paths(
+            PathBuf::from("Z:/missing"),
+            PathBuf::from("Z:/missing/creds.json"),
+        );
+        assert_eq!(
+            adapter.collect_usage().expect_err("must fail"),
+            "SOURCE_UNAVAILABLE"
+        );
     }
 }

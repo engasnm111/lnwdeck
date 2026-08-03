@@ -3,6 +3,7 @@ use lnwdeck_domain::{
     Confidence, QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope, UsageBatch,
     DEFAULT_FRESHNESS,
 };
+use lnwdeck_provider_runtime::token_scan::{scan_directory, usage_events, ScanBounds, TokenSample};
 use lnwdeck_provider_runtime::{
     AdapterDescriptor, AdapterHealth, AdapterHealthStatus, AuthKind, ChannelSupport,
     DetectionResult, Permission, ProviderAdapter, SourceKind,
@@ -130,6 +131,20 @@ impl CodexAdapter {
         Ok(any.then_some(sums))
     }
 
+    /// Scans the bounded session files and returns every token sample found.
+    ///
+    /// The shared scanner is used so the sample shape, the bounds and the
+    /// privacy rules are identical across the local collectors.
+    fn scan_samples(&self) -> Result<Vec<TokenSample>, String> {
+        let bounds = ScanBounds {
+            max_files: MAX_FILES,
+            max_total_bytes: MAX_TOTAL_BYTES,
+            ..ScanBounds::default()
+        };
+        let report = scan_directory(&self.sessions_dir, &bounds);
+        Ok(report.samples)
+    }
+
     fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
         if !self.sessions_dir.is_dir() {
             return Ok(None);
@@ -249,9 +264,13 @@ impl ProviderAdapter for CodexAdapter {
         }
     }
     fn collect_usage(&self) -> Result<UsageBatch, String> {
+        if !self.sessions_dir.is_dir() {
+            return Err("SOURCE_UNAVAILABLE".to_string());
+        }
+        let samples = self.scan_samples()?;
         Ok(UsageBatch {
             batch_id: format!("codex_{}", chrono::Utc::now().timestamp()),
-            events: vec![],
+            events: usage_events("openai_codex", "local_jsonl", &samples, Confidence::Medium),
         })
     }
     fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
@@ -409,5 +428,48 @@ mod tests {
         let missing = dir.path().join("nope");
         let adapter = adapter_for(&missing);
         assert_eq!(adapter.health_check().status, AdapterHealthStatus::Degraded);
+    }
+
+    #[test]
+    fn collect_usage_emits_real_events_from_local_sessions() {
+        let dir = tempdir().expect("temp dir");
+        let root = dir.path().join("sessions");
+        std::fs::create_dir_all(&root).expect("create root");
+        let recent = (chrono::Utc::now() - chrono::Duration::minutes(10)).to_rfc3339();
+        std::fs::write(
+            root.join("session.jsonl"),
+            format!(
+                r#"{{"type":"assistant","timestamp":"{recent}","message":{{"id":"m1","role":"assistant","model":"codex-e2e","usage":{{"input_tokens":300,"output_tokens":100}}}}}}"#
+            ),
+        )
+        .expect("write session");
+
+        let adapter = CodexAdapter::with_paths(root.clone(), root.join("auth.json"));
+        let batch = adapter.collect_usage().expect("usage");
+        assert_eq!(
+            batch.events.len(),
+            1,
+            "a real session record must become a usage event, not an empty success"
+        );
+        assert_eq!(batch.events[0].provider_id, "openai_codex");
+        assert_eq!(batch.events[0].tokens_input, 300);
+        assert_eq!(batch.events[0].tokens_output, 100);
+        assert_eq!(batch.events[0].model, "codex-e2e");
+        assert!(
+            batch.events[0].cost.is_empty(),
+            "a collector must not invent a cost"
+        );
+    }
+
+    #[test]
+    fn collect_usage_reports_a_missing_source_instead_of_an_empty_batch() {
+        let adapter = CodexAdapter::with_paths(
+            PathBuf::from("Z:/missing"),
+            PathBuf::from("Z:/missing/auth.json"),
+        );
+        assert_eq!(
+            adapter.collect_usage().expect_err("must fail"),
+            "SOURCE_UNAVAILABLE"
+        );
     }
 }

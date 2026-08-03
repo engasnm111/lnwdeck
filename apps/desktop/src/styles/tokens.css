@@ -1,27 +1,176 @@
+/*
+ * Design tokens.
+ *
+ * Dark is the default; light is applied when the user picks it or when the
+ * system prefers light and the user chose "system". The theme is set as
+ * data-theme on the document element by the shell, so the value always
+ * reflects a real stored setting.
+ */
+
 :root {
-  --bg-app: #0b1020;
-  --bg-sidebar: #0d1324;
-  --bg-panel: #121a2b;
-  --bg-panel-elevated: #172136;
-  --bg-hover: #1b2740;
-  --border-subtle: #25314a;
-  --border-strong: #34425f;
-  --text-primary: #f4f7fb;
-  --text-secondary: #aeb9cb;
-  --text-muted: #748198;
-  --accent-primary: #6f7df6;
-  --accent-primary-hover: #8390ff;
-  --accent-secondary: #8b5cf6;
-  --success: #35c98b;
-  --warning: #f2b84b;
-  --danger: #ef6a78;
-  --info: #5ba6f7;
-  --chart-1: #7486ff;
-  --chart-2: #43c6a0;
-  --chart-3: #f2b84b;
-  --chart-4: #d779ff;
-  --chart-5: #59a7ff;
-  --radius-card: 10px;
-  --radius-control: 8px;
-  --font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+  color-scheme: dark;
+
+  /* Surfaces: layered like Windows 11 cards on a mica background. */
+  --bg-app: #14161a;
+  --bg-app-gradient: radial-gradient(
+      1200px 600px at 15% -10%,
+      rgba(96, 130, 255, 0.14),
+      transparent 60%
+    ),
+    radial-gradient(900px 500px at 100% 0%, rgba(147, 96, 255, 0.1), transparent 55%);
+  --bg-sidebar: rgba(28, 31, 38, 0.86);
+  --bg-panel: rgba(33, 37, 45, 0.92);
+  --bg-panel-elevated: rgba(41, 46, 56, 0.95);
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --bg-active: rgba(255, 255, 255, 0.1);
+  --bg-input: rgba(20, 22, 27, 0.9);
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --border-focus: #7d94ff;
+
+  --text-primary: #f2f4f8;
+  --text-secondary: #b6bdc9;
+  --text-muted: #8b94a3;
+  --text-inverse: #14161a;
+
+  --accent-primary: #6b8afd;
+  --accent-primary-hover: #849dff;
+  --accent-subtle: rgba(107, 138, 253, 0.16);
+
+  --success: #4ac98b;
+  --success-subtle: rgba(74, 201, 139, 0.16);
+  --warning: #e7b355;
+  --warning-subtle: rgba(231, 179, 85, 0.18);
+  --danger: #ef6f7b;
+  --danger-subtle: rgba(239, 111, 123, 0.18);
+  --info: #62a8f5;
+  --info-subtle: rgba(98, 168, 245, 0.16);
+  --neutral-subtle: rgba(255, 255, 255, 0.08);
+
+  --chart-1: #6b8afd;
+  --chart-2: #4ac98b;
+  --chart-3: #e7b355;
+  --chart-4: #c98bf5;
+  --chart-5: #62a8f5;
+
+  /* 4px spacing scale. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+
+  --radius-sm: 4px;
+  --radius-control: 6px;
+  --radius-card: 8px;
+  --radius-pill: 999px;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.28), 0 8px 24px rgba(0, 0, 0, 0.22);
+  --shadow-popup: 0 8px 32px rgba(0, 0, 0, 0.45);
+
+  --font-family: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui,
+    -apple-system, sans-serif;
+  --font-family-display: "Segoe UI Variable Display", "Segoe UI", Inter,
+    system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-app: #f3f4f7;
+  --bg-app-gradient: radial-gradient(
+      1200px 600px at 15% -10%,
+      rgba(107, 138, 253, 0.12),
+      transparent 60%
+    ),
+    radial-gradient(900px 500px at 100% 0%, rgba(147, 96, 255, 0.08), transparent 55%);
+  --bg-sidebar: rgba(255, 255, 255, 0.86);
+  --bg-panel: rgba(255, 255, 255, 0.94);
+  --bg-panel-elevated: #ffffff;
+  --bg-hover: rgba(15, 22, 36, 0.05);
+  --bg-active: rgba(15, 22, 36, 0.09);
+  --bg-input: #ffffff;
+
+  --border-subtle: rgba(15, 22, 36, 0.1);
+  --border-strong: rgba(15, 22, 36, 0.2);
+  --border-focus: #3f5fd8;
+
+  --text-primary: #171a20;
+  --text-secondary: #464e5c;
+  --text-muted: #626b7a;
+  --text-inverse: #ffffff;
+
+  --accent-primary: #3f5fd8;
+  --accent-primary-hover: #2f4bbd;
+  --accent-subtle: rgba(63, 95, 216, 0.12);
+
+  --success: #1f8b57;
+  --success-subtle: rgba(31, 139, 87, 0.12);
+  --warning: #9a6a10;
+  --warning-subtle: rgba(154, 106, 16, 0.14);
+  --danger: #c33742;
+  --danger-subtle: rgba(195, 55, 66, 0.12);
+  --info: #1f6fbf;
+  --info-subtle: rgba(31, 111, 191, 0.12);
+  --neutral-subtle: rgba(15, 22, 36, 0.07);
+
+  --shadow-card: 0 1px 2px rgba(15, 22, 36, 0.08), 0 8px 20px rgba(15, 22, 36, 0.08);
+  --shadow-popup: 0 8px 28px rgba(15, 22, 36, 0.2);
+}
+
+/* Users who chose "system" follow the OS preference. */
+@media (prefers-color-scheme: light) {
+  [data-theme="system"] {
+    color-scheme: light;
+
+    --bg-app: #f3f4f7;
+    --bg-sidebar: rgba(255, 255, 255, 0.86);
+    --bg-panel: rgba(255, 255, 255, 0.94);
+    --bg-panel-elevated: #ffffff;
+    --bg-hover: rgba(15, 22, 36, 0.05);
+    --bg-active: rgba(15, 22, 36, 0.09);
+    --bg-input: #ffffff;
+
+    --border-subtle: rgba(15, 22, 36, 0.1);
+    --border-strong: rgba(15, 22, 36, 0.2);
+    --border-focus: #3f5fd8;
+
+    --text-primary: #171a20;
+    --text-secondary: #464e5c;
+    --text-muted: #626b7a;
+    --text-inverse: #ffffff;
+
+    --accent-primary: #3f5fd8;
+    --accent-primary-hover: #2f4bbd;
+    --accent-subtle: rgba(63, 95, 216, 0.12);
+
+    --success: #1f8b57;
+    --success-subtle: rgba(31, 139, 87, 0.12);
+    --warning: #9a6a10;
+    --warning-subtle: rgba(154, 106, 16, 0.14);
+    --danger: #c33742;
+    --danger-subtle: rgba(195, 55, 66, 0.12);
+    --info: #1f6fbf;
+    --info-subtle: rgba(31, 111, 191, 0.12);
+    --neutral-subtle: rgba(15, 22, 36, 0.07);
+
+    --shadow-card: 0 1px 2px rgba(15, 22, 36, 0.08),
+      0 8px 20px rgba(15, 22, 36, 0.08);
+    --shadow-popup: 0 8px 28px rgba(15, 22, 36, 0.2);
+  }
+}
+
+/* Respect a reduced-motion preference everywhere. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-normal: 0ms;
+  }
 }

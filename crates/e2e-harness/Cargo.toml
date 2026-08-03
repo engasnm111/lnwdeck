@@ -1,0 +1,20 @@
+[package]
+name = "lnwdeck-e2e-harness"
+version = "0.2.0"
+edition = "2021"
+description = "Command-line harness that runs the real lnwdeck pipeline for end-to-end tests"
+publish = false
+
+[[bin]]
+name = "lnwdeck-e2e-harness"
+path = "src/main.rs"
+
+[dependencies]
+lnwdeck-application = { path = "../application" }
+lnwdeck-domain = { path = "../domain" }
+lnwdeck-provider-claude = { path = "../providers/claude" }
+lnwdeck-provider-runtime = { path = "../provider-runtime" }
+lnwdeck-storage = { path = "../storage" }
+rusqlite = { version = "0.31", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

@@ -1,169 +1,223 @@
 import { useCallback, useEffect, useState } from "react";
-import { fetchOverview, OverviewData } from "../lib/native";
-import { DataState, MetricCard, Card, Badge, Button } from "@lnwdeck/ui";
+import { Badge, Card, DataState, MetricCard } from "@lnwdeck/ui";
+import {
+  fetchOverview,
+  fetchQuotaDashboard,
+  fetchUsageHistory,
+  type OverviewData,
+  type QuotaDashboardData,
+  type UsageHistoryData,
+} from "../lib/native";
+import {
+  formatCompact,
+  formatNumber,
+  formatTimestamp,
+} from "../lib/freshness";
 
+function costTone(status: string) {
+  switch (status) {
+    case "exact":
+      return "success" as const;
+    case "estimated":
+      return "info" as const;
+    case "missing_pricing":
+      return "warning" as const;
+    default:
+      return "neutral" as const;
+  }
+}
+
+/**
+ * Overview.
+ *
+ * Usage history and provider quota are shown as two separate blocks, because
+ * they come from two independent channels: history is what lnwdeck recorded,
+ * quota is what a provider reported. Neither is derived from the other.
+ */
 export function OverviewPage() {
-  const [data, setData] = useState<OverviewData | null>(null);
+  const [overview, setOverview] = useState<OverviewData | null>(null);
+  const [history, setHistory] = useState<UsageHistoryData | null>(null);
+  const [quota, setQuota] = useState<QuotaDashboardData | null>(null);
+  const [quotaError, setQuotaError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setQuotaError(null);
     try {
-      const result = await fetchOverview();
-      setData(result);
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
+      const [overviewResult, historyResult] = await Promise.all([
+        fetchOverview(),
+        fetchUsageHistory("last_7d"),
+      ]);
+      setOverview(overviewResult);
+      setHistory(historyResult);
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error ? loadError : new Error(String(loadError)),
+      );
     } finally {
       setLoading(false);
+    }
+    // The quota channel is independent: its failure must not blank the usage
+    // figures, and vice versa.
+    try {
+      setQuota(await fetchQuotaDashboard());
+    } catch (loadError) {
+      setQuotaError(
+        loadError instanceof Error ? loadError.message : String(loadError),
+      );
     }
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
-  const isEmpty = data !== null && data.total_events === 0;
-  const totalTokens = data
-    ? data.total_tokens_input + data.total_tokens_output
+  const totalTokens = overview
+    ? overview.total_tokens_input + overview.total_tokens_output
     : 0;
 
-  const renderCostBadge = (status: string) => {
-    switch (status) {
-      case "exact":
-        return <Badge tone="success">Exact</Badge>;
-      case "estimated":
-        return <Badge tone="info">Estimated</Badge>;
-      case "missing_pricing":
-        return <Badge tone="warning">Missing pricing</Badge>;
-      case "no_data":
-      default:
-        return <Badge tone="default">Unavailable</Badge>;
-    }
-  };
+  const quotaProviders = quota?.providers ?? [];
+  const withRealLimit = quotaProviders.filter((provider) =>
+    provider.windows.some((window) => window.remaining_percent !== null),
+  );
+  const lowest = withRealLimit
+    .flatMap((provider) =>
+      provider.windows
+        .filter((window) => window.remaining_percent !== null)
+        .map((window) => ({
+          provider: provider.display_name,
+          label: window.label,
+          percent: window.remaining_percent as number,
+        })),
+    )
+    .sort((a, b) => a.percent - b.percent)[0];
 
   return (
     <div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "1.5rem",
-        }}
-      >
+      <div className="page-header">
         <div>
-          <h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>Overview</h2>
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>
-            Universal AI usage summary across local tools
+          <h2 className="page-title">Overview</h2>
+          <p className="page-subtitle">
+            What lnwdeck recorded on this machine, and what your providers report
+            about remaining quota.
           </p>
         </div>
-        <Button variant="secondary" onClick={load} aria-label="Refresh overview">
-          Refresh Overview
-        </Button>
       </div>
 
       <DataState
         loading={loading}
         error={error}
-        isEmpty={isEmpty}
+        isEmpty={overview !== null && overview.total_events === 0}
+        onRetry={() => void load()}
         emptyFallback={
-          <Card title="No Activity Recorded">
-            <p style={{ color: "var(--text-secondary)", marginBottom: "1rem" }}>
-              No supported AI tools were detected or no usage records were found yet.
+          <Card title="No usage recorded yet">
+            <p className="ui-inline-note">
+              No provider artifacts have been ingested. Open the Providers page
+              to see which collectors found a source and which are waiting for
+              one.
             </p>
-            <Badge tone="warning">No Provider Detected</Badge>
           </Card>
         }
       >
-        {data && (
-          <div role="region" aria-label="Usage overview">
-            {/* Metric Cards Grid */}
-            <div className="metrics-grid">
+        {overview && (
+          <div className="stack">
+            <div className="grid-metrics">
               <MetricCard
-                title="Total Tokens"
-                value={totalTokens.toLocaleString()}
-                subtitle={`In: ${data.total_tokens_input.toLocaleString()} | Out: ${data.total_tokens_output.toLocaleString()}`}
-                badge={<Badge tone="info">Exact</Badge>}
+                title="Recorded events"
+                value={formatNumber(overview.total_events)}
+                subtitle={`across ${overview.provider_count} provider(s)`}
               />
               <MetricCard
-                title="Total Cost"
-                value={data.cost_formatted || (data.total_cost > 0 ? `$${data.total_cost.toFixed(4)}` : "$0.00")}
-                subtitle={data.cost_status === "missing_pricing" ? "Pricing catalog incomplete" : "Calculated from pricing tables"}
-                badge={renderCostBadge(data.cost_status)}
+                title="Tokens"
+                value={formatCompact(totalTokens)}
+                subtitle={`${formatCompact(overview.total_tokens_input)} in / ${formatCompact(overview.total_tokens_output)} out`}
               />
               <MetricCard
-                title="Requests / Events"
-                value={data.total_events.toLocaleString()}
-                subtitle={`${data.provider_count} active providers`}
-                badge={<Badge tone="success">Active</Badge>}
+                title="Cost"
+                value={overview.cost_formatted}
+                badge={
+                  <Badge tone={costTone(overview.cost_status)}>
+                    {overview.cost_status.replace("_", " ")}
+                  </Badge>
+                }
               />
               <MetricCard
-                title="Budget Status"
-                value="Under Limit"
-                subtitle="No active threshold breaches"
-                badge={<Badge tone="success">OK</Badge>}
+                title="High confidence"
+                value={`${Math.round(overview.confidence_coverage * 100)}%`}
+                subtitle={`${formatNumber(overview.high_confidence_count)} of ${formatNumber(overview.total_events)} events`}
               />
             </div>
 
-            {/* Main Overview Panels */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "2fr 1fr",
-                gap: "1.5rem",
-              }}
-            >
-              <Card title="Token Usage Over Time">
-                <div
-                  style={{
-                    height: "180px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: "var(--bg-panel-elevated)",
-                    borderRadius: "var(--radius-card)",
-                    border: "1px dashed var(--border-strong)",
-                    color: "var(--text-muted)",
-                  }}
-                >
-                  <p>
-                    {data.total_events > 0
-                      ? `${data.total_events} events tracked from ${data.oldest_event_at || "earliest"} to ${data.latest_event_at || "now"}`
-                      : "No timeline data"}
+            <div className="channel-split">
+              <div className="channel-block">
+                <div className="channel-title">
+                  <span>Usage history (recorded here)</span>
+                  <Badge tone="info">last 7 days</Badge>
+                </div>
+                {history && history.request_count > 0 ? (
+                  <div className="stack-tight">
+                    <span className="meta-value">
+                      {formatNumber(history.request_count)} request(s),{" "}
+                      {formatCompact(history.tokens_input + history.tokens_output)}{" "}
+                      tokens
+                    </span>
+                    <span className="ui-inline-note">
+                      Oldest event {formatTimestamp(overview.oldest_event_at)},
+                      newest {formatTimestamp(overview.latest_event_at)}
+                    </span>
+                    <span className="ui-inline-note">
+                      {history.models.length} model(s) used
+                    </span>
+                  </div>
+                ) : (
+                  <p className="ui-inline-note">
+                    Nothing was recorded in the last 7 days.
                   </p>
-                </div>
-              </Card>
+                )}
+              </div>
 
-              <Card title="Data Freshness & Confidence">
-                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                  <div>
-                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                      High Confidence Events
-                    </span>
-                    <p style={{ fontSize: "1.25rem", fontWeight: 700 }}>
-                      {data.high_confidence_count} / {data.total_events}
-                    </p>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                      Confidence Coverage
-                    </span>
-                    <p style={{ fontSize: "1.25rem", fontWeight: 700 }}>
-                      {(data.confidence_coverage * 100).toFixed(1)}%
-                    </p>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                      Latest Event Timestamp
-                    </span>
-                    <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>
-                      {data.latest_event_at || "—"}
-                    </p>
-                  </div>
+              <div className="channel-block">
+                <div className="channel-title">
+                  <span>Quota (reported by providers)</span>
+                  {quotaError ? (
+                    <Badge tone="danger">unavailable</Badge>
+                  ) : (
+                    <Badge tone="neutral">
+                      {quotaProviders.length} provider(s)
+                    </Badge>
+                  )}
                 </div>
-              </Card>
+                {quotaError ? (
+                  <p className="ui-inline-note">
+                    Quota could not be read: {quotaError}
+                  </p>
+                ) : quotaProviders.length === 0 ? (
+                  <p className="ui-inline-note">
+                    No provider has reported quota yet.
+                  </p>
+                ) : (
+                  <div className="stack-tight">
+                    {lowest ? (
+                      <span className="meta-value">
+                        Lowest remaining: {lowest.provider} {lowest.label} at{" "}
+                        {Math.round(lowest.percent)}%
+                      </span>
+                    ) : (
+                      <span className="meta-value">
+                        No provider reports a real limit; quota is shown as usage
+                        estimates.
+                      </span>
+                    )}
+                    <span className="ui-inline-note">
+                      {withRealLimit.length} of {quotaProviders.length} provider(s)
+                      report a limit that can be shown as a percentage
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

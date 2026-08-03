@@ -413,3 +413,32 @@ fn declared_support_covers_the_documented_provider_matrix() {
     assert_eq!(ollama.usage_support, ChannelSupport::Unsupported);
     assert!(!ollama.needs_credentials());
 }
+
+/// An adapter whose source is actually present must produce data.
+///
+/// This is the check that the Claude and Codex collectors previously slipped
+/// past: they declared usage support, found their session files, and still
+/// returned an empty batch that the pipeline recorded as a successful run.
+#[test]
+fn a_detected_local_source_must_yield_data_or_an_error_code() {
+    for adapter in builtin_adapters() {
+        let descriptor = adapter.descriptor();
+        let detection = adapter.detect().expect("detect");
+        if !detection.detected || !descriptor.usage_support.is_supported() {
+            continue;
+        }
+        let usage = adapter.collect_usage_with_cursor(None);
+        match &usage.batch {
+            Some(batch) => assert!(
+                !batch.events.is_empty() || !usage.outcome.error_code.is_empty(),
+                "{} detected its source but returned an empty batch with no error",
+                adapter.id()
+            ),
+            None => assert!(
+                !usage.outcome.error_code.is_empty(),
+                "{} returned no batch and no error code",
+                adapter.id()
+            ),
+        }
+    }
+}

@@ -2,31 +2,34 @@ import React from "react";
 
 export interface CardProps {
   title?: string;
+  subtitle?: string;
   action?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
-  style?: React.CSSProperties;
 }
 
-export function Card({ title, action, children, className = "", style }: CardProps) {
+export function Card({
+  title,
+  subtitle,
+  action,
+  children,
+  className = "",
+}: CardProps) {
+  const classes = ["ui-card", className].filter(Boolean).join(" ");
   return (
-    <div className={`ui-card ${className}`} style={style}>
+    <section className={classes}>
       {(title || action) && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "1rem",
-            paddingBottom: "0.5rem",
-            borderBottom: "1px solid var(--border-subtle)",
-          }}
-        >
-          {title && <h3 style={{ fontSize: "1rem", fontWeight: 600, color: "var(--text-primary)" }}>{title}</h3>}
+        <header className="ui-card-header">
+          {title && (
+            <h3 className="ui-card-title">
+              {title}
+              {subtitle && <span className="ui-card-subtitle">{subtitle}</span>}
+            </h3>
+          )}
           {action}
-        </div>
+        </header>
       )}
       {children}
-    </div>
+    </section>
   );
 }

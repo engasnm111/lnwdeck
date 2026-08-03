@@ -8,6 +8,7 @@ members = [
     "crates/application",
     "crates/provider-runtime",
     "crates/provider-http",
+    "crates/e2e-harness",
     "crates/hook-manager",
     "apps/native-messaging-host",
     "crates/pricing",

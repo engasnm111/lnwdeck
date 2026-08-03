@@ -1,20 +1,21 @@
-import { useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { Badge, Button } from "@lnwdeck/ui";
 import {
+  AlertsIcon,
+  AnalyticsIcon,
+  BudgetsIcon,
+  CostsIcon,
+  ModelsIcon,
   OverviewIcon,
   ProvidersIcon,
-  AnalyticsIcon,
-  CostsIcon,
-  BudgetsIcon,
-  ModelsIcon,
-  AlertsIcon,
+  RefreshIcon,
   SettingsIcon,
   SystemIcon,
-  RefreshIcon,
 } from "../components/Icons";
-import { refreshAll } from "../lib/native";
 import { UpdateNotification } from "../components/UpdateNotification";
+import { fetchAlerts, fetchSettings, refreshAll } from "../lib/native";
+import { formatRelativeTime, freshnessOf } from "../lib/freshness";
 
 const navItems = [
   { to: "/", label: "Overview", icon: OverviewIcon },
@@ -28,68 +29,132 @@ const navItems = [
   { to: "/system", label: "System", icon: SystemIcon },
 ];
 
+const APP_VERSION = "0.2.0";
+
+/**
+ * Application shell.
+ *
+ * The freshness indicator reflects the last successful collection reported by
+ * the backend. When no collection has succeeded yet it says so; it never shows
+ * a "Fresh" badge based on the time the window happened to open.
+ */
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<string>(new Date().toLocaleTimeString());
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [lastSync, setLastSync] = useState<string | null>(null);
+  const [openAlerts, setOpenAlerts] = useState<number | null>(null);
+  const [theme, setTheme] = useState<string>("system");
+  const [now, setNow] = useState(() => Date.now());
   const location = useLocation();
 
-  const currentNav = navItems.find((item) => item.to === location.pathname) || navItems[0];
+  const currentNav =
+    navItems.find((item) => item.to === location.pathname) ?? navItems[0];
+
+  const loadStatus = useCallback(async () => {
+    // Both calls are independent: a failure in one must not hide the other.
+    try {
+      const alerts = await fetchAlerts();
+      setOpenAlerts(alerts.open_count);
+    } catch {
+      setOpenAlerts(null);
+    }
+    try {
+      const view = await fetchSettings();
+      setTheme(view.settings.theme);
+    } catch {
+      setTheme("system");
+    }
+  }, []);
+
+  const loadFreshness = useCallback(async () => {
+    try {
+      const { fetchPipelineDiagnostics } = await import("../lib/native");
+      const diagnostics = await fetchPipelineDiagnostics();
+      setLastSync(diagnostics.totals.last_successful_sync);
+    } catch {
+      setLastSync(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadStatus();
+    void loadFreshness();
+    const tick = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(tick);
+  }, [loadStatus, loadFreshness]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
 
   const handleGlobalRefresh = useCallback(async () => {
     setRefreshing(true);
+    setRefreshError(null);
     try {
       await refreshAll();
-      setLastUpdated(new Date().toLocaleTimeString());
-    } catch {
-      // ignore
+      await loadFreshness();
+      await loadStatus();
+      setNow(Date.now());
+    } catch (error) {
+      setRefreshError(
+        error instanceof Error ? error.message : "refresh failed",
+      );
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [loadFreshness, loadStatus]);
+
+  const freshness = freshnessOf(lastSync, now);
 
   return (
     <div className="app-layout">
       <nav
-        role="navigation"
         aria-label="Main navigation"
-        className={`app-sidebar ${collapsed ? "app-sidebar-collapsed" : ""}`}
+        className={`app-sidebar ${collapsed ? "app-sidebar-collapsed" : ""}`.trim()}
       >
         <div>
           <div className="app-sidebar-brand">
-            <h1 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 700 }}>
-              <Link to="/" style={{ color: "inherit", textDecoration: "none" }}>
-                {collapsed ? "lnw" : "lnwdeck"}
+            {!collapsed && (
+              <Link to="/" className="app-sidebar-brand-name">
+                lnwdeck
               </Link>
-            </h1>
+            )}
             <button
               type="button"
-              onClick={() => setCollapsed((c) => !c)}
-              aria-label="Toggle sidebar"
-              style={{
-                marginLeft: "auto",
-                background: "transparent",
-                border: "none",
-                color: "var(--text-muted)",
-              }}
+              className="app-sidebar-collapse"
+              onClick={() => setCollapsed((value) => !value)}
+              aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+              aria-expanded={!collapsed}
             >
-              {collapsed ? "→" : "←"}
+              {collapsed ? "[+]" : "[-]"}
             </button>
           </div>
           <ul className="app-sidebar-nav">
             {navItems.map((item) => {
               const Icon = item.icon;
+              const badgeCount =
+                item.to === "/alerts" && openAlerts ? openAlerts : null;
               return (
                 <li key={item.to}>
                   <NavLink
                     to={item.to}
                     end={item.to === "/"}
+                    title={item.label}
                     className={({ isActive }) =>
-                      `app-sidebar-link ${isActive ? "active" : ""}`
+                      `app-sidebar-link ${isActive ? "active" : ""}`.trim()
                     }
                   >
                     <Icon />
                     {!collapsed && <span>{item.label}</span>}
+                    {badgeCount !== null && (
+                      <span
+                        className="app-sidebar-link-count"
+                        aria-label={`${badgeCount} open alerts`}
+                      >
+                        {badgeCount}
+                      </span>
+                    )}
                   </NavLink>
                 </li>
               );
@@ -97,28 +162,47 @@ export function AppShell() {
           </ul>
         </div>
         <div className="app-sidebar-footer">
-          {!collapsed && <span>v0.2.0</span>}
-          <Badge tone="success">Local</Badge>
+          {!collapsed && <span>v{APP_VERSION}</span>}
+          <Badge tone="neutral" title="All data stays on this machine">
+            Local
+          </Badge>
         </div>
       </nav>
 
       <div className="app-main-container">
         <UpdateNotification />
+        {refreshError && (
+          <div className="banner banner-error" role="alert">
+            <span className="banner-body">Refresh failed: {refreshError}</span>
+            <button
+              type="button"
+              className="banner-dismiss"
+              onClick={() => setRefreshError(null)}
+              aria-label="Dismiss refresh error"
+            >
+              x
+            </button>
+          </div>
+        )}
         <header className="app-topbar">
           <h1 className="app-topbar-title">{currentNav.label}</h1>
           <div className="app-topbar-actions">
-            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-              Updated {lastUpdated}
+            <span className="app-freshness">
+              <span>
+                {lastSync
+                  ? `Collected ${formatRelativeTime(lastSync, now)}`
+                  : "No collection has succeeded yet"}
+              </span>
+              <Badge tone={freshness.tone}>{freshness.label}</Badge>
             </span>
-            <Badge tone="success">Fresh</Badge>
             <Button
               variant="secondary"
-              onClick={handleGlobalRefresh}
+              onClick={() => void handleGlobalRefresh()}
               disabled={refreshing}
-              aria-label="Refresh All"
+              aria-label="Refresh all providers"
             >
               <RefreshIcon />
-              {refreshing ? "Refreshing…" : "Refresh All"}
+              {refreshing ? "Refreshing" : "Refresh all"}
             </Button>
           </div>
         </header>

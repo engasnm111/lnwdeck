@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router";
+import { Route, Routes } from "react-router";
 import { AppShell } from "./app/AppShell";
 import { OverviewPage } from "./pages/OverviewPage";
 import { ProvidersPage } from "./pages/ProvidersPage";
@@ -9,9 +9,13 @@ import { ModelsPage } from "./pages/models/ModelsPage";
 import { AlertsPage } from "./pages/alerts/AlertsPage";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { SystemPage } from "./pages/system/SystemPage";
-import { FloatingWidget } from "./windows/widget/FloatingWidget";
-import { TrayPopup } from "./windows/tray/TrayPopup";
 
+/**
+ * Dashboard routes.
+ *
+ * The widget and the tray popup are separate windows with their own HTML
+ * entries, so they are deliberately not routed here.
+ */
 function App() {
   return (
     <Routes>
@@ -26,8 +30,6 @@ function App() {
         <Route path="settings" element={<SettingsPage />} />
         <Route path="system" element={<SystemPage />} />
       </Route>
-      <Route path="widget" element={<FloatingWidget />} />
-      <Route path="tray" element={<TrayPopup />} />
     </Routes>
   );
 }

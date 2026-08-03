@@ -48,3 +48,4 @@ tauri-build = { version = "2", features = [] }
 
 [dev-dependencies]
 tempfile = "3"
+minisign-verify = "0.2"

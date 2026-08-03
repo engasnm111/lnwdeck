@@ -1,68 +1,374 @@
-import { Card, Badge, Button } from "@lnwdeck/ui";
+import { useCallback, useEffect, useState } from "react";
+import { Badge, Button, Card, DataState, Field, Toggle } from "@lnwdeck/ui";
+import {
+  deleteProviderKey,
+  fetchSettings,
+  saveSettings,
+  setProviderKey,
+  type AppSettingsData,
+  type SettingsViewData,
+} from "../../lib/native";
 
+function intervalLabel(seconds: number): string {
+  if (seconds === 0) {
+    return "Disabled";
+  }
+  if (seconds < 60) {
+    return `${seconds} seconds`;
+  }
+  if (seconds < 3600) {
+    return `${seconds / 60} minutes`;
+  }
+  return `${seconds / 3600} hour(s)`;
+}
+
+function retentionLabel(days: number): string {
+  return days === 0 ? "Keep everything" : `${days} days`;
+}
+
+/**
+ * Settings.
+ *
+ * Every control is bound to state read from the backend and every change is
+ * written through a command that validates it. The page reports what was
+ * actually stored, so a control cannot show a preference the application does
+ * not hold.
+ */
 export function SettingsPage() {
+  const [view, setView] = useState<SettingsViewData | null>(null);
+  const [draft, setDraft] = useState<AppSettingsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
+  const [keyError, setKeyError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await fetchSettings();
+      setView(result);
+      setDraft(result.settings);
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error ? loadError : new Error(String(loadError)),
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const update = useCallback(
+    <K extends keyof AppSettingsData>(key: K, value: AppSettingsData[K]) => {
+      setDraft((current) => (current ? { ...current, [key]: value } : current));
+      setSavedAt(null);
+    },
+    [],
+  );
+
+  const handleSave = useCallback(async () => {
+    if (!draft) {
+      return;
+    }
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const stored = await saveSettings(draft);
+      setView(stored);
+      setDraft(stored.settings);
+      setSavedAt(new Date().toLocaleTimeString());
+    } catch (error_) {
+      setSaveError(error_ instanceof Error ? error_.message : String(error_));
+    } finally {
+      setSaving(false);
+    }
+  }, [draft]);
+
+  const handleStoreKey = useCallback(
+    async (providerId: string) => {
+      setKeyError(null);
+      try {
+        const stored = await setProviderKey(
+          providerId,
+          keyDrafts[providerId] ?? "",
+        );
+        setView(stored);
+        setKeyDrafts((current) => ({ ...current, [providerId]: "" }));
+      } catch (error_) {
+        setKeyError(error_ instanceof Error ? error_.message : String(error_));
+      }
+    },
+    [keyDrafts],
+  );
+
+  const handleDeleteKey = useCallback(async (providerId: string) => {
+    setKeyError(null);
+    try {
+      setView(await deleteProviderKey(providerId));
+    } catch (error_) {
+      setKeyError(error_ instanceof Error ? error_.message : String(error_));
+    }
+  }, []);
+
   return (
     <div>
-      <div style={{ marginBottom: "1.5rem" }}>
-        <h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>Settings</h2>
-        <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>
-          Application preferences, theme, and collection intervals
-        </p>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-        <Card title="Startup & System Integration">
-          <form role="form" aria-label="Application settings" style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-            <div>
-              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-                <input type="checkbox" defaultChecked />
-                <span>Launch lnwdeck automatically when Windows starts</span>
-              </label>
-            </div>
-
-            <div>
-              <label htmlFor="theme" style={{ display: "block", fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.25rem" }}>
-                Theme
-              </label>
-              <select id="theme" className="ui-select" style={{ width: "200px" }}>
-                <option value="dark">Dark Theme (Default)</option>
-                <option value="light">Light Theme</option>
-                <option value="system">Follow System</option>
-              </select>
-            </div>
-
-            <div>
-              <label htmlFor="refresh-interval" style={{ display: "block", fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.25rem" }}>
-                Auto-refresh interval
-              </label>
-              <select id="refresh-interval" className="ui-select" style={{ width: "200px" }}>
-                <option value="300">5 minutes (Default)</option>
-                <option value="60">1 minute</option>
-                <option value="30">30 seconds</option>
-                <option value="0">Disabled</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-                <input type="checkbox" defaultChecked />
-                <span>Check for updates automatically</span>
-              </label>
-            </div>
-
-            <div style={{ marginTop: "0.5rem" }}>
-              <Button variant="primary" type="button">Save Settings</Button>
-            </div>
-          </form>
-        </Card>
-
-        <Card title="Privacy & Security Guarantee">
-          <p style={{ color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
-            lnwdeck is strictly local-only. Prompts, responses, source code, file contents, and credentials are never collected or stored.
+      <div className="page-header">
+        <div>
+          <h2 className="page-title">Settings</h2>
+          <p className="page-subtitle">
+            Preferences are stored locally and applied by the backend. API keys
+            go to the Windows Credential Manager, never to the database.
           </p>
-          <Badge tone="success">Local Metadata Only</Badge>
-        </Card>
+        </div>
       </div>
+
+      <DataState
+        loading={loading}
+        error={error}
+        isEmpty={false}
+        onRetry={() => void load()}
+      >
+        {view && draft && (
+          <div className="stack">
+            <Card
+              title="Collection"
+              action={
+                <Button
+                  variant="primary"
+                  onClick={() => void handleSave()}
+                  disabled={saving}
+                >
+                  {saving ? "Saving" : "Save settings"}
+                </Button>
+              }
+            >
+              <div className="settings-grid">
+                <Field
+                  label="Automatic refresh"
+                  htmlFor="refresh-interval"
+                  hint="How often providers are collected in the background"
+                >
+                  <select
+                    id="refresh-interval"
+                    className="ui-select"
+                    value={String(draft.refresh_interval_seconds)}
+                    onChange={(event) =>
+                      update(
+                        "refresh_interval_seconds",
+                        Number(event.target.value),
+                      )
+                    }
+                  >
+                    {view.allowed_refresh_intervals.map((seconds) => (
+                      <option key={seconds} value={seconds}>
+                        {intervalLabel(seconds)}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field
+                  label="Keep history for"
+                  htmlFor="retention"
+                  hint="Older records are pruned"
+                >
+                  <select
+                    id="retention"
+                    className="ui-select"
+                    value={String(draft.retention_days)}
+                    onChange={(event) =>
+                      update("retention_days", Number(event.target.value))
+                    }
+                  >
+                    {view.allowed_retention_days.map((days) => (
+                      <option key={days} value={days}>
+                        {retentionLabel(days)}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Theme" htmlFor="theme">
+                  <select
+                    id="theme"
+                    className="ui-select"
+                    value={draft.theme}
+                    onChange={(event) =>
+                      update(
+                        "theme",
+                        event.target.value as AppSettingsData["theme"],
+                      )
+                    }
+                  >
+                    {view.allowed_themes.map((theme) => (
+                      <option key={theme} value={theme}>
+                        {theme}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+              {saveError && (
+                <p className="ui-field-error" role="alert">
+                  {saveError}
+                </p>
+              )}
+              {savedAt && (
+                <p className="ui-inline-note" role="status">
+                  Saved at {savedAt}
+                </p>
+              )}
+            </Card>
+
+            <Card title="Windows integration">
+              <div className="stack-tight">
+                <Toggle
+                  id="launch-at-startup"
+                  label="Start lnwdeck when Windows starts"
+                  hint={
+                    view.startup_supported
+                      ? `Registry entry currently ${view.startup_registered ? "present" : "absent"}`
+                      : "Not supported on this platform"
+                  }
+                  checked={draft.launch_at_startup}
+                  disabled={!view.startup_supported}
+                  onChange={(checked) => update("launch_at_startup", checked)}
+                />
+                <Toggle
+                  id="auto-update"
+                  label="Check for updates automatically"
+                  hint="A failed check is reported, never hidden"
+                  checked={draft.auto_update_check}
+                  onChange={(checked) => update("auto_update_check", checked)}
+                />
+                <Toggle
+                  id="widget-visible"
+                  label="Show the floating quota widget"
+                  checked={draft.widget_visible}
+                  onChange={(checked) => update("widget_visible", checked)}
+                />
+                <Toggle
+                  id="widget-locked"
+                  label="Lock the widget in place"
+                  hint="A locked widget cannot be dragged"
+                  checked={draft.widget_locked}
+                  onChange={(checked) => update("widget_locked", checked)}
+                />
+                <Field
+                  label={`Widget opacity: ${Math.round(draft.widget_opacity * 100)}%`}
+                  htmlFor="widget-opacity"
+                >
+                  <input
+                    id="widget-opacity"
+                    className="ui-input"
+                    type="range"
+                    min={10}
+                    max={100}
+                    step={10}
+                    value={Math.round(draft.widget_opacity * 100)}
+                    onChange={(event) =>
+                      update("widget_opacity", Number(event.target.value) / 100)
+                    }
+                  />
+                </Field>
+              </div>
+            </Card>
+
+            <Card
+              title="Provider API keys"
+              subtitle={
+                view.credential_store_supported
+                  ? "Stored in the Windows Credential Manager"
+                  : "This platform has no credential store, so keys cannot be stored"
+              }
+            >
+              {view.provider_credentials.length === 0 ? (
+                <p className="ui-inline-note">
+                  No registered provider requires an API key.
+                </p>
+              ) : (
+                <div className="stack-tight">
+                  {view.provider_credentials.map((credential) => (
+                    <div key={credential.provider_id} className="row-between">
+                      <div className="stack-tight">
+                        <span className="meta-value">
+                          {credential.display_name}
+                        </span>
+                        <Badge
+                          tone={
+                            credential.state === "configured"
+                              ? "success"
+                              : credential.state === "expired"
+                                ? "warning"
+                                : "neutral"
+                          }
+                        >
+                          {credential.state}
+                        </Badge>
+                      </div>
+                      <div className="row">
+                        <input
+                          className="ui-input"
+                          type="password"
+                          placeholder="API key"
+                          aria-label={`${credential.display_name} API key`}
+                          value={keyDrafts[credential.provider_id] ?? ""}
+                          disabled={!view.credential_store_supported}
+                          onChange={(event) =>
+                            setKeyDrafts((current) => ({
+                              ...current,
+                              [credential.provider_id]: event.target.value,
+                            }))
+                          }
+                        />
+                        <Button
+                          size="small"
+                          disabled={!view.credential_store_supported}
+                          onClick={() =>
+                            void handleStoreKey(credential.provider_id)
+                          }
+                        >
+                          Store
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="danger"
+                          disabled={credential.state === "missing"}
+                          onClick={() =>
+                            void handleDeleteKey(credential.provider_id)
+                          }
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {keyError && (
+                <p className="ui-field-error" role="alert">
+                  {keyError}
+                </p>
+              )}
+            </Card>
+
+            <Card title="Privacy">
+              <p className="ui-inline-note">
+                lnwdeck reads local provider artifacts read-only and stores token
+                counts, timestamps, model identifiers and quota values. Prompts,
+                responses, file contents, file names and absolute paths are never
+                collected. Provider requests only happen for providers where you
+                stored a key.
+              </p>
+            </Card>
+          </div>
+        )}
+      </DataState>
     </div>
   );
 }
