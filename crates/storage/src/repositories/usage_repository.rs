@@ -11,12 +11,25 @@ impl<'a> UsageRepository<'a> {
     }
 
     pub fn ingest_batch(&self, batch: &UsageBatch) -> Result<(), rusqlite::Error> {
+        self.ingest_batch_with_counts(batch).map(|_| ())
+    }
+
+    /// Ingests a batch and returns `(inserted, duplicates_skipped)`.
+    /// Event ids are the stable fingerprints: `INSERT OR IGNORE` skips
+    /// rows whose fingerprint already exists.
+    pub fn ingest_batch_with_counts(
+        &self,
+        batch: &UsageBatch,
+    ) -> Result<(u64, u64), rusqlite::Error> {
         let tx = self.conn.unchecked_transaction()?;
+
+        let mut inserted: u64 = 0;
+        let mut duplicates: u64 = 0;
 
         for event in &batch.events {
             let timestamp = event.timestamp.to_rfc3339();
 
-            match tx.execute(
+            let changed = tx.execute(
                 "INSERT OR IGNORE INTO usage_events (id, batch_id, timestamp, provider_id, model, tokens_input, tokens_output, confidence, data_source, cost)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                 rusqlite::params![
@@ -31,15 +44,15 @@ impl<'a> UsageRepository<'a> {
                     event.data_source,
                     event.cost,
                 ],
-            ) {
-                Ok(_) => {}
-                Err(e) => {
-                    return Err(e);
-                }
+            )?;
+            if changed == 1 {
+                inserted += 1;
+            } else {
+                duplicates += 1;
             }
         }
 
         tx.commit()?;
-        Ok(())
+        Ok((inserted, duplicates))
     }
 }
