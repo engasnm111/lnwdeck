@@ -18,7 +18,7 @@ export function TrayPopup() {
   }, [load]);
 
   return (
-    <div style={{ padding: "0.5rem", fontSize: "0.875rem", mlnwidth: 200 }}>
+    <div style={{ padding: "0.5rem", fontSize: "0.875rem", minWidth: 200 }}>
       {data ? (
         <>
           <p>
