@@ -24,6 +24,11 @@ lnwdeck-pricing = { path = "../../../crates/pricing" }
 lnwdeck-analytics = { path = "../../../crates/analytics" }
 lnwdeck-hook-manager = { path = "../../../crates/hook-manager" }
 lnwdeck-provider-runtime = { path = "../../../crates/provider-runtime" }
+lnwdeck-provider-opencode = { path = "../../../crates/providers/opencode" }
+rusqlite = { version = "0.31", features = ["bundled"] }
+chrono = { version = "0.4", features = ["serde"] }
+getrandom = "0.3"
+hex = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

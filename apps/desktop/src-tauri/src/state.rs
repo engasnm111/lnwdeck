@@ -2,9 +2,12 @@ use lnwdeck_storage::Storage;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use lnwdeck_provider_runtime::ProviderAdapter;
+
 pub struct AppState {
     pub storage: Mutex<Option<Storage>>,
     pub db_path: PathBuf,
+    pub adapters: Mutex<Vec<Box<dyn ProviderAdapter>>>,
 }
 
 impl AppState {
@@ -12,6 +15,7 @@ impl AppState {
         Self {
             storage: Mutex::new(None),
             db_path,
+            adapters: Mutex::new(Vec::new()),
         }
     }
 
@@ -29,13 +33,14 @@ impl AppState {
 
 impl Default for AppState {
     fn default() -> Self {
-        let db_path = dirs_document_dir().join("lnwdeck").join("lnwdeck.db");
+        let db_path = dirs_local_data_dir().join("lnwdeck").join("lnwdeck.db");
         Self::new(db_path)
     }
 }
 
-fn dirs_document_dir() -> PathBuf {
-    std::env::var("APPDATA")
+fn dirs_local_data_dir() -> PathBuf {
+    std::env::var("LOCALAPPDATA")
         .map(PathBuf::from)
+        .or_else(|_| std::env::var("APPDATA").map(PathBuf::from))
         .unwrap_or_else(|_| PathBuf::from("."))
 }
