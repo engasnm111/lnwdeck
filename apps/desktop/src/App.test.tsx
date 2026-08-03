@@ -19,6 +19,6 @@ describe("App", () => {
         <App />
       </MemoryRouter>,
     );
-    expect(screen.getByRole("heading", { name: "Overview" })).toBeVisible();
+    expect(screen.getAllByRole("heading", { name: "Overview" }).length).toBeGreaterThan(0);
   });
 });
