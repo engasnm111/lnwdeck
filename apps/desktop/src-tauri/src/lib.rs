@@ -35,6 +35,7 @@ pub fn run() {
         .manage(AppState::new(db_path))
         .setup(|app| {
             windows::setup_windows(app);
+            windows::restore_widget_position(app);
             tray::setup_tray(app).ok();
             spawn_refresh_loop(app.handle().clone());
             updater::spawn_update_check(app.handle().clone());
@@ -44,6 +45,11 @@ pub fn run() {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
                 windows::handle_close_request(window);
             }
+            if let tauri::WindowEvent::Moved { .. } = event {
+                if window.label() == "widget" {
+                    windows::save_widget_position(window.app_handle());
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             greet,
@@ -51,7 +57,9 @@ pub fn run() {
             commands::analytics::get_analytics,
             commands::providers::get_providers,
             commands::pipeline::refresh_all,
+            commands::pipeline::refresh_provider,
             commands::pipeline::get_pipeline_diagnostics,
+            commands::quota::get_quota_dashboard,
             windows::show_widget,
             windows::hide_widget,
             windows::set_widget_opacity,

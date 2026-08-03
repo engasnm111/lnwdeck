@@ -1,4 +1,4 @@
-use lnwdeck_domain::{QuotaSnapshot, UsageBatch};
+use lnwdeck_domain::{QuotaReport, UsageBatch};
 use lnwdeck_security::PrivacyGuard;
 use lnwdeck_storage::repositories::{QuotaRepository, UsageRepository};
 use rusqlite::Connection;
@@ -13,12 +13,15 @@ impl IngestUsageBatch {
     }
 }
 
-pub struct SaveQuotaSnapshot;
+pub struct SaveQuotaReport;
 
-impl SaveQuotaSnapshot {
-    pub fn execute(conn: &Connection, snapshot: &QuotaSnapshot) -> Result<(), IngestError> {
+impl SaveQuotaReport {
+    pub fn execute(conn: &Connection, report: &QuotaReport) -> Result<(), IngestError> {
+        PrivacyGuard::validate_quota_report(report).map_err(|_| IngestError::PrivacyViolation)?;
         let repo = QuotaRepository::new(conn);
-        repo.insert_snapshot(snapshot).map_err(IngestError::Storage)
+        repo.upsert_report(report)
+            .map(|_| ())
+            .map_err(IngestError::Storage)
     }
 }
 

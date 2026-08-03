@@ -1,0 +1,168 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QuotaReport",
+  "description": "Normalized quota report for one provider, produced by a quota collector.\n\nCarries report-level metadata (status, plan, freshness) plus one window per reset period. Never contains raw credentials, paths, or account ids.",
+  "type": "object",
+  "required": [
+    "collected_at",
+    "provider_id",
+    "source",
+    "stale_at",
+    "status",
+    "windows"
+  ],
+  "properties": {
+    "account_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "collected_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "error_code": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "plan": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider_id": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "stale_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "$ref": "#/definitions/QuotaStatus"
+    },
+    "windows": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/QuotaWindow"
+      }
+    }
+  },
+  "definitions": {
+    "Confidence": {
+      "type": "string",
+      "enum": [
+        "Low",
+        "Medium",
+        "High"
+      ]
+    },
+    "QuotaKind": {
+      "description": "What a quota window measures.",
+      "type": "string",
+      "enum": [
+        "requests",
+        "tokens",
+        "credits",
+        "parallel"
+      ]
+    },
+    "QuotaStatus": {
+      "description": "Overall status of a quota report.",
+      "type": "string",
+      "enum": [
+        "fresh",
+        "stale",
+        "unavailable",
+        "auth_expired",
+        "rate_limited",
+        "error"
+      ]
+    },
+    "QuotaWindow": {
+      "description": "One quota window: used/limit/remaining for a single reset period.",
+      "type": "object",
+      "required": [
+        "confidence",
+        "is_unlimited",
+        "kind",
+        "label",
+        "limit",
+        "remaining",
+        "remaining_percent",
+        "scope",
+        "used",
+        "used_percent",
+        "window_key"
+      ],
+      "properties": {
+        "confidence": {
+          "$ref": "#/definitions/Confidence"
+        },
+        "is_unlimited": {
+          "type": "boolean"
+        },
+        "kind": {
+          "$ref": "#/definitions/QuotaKind"
+        },
+        "label": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "remaining": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "remaining_percent": {
+          "type": "number",
+          "format": "double"
+        },
+        "reset_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "scope": {
+          "$ref": "#/definitions/QuotaWindowScope"
+        },
+        "used": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "used_percent": {
+          "type": "number",
+          "format": "double"
+        },
+        "window_key": {
+          "type": "string"
+        }
+      }
+    },
+    "QuotaWindowScope": {
+      "description": "How the quota window period is defined by the provider.",
+      "type": "string",
+      "enum": [
+        "rolling",
+        "daily",
+        "weekly",
+        "monthly",
+        "session",
+        "other"
+      ]
+    }
+  }
+}

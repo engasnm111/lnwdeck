@@ -25,8 +25,13 @@ mod tests {
     }
 
     #[test]
-    fn generate_quota_snapshot_schema() {
-        write_schema::<lnwdeck_domain::QuotaSnapshot>("quota_snapshot");
+    fn generate_quota_report_schema() {
+        write_schema::<lnwdeck_domain::QuotaReport>("quota_report");
+    }
+
+    #[test]
+    fn generate_quota_window_schema() {
+        write_schema::<lnwdeck_domain::QuotaWindow>("quota_window");
     }
 
     #[test]

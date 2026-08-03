@@ -1,4 +1,4 @@
-use lnwdeck_domain::{Confidence, QuotaSnapshot, UsageBatch, UsageEvent};
+use lnwdeck_domain::{Confidence, QuotaReport, UsageBatch, UsageEvent};
 use lnwdeck_provider_runtime::{
     AdapterHealth, AdapterHealthStatus, AdapterRegistry, AdaptiveScheduler, Permission,
     Permissions, ProviderAdapter,
@@ -41,7 +41,7 @@ impl ProviderAdapter for SuccessAdapter {
             events: vec![sample_event(&self.id)],
         })
     }
-    fn collect_quota(&self) -> Result<Option<QuotaSnapshot>, String> {
+    fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
         Ok(None)
     }
     fn health_check(&self) -> AdapterHealth {
@@ -69,7 +69,7 @@ impl ProviderAdapter for PartialDataAdapter {
     fn collect_usage(&self) -> Result<UsageBatch, String> {
         Err("partial data: only 3 of 10 records".to_string())
     }
-    fn collect_quota(&self) -> Result<Option<QuotaSnapshot>, String> {
+    fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
         Ok(None)
     }
     fn health_check(&self) -> AdapterHealth {
@@ -100,7 +100,7 @@ impl ProviderAdapter for RateLimitAdapter {
         *count += 1;
         Err("rate limit exceeded".to_string())
     }
-    fn collect_quota(&self) -> Result<Option<QuotaSnapshot>, String> {
+    fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
         Ok(None)
     }
     fn health_check(&self) -> AdapterHealth {
@@ -131,7 +131,7 @@ impl ProviderAdapter for TimeoutAdapter {
             events: vec![],
         })
     }
-    fn collect_quota(&self) -> Result<Option<QuotaSnapshot>, String> {
+    fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
         Ok(None)
     }
     fn health_check(&self) -> AdapterHealth {
@@ -161,7 +161,7 @@ impl ProviderAdapter for PanicAdapter {
             events: vec![sample_event("panic_adapter")],
         })
     }
-    fn collect_quota(&self) -> Result<Option<QuotaSnapshot>, String> {
+    fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
         Ok(None)
     }
     fn health_check(&self) -> AdapterHealth {
@@ -258,7 +258,7 @@ fn adapter_with_unsatisfied_permissions_is_skipped() {
                 events: vec![],
             })
         }
-        fn collect_quota(&self) -> Result<Option<QuotaSnapshot>, String> {
+        fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
             Ok(None)
         }
         fn health_check(&self) -> AdapterHealth {

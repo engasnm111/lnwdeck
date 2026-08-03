@@ -1,6 +1,6 @@
 use chrono::DateTime;
 use lnwdeck_application::refresh::RefreshAll;
-use lnwdeck_domain::{Confidence, QuotaSnapshot, UsageBatch, UsageEvent};
+use lnwdeck_domain::{Confidence, QuotaReport, UsageBatch, UsageEvent};
 use lnwdeck_provider_runtime::{
     AdapterHealth, AdapterHealthStatus, DetectionResult, Permission, ProviderAdapter,
 };
@@ -40,7 +40,7 @@ impl ProviderAdapter for SuccessAdapter {
             ],
         })
     }
-    fn collect_quota(&self) -> Result<Option<QuotaSnapshot>, String> {
+    fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
         Ok(None)
     }
     fn health_check(&self) -> AdapterHealth {
@@ -62,7 +62,7 @@ impl ProviderAdapter for SuccessAdapter {
             source_type: "fixture".to_string(),
             source_exists: true,
             permission_state: "read_ok".to_string(),
-            adapter_version: "0.1.0".to_string(),
+            adapter_version: "0.2.0".to_string(),
             last_detection_at: Some("2026-08-03T00:00:00Z".to_string()),
             detection_error_code: String::new(),
         })
@@ -98,7 +98,7 @@ impl ProviderAdapter for FailingAdapter {
     fn collect_usage(&self) -> Result<UsageBatch, String> {
         Err("SOURCE_UNAVAILABLE".to_string())
     }
-    fn collect_quota(&self) -> Result<Option<QuotaSnapshot>, String> {
+    fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
         Ok(None)
     }
     fn health_check(&self) -> AdapterHealth {
@@ -120,7 +120,7 @@ impl ProviderAdapter for FailingAdapter {
             source_type: "fixture".to_string(),
             source_exists: false,
             permission_state: "n/a".to_string(),
-            adapter_version: "0.1.0".to_string(),
+            adapter_version: "0.2.0".to_string(),
             last_detection_at: Some("2026-08-03T00:00:00Z".to_string()),
             detection_error_code: String::new(),
         })
@@ -144,7 +144,7 @@ impl ProviderAdapter for ViolatingAdapter {
             events: vec![evt],
         })
     }
-    fn collect_quota(&self) -> Result<Option<QuotaSnapshot>, String> {
+    fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
         Ok(None)
     }
     fn health_check(&self) -> AdapterHealth {
@@ -175,10 +175,10 @@ fn event_count(conn: &rusqlite::Connection) -> i64 {
 fn refresh_persists_detection_collection_and_events() {
     let storage = setup_db();
     let adapters: Vec<&dyn ProviderAdapter> = vec![&SuccessAdapter];
-    let outcomes = RefreshAll::execute(&storage.conn, &adapters);
+    let cycle = RefreshAll::execute(&storage.conn, &adapters);
 
-    assert_eq!(outcomes.len(), 1);
-    let outcome = &outcomes[0];
+    assert_eq!(cycle.usage.len(), 1);
+    let outcome = &cycle.usage[0];
     assert_eq!(outcome.provider_id, "fake_provider");
     assert_eq!(outcome.events_inserted, 2);
     assert_eq!(outcome.error_code, "");
@@ -191,8 +191,19 @@ fn refresh_persists_detection_collection_and_events() {
     assert!(states[0].detected, "detection must be persisted");
 
     let runs = diag.latest_runs().expect("runs");
-    assert_eq!(runs.len(), 1);
-    assert_eq!(runs[0].events_inserted, 2);
+    assert_eq!(runs.len(), 2, "one usage run and one quota run");
+    let usage_run = runs
+        .iter()
+        .find(|r| r.collector_mode != "quota_collect")
+        .expect("usage run");
+    assert_eq!(usage_run.events_inserted, 2);
+
+    let quota_outcome = &cycle.quota[0];
+    assert_eq!(
+        quota_outcome.error_code, "UNSUPPORTED",
+        "adapter without quota support reports unsupported"
+    );
+    assert_eq!(quota_outcome.windows_collected, 0);
 
     let cursor: String = storage
         .conn
@@ -211,10 +222,10 @@ fn refresh_is_idempotent_and_counts_duplicates() {
     let adapters: Vec<&dyn ProviderAdapter> = vec![&SuccessAdapter];
 
     RefreshAll::execute(&storage.conn, &adapters);
-    let outcomes = RefreshAll::execute(&storage.conn, &adapters);
+    let cycle = RefreshAll::execute(&storage.conn, &adapters);
 
-    assert_eq!(outcomes[0].events_inserted, 0, "no new rows on repeat");
-    assert_eq!(outcomes[0].duplicates_skipped, 2);
+    assert_eq!(cycle.usage[0].events_inserted, 0, "no new rows on repeat");
+    assert_eq!(cycle.usage[0].duplicates_skipped, 2);
     assert_eq!(event_count(&storage.conn), 2, "rows must not duplicate");
 
     let diag = DiagnosticsRepository::new(&storage.conn);
@@ -228,17 +239,19 @@ fn refresh_is_idempotent_and_counts_duplicates() {
 fn failing_adapter_is_isolated_and_recorded() {
     let storage = setup_db();
     let adapters: Vec<&dyn ProviderAdapter> = vec![&FailingAdapter, &SuccessAdapter];
-    let outcomes = RefreshAll::execute(&storage.conn, &adapters);
+    let cycle = RefreshAll::execute(&storage.conn, &adapters);
 
-    assert_eq!(outcomes.len(), 2, "both adapters produce outcomes");
-    let failed = outcomes
+    assert_eq!(cycle.usage.len(), 2, "both adapters produce outcomes");
+    let failed = cycle
+        .usage
         .iter()
         .find(|o| o.provider_id == "failing_provider")
         .expect("failed outcome");
     assert_eq!(failed.error_code, "SOURCE_UNAVAILABLE");
     assert_eq!(failed.events_inserted, 0);
 
-    let ok = outcomes
+    let ok = cycle
+        .usage
         .iter()
         .find(|o| o.provider_id == "fake_provider")
         .expect("ok outcome");
@@ -252,16 +265,16 @@ fn failing_adapter_is_isolated_and_recorded() {
 
     let diag = DiagnosticsRepository::new(&storage.conn);
     let runs = diag.latest_runs().expect("runs");
-    assert_eq!(runs.len(), 2, "every attempt recorded");
+    assert_eq!(runs.len(), 4, "usage + quota run per adapter recorded");
 }
 
 #[test]
 fn privacy_violation_rejects_batch_and_is_recorded() {
     let storage = setup_db();
     let adapters: Vec<&dyn ProviderAdapter> = vec![&ViolatingAdapter];
-    let outcomes = RefreshAll::execute(&storage.conn, &adapters);
+    let cycle = RefreshAll::execute(&storage.conn, &adapters);
 
-    let outcome = &outcomes[0];
+    let outcome = &cycle.usage[0];
     assert_eq!(outcome.error_code, "PRIVACY_VIOLATION");
     assert_eq!(outcome.events_rejected, 1);
     assert_eq!(outcome.events_inserted, 0);
@@ -274,4 +287,210 @@ fn privacy_violation_rejects_batch_and_is_recorded() {
     let diag = DiagnosticsRepository::new(&storage.conn);
     let totals = diag.pipeline_totals().expect("totals");
     assert_eq!(totals.privacy_rejections, 1);
+}
+
+struct QuotaAdapter;
+
+impl ProviderAdapter for QuotaAdapter {
+    fn id(&self) -> &str {
+        "quota_provider"
+    }
+    fn name(&self) -> &str {
+        "Quota Provider"
+    }
+    fn collect_usage(&self) -> Result<UsageBatch, String> {
+        Ok(UsageBatch {
+            batch_id: "empty".to_string(),
+            events: vec![],
+        })
+    }
+    fn collect_quota(&self) -> Result<Option<lnwdeck_domain::QuotaReport>, String> {
+        let window = lnwdeck_domain::QuotaWindow::new(
+            "5h",
+            "5-hour",
+            lnwdeck_domain::QuotaWindowScope::Rolling,
+            lnwdeck_domain::QuotaKind::Requests,
+            40,
+            100,
+            None,
+            Confidence::High,
+        );
+        let window2 = lnwdeck_domain::QuotaWindow::new(
+            "7d",
+            "7-day",
+            lnwdeck_domain::QuotaWindowScope::Weekly,
+            lnwdeck_domain::QuotaKind::Requests,
+            300,
+            1000,
+            None,
+            Confidence::High,
+        );
+        Ok(Some(lnwdeck_domain::QuotaReport::new(
+            "quota_provider",
+            "fixture_api",
+            vec![window, window2],
+            chrono::Duration::hours(1),
+        )))
+    }
+    fn health_check(&self) -> AdapterHealth {
+        AdapterHealth {
+            status: AdapterHealthStatus::Healthy,
+            message: "ok".to_string(),
+        }
+    }
+    fn required_permissions(&self) -> Vec<Permission> {
+        vec![]
+    }
+}
+
+struct UsageOkQuotaFailingAdapter;
+
+impl ProviderAdapter for UsageOkQuotaFailingAdapter {
+    fn id(&self) -> &str {
+        "mixed_provider"
+    }
+    fn name(&self) -> &str {
+        "Mixed Provider"
+    }
+    fn collect_usage(&self) -> Result<UsageBatch, String> {
+        Ok(UsageBatch {
+            batch_id: "mixed_batch".to_string(),
+            events: vec![event("evt_mixed", "model-m", 10, 5)],
+        })
+    }
+    fn collect_quota(&self) -> Result<Option<lnwdeck_domain::QuotaReport>, String> {
+        Err("AUTH_EXPIRED".to_string())
+    }
+    fn health_check(&self) -> AdapterHealth {
+        AdapterHealth {
+            status: AdapterHealthStatus::Degraded,
+            message: "auth".to_string(),
+        }
+    }
+    fn required_permissions(&self) -> Vec<Permission> {
+        vec![]
+    }
+}
+
+struct QuotaLeakingAdapter;
+
+impl ProviderAdapter for QuotaLeakingAdapter {
+    fn id(&self) -> &str {
+        "leaking_provider"
+    }
+    fn name(&self) -> &str {
+        "Leaking Provider"
+    }
+    fn collect_usage(&self) -> Result<UsageBatch, String> {
+        Ok(UsageBatch {
+            batch_id: "leak_batch".to_string(),
+            events: vec![],
+        })
+    }
+    fn collect_quota(&self) -> Result<Option<lnwdeck_domain::QuotaReport>, String> {
+        let mut report = lnwdeck_domain::QuotaReport::new(
+            "leaking_provider",
+            "fixture_api",
+            vec![],
+            chrono::Duration::hours(1),
+        );
+        report.plan = Some("C:\\Users\\someone\\passwords.txt".to_string());
+        Ok(Some(report))
+    }
+    fn health_check(&self) -> AdapterHealth {
+        AdapterHealth {
+            status: AdapterHealthStatus::Healthy,
+            message: "ok".to_string(),
+        }
+    }
+    fn required_permissions(&self) -> Vec<Permission> {
+        vec![]
+    }
+}
+
+#[test]
+fn quota_report_is_persisted_by_refresh_cycle() {
+    let storage = setup_db();
+    let adapters: Vec<&dyn ProviderAdapter> = vec![&QuotaAdapter];
+    let cycle = RefreshAll::execute(&storage.conn, &adapters);
+
+    let quota = &cycle.quota[0];
+    assert_eq!(quota.windows_collected, 2);
+    assert_eq!(quota.error_code, "");
+
+    let report = lnwdeck_storage::repositories::QuotaRepository::new(&storage.conn)
+        .latest_report("quota_provider")
+        .expect("latest")
+        .expect("report exists");
+    assert_eq!(report.windows.len(), 2);
+    assert_eq!(report.windows[0].remaining, 60);
+    assert!(report.is_usable());
+
+    let diag = DiagnosticsRepository::new(&storage.conn);
+    let runs = diag.latest_runs().expect("runs");
+    assert_eq!(runs.len(), 2, "usage + quota run recorded");
+    let quota_run = runs
+        .iter()
+        .find(|r| r.collector_mode == "quota_collect")
+        .expect("quota run");
+    assert_eq!(quota_run.quota_snapshots_inserted, 2);
+    assert_eq!(quota_run.error_code, "");
+}
+
+#[test]
+fn quota_failure_does_not_erase_usage_data() {
+    let storage = setup_db();
+    let adapters: Vec<&dyn ProviderAdapter> = vec![&UsageOkQuotaFailingAdapter];
+    let cycle = RefreshAll::execute(&storage.conn, &adapters);
+
+    assert_eq!(
+        cycle.usage[0].events_inserted, 1,
+        "usage channel unaffected"
+    );
+    assert_eq!(cycle.quota[0].error_code, "AUTH_EXPIRED");
+    assert!(cycle.quota[0].status.is_error());
+
+    assert_eq!(event_count(&storage.conn), 1);
+    let report = lnwdeck_storage::repositories::QuotaRepository::new(&storage.conn)
+        .latest_report("mixed_provider")
+        .expect("latest");
+    assert!(report.is_none(), "failed quota must not persist a report");
+}
+
+#[test]
+fn quota_privacy_violation_is_rejected_and_recorded() {
+    let storage = setup_db();
+    let adapters: Vec<&dyn ProviderAdapter> = vec![&QuotaLeakingAdapter];
+    let cycle = RefreshAll::execute(&storage.conn, &adapters);
+
+    assert_eq!(cycle.quota[0].error_code, "PRIVACY_VIOLATION");
+    let report = lnwdeck_storage::repositories::QuotaRepository::new(&storage.conn)
+        .latest_report("leaking_provider")
+        .expect("latest");
+    assert!(report.is_none(), "unsafe quota payload must not persist");
+}
+
+#[test]
+fn refresh_provider_isolates_a_single_adapter() {
+    let storage = setup_db();
+    let cycle = RefreshAll::refresh_provider(&storage.conn, &SuccessAdapter);
+
+    assert_eq!(cycle.usage.len(), 1, "exactly one usage outcome");
+    assert_eq!(cycle.quota.len(), 1, "exactly one quota outcome");
+    assert_eq!(cycle.usage[0].provider_id, "fake_provider");
+    assert_eq!(cycle.usage[0].events_inserted, 2);
+    assert_eq!(cycle.quota[0].error_code, "UNSUPPORTED");
+
+    let failing_runs: i64 = storage
+        .conn
+        .query_row(
+            "SELECT COUNT(*) FROM collector_runs WHERE provider_id = 'failing_provider'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("count failing runs");
+    assert_eq!(
+        failing_runs, 0,
+        "other providers must not be touched by a single-provider refresh"
+    );
 }

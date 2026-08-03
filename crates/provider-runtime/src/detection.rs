@@ -29,7 +29,7 @@ impl DetectionResult {
             source_type: String::new(),
             source_exists: false,
             permission_state: "n/a".to_string(),
-            adapter_version: "0.1.0".to_string(),
+            adapter_version: "0.2.0".to_string(),
             last_detection_at: None,
             detection_error_code: String::new(),
         }

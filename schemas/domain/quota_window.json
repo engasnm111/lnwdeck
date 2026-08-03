@@ -1,0 +1,101 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QuotaWindow",
+  "description": "One quota window: used/limit/remaining for a single reset period.",
+  "type": "object",
+  "required": [
+    "confidence",
+    "is_unlimited",
+    "kind",
+    "label",
+    "limit",
+    "remaining",
+    "remaining_percent",
+    "scope",
+    "used",
+    "used_percent",
+    "window_key"
+  ],
+  "properties": {
+    "confidence": {
+      "$ref": "#/definitions/Confidence"
+    },
+    "is_unlimited": {
+      "type": "boolean"
+    },
+    "kind": {
+      "$ref": "#/definitions/QuotaKind"
+    },
+    "label": {
+      "type": "string"
+    },
+    "limit": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "remaining": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "remaining_percent": {
+      "type": "number",
+      "format": "double"
+    },
+    "reset_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "scope": {
+      "$ref": "#/definitions/QuotaWindowScope"
+    },
+    "used": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "used_percent": {
+      "type": "number",
+      "format": "double"
+    },
+    "window_key": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "Confidence": {
+      "type": "string",
+      "enum": [
+        "Low",
+        "Medium",
+        "High"
+      ]
+    },
+    "QuotaKind": {
+      "description": "What a quota window measures.",
+      "type": "string",
+      "enum": [
+        "requests",
+        "tokens",
+        "credits",
+        "parallel"
+      ]
+    },
+    "QuotaWindowScope": {
+      "description": "How the quota window period is defined by the provider.",
+      "type": "string",
+      "enum": [
+        "rolling",
+        "daily",
+        "weekly",
+        "monthly",
+        "session",
+        "other"
+      ]
+    }
+  }
+}

@@ -1,4 +1,4 @@
-use lnwdeck_domain::UsageBatch;
+use lnwdeck_domain::{QuotaReport, UsageBatch};
 use serde_json::Value;
 
 pub struct PrivacyGuard;
@@ -26,6 +26,14 @@ impl PrivacyGuard {
 
     pub fn validate_raw_json(json: &Value) -> Result<(), PrivacyViolation> {
         validate_value(json)
+    }
+
+    /// Validates a normalized quota report before persistence. Quota fields
+    /// must never carry paths, credentials, cookies, or account ids.
+    pub fn validate_quota_report(report: &QuotaReport) -> Result<(), PrivacyViolation> {
+        let json = serde_json::to_value(report)
+            .map_err(|_| PrivacyViolation::new("SERIALIZATION_FAILED"))?;
+        validate_value(&json)
     }
 }
 

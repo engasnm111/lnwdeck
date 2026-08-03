@@ -1,4 +1,4 @@
-use lnwdeck_domain::{QuotaSnapshot, UsageBatch};
+use lnwdeck_domain::{QuotaReport, UsageBatch};
 use lnwdeck_provider_runtime::{AdapterHealth, AdapterHealthStatus, Permission, ProviderAdapter};
 
 struct TestAdapter;
@@ -16,7 +16,7 @@ impl ProviderAdapter for TestAdapter {
             events: vec![],
         })
     }
-    fn collect_quota(&self) -> Result<Option<QuotaSnapshot>, String> {
+    fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
         Ok(None)
     }
     fn health_check(&self) -> AdapterHealth {
@@ -42,7 +42,7 @@ impl ProviderAdapter for FailingAdapter {
     fn collect_usage(&self) -> Result<UsageBatch, String> {
         Err("SOURCE_UNAVAILABLE".to_string())
     }
-    fn collect_quota(&self) -> Result<Option<QuotaSnapshot>, String> {
+    fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
         Ok(None)
     }
     fn health_check(&self) -> AdapterHealth {

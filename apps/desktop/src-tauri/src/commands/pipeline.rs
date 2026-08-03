@@ -1,4 +1,5 @@
 use crate::state::AppState;
+use lnwdeck_application::refresh::RefreshCycleOutcome;
 use lnwdeck_provider_claude::ClaudeAdapter;
 use lnwdeck_provider_codex::CodexAdapter;
 use lnwdeck_provider_copilot::CopilotAdapter;
@@ -9,12 +10,12 @@ use lnwdeck_provider_kiro::KiroAdapter;
 use lnwdeck_provider_ollama::OllamaAdapter;
 use lnwdeck_provider_opencode::OpenCodeAdapter;
 use lnwdeck_provider_openrouter::OpenRouterAdapter;
-use lnwdeck_provider_runtime::{CollectionOutcome, ProviderAdapter};
+use lnwdeck_provider_runtime::ProviderAdapter;
 use lnwdeck_storage::repositories::{
     AppSettingsRepository, CollectorRunRow, DiagnosticsRepository, PipelineTotals, ProviderStateRow,
 };
 use serde::Serialize;
-use tauri::State;
+use tauri::{Emitter, State};
 
 #[derive(Debug, Serialize)]
 pub struct PipelineDiagnostics {
@@ -48,21 +49,21 @@ fn load_or_create_hash_key(conn: &rusqlite::Connection) -> Result<Vec<u8>, Strin
 fn builtin_adapters(hash_key: &[u8]) -> Vec<Box<dyn ProviderAdapter>> {
     vec![
         Box::new(OpenCodeAdapter::new(hash_key)),
-        Box::new(CodexAdapter),
+        Box::new(CodexAdapter::new()),
         Box::new(GeminiAdapter),
         Box::new(KiroAdapter),
-        Box::new(ClaudeAdapter),
+        Box::new(ClaudeAdapter::new()),
         Box::new(CopilotAdapter),
         Box::new(CursorAdapter),
         Box::new(GrokAdapter),
-        Box::new(OllamaAdapter),
+        Box::new(OllamaAdapter::new()),
         Box::new(OpenRouterAdapter),
     ]
 }
 
 /// Runs detection and collection for every registered adapter, then
-/// returns the sanitized outcomes.
-pub fn refresh_now(state: &AppState) -> Result<Vec<CollectionOutcome>, String> {
+/// returns the sanitized usage and quota outcomes.
+pub fn refresh_now(state: &AppState) -> Result<RefreshCycleOutcome, String> {
     let storage_guard = state.ensure_storage()?;
     let storage = storage_guard.as_ref().ok_or("storage not initialized")?;
     let hash_key = load_or_create_hash_key(&storage.conn)?;
@@ -80,8 +81,39 @@ pub fn refresh_now(state: &AppState) -> Result<Vec<CollectionOutcome>, String> {
 }
 
 #[tauri::command]
-pub fn refresh_all(state: State<'_, AppState>) -> Result<Vec<CollectionOutcome>, String> {
-    refresh_now(&state)
+pub fn refresh_all(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<RefreshCycleOutcome, String> {
+    let cycle = refresh_now(&state)?;
+    let _ = app.emit("quota-updated", ());
+    Ok(cycle)
+}
+
+/// Refreshes a single provider by id (detection + usage + quota channels).
+/// Returns an error for unknown provider ids.
+#[tauri::command]
+pub fn refresh_provider(
+    provider_id: String,
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<RefreshCycleOutcome, String> {
+    let storage_guard = state.ensure_storage()?;
+    let storage = storage_guard.as_ref().ok_or("storage not initialized")?;
+    let hash_key = load_or_create_hash_key(&storage.conn)?;
+
+    let mut adapter_guard = state.adapters.lock().map_err(|e| e.to_string())?;
+    if adapter_guard.is_empty() {
+        *adapter_guard = builtin_adapters(&hash_key);
+    }
+    let adapter = adapter_guard
+        .iter()
+        .find(|a| a.id() == provider_id)
+        .ok_or_else(|| format!("unknown provider: {provider_id}"))?;
+    let cycle =
+        lnwdeck_application::refresh::RefreshAll::refresh_provider(&storage.conn, adapter.as_ref());
+    let _ = app.emit("quota-updated", ());
+    Ok(cycle)
 }
 
 #[tauri::command]
@@ -115,7 +147,7 @@ pub fn get_pipeline_diagnostics(state: State<'_, AppState>) -> Result<PipelineDi
 mod tests {
     use super::*;
     use chrono::DateTime;
-    use lnwdeck_domain::{Confidence, QuotaSnapshot, UsageBatch, UsageEvent};
+    use lnwdeck_domain::{Confidence, QuotaReport, UsageBatch, UsageEvent};
     use lnwdeck_provider_runtime::{
         AdapterHealth, AdapterHealthStatus, DetectionResult, Permission,
     };
@@ -159,7 +191,7 @@ mod tests {
                 ],
             })
         }
-        fn collect_quota(&self) -> Result<Option<QuotaSnapshot>, String> {
+        fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
             Ok(None)
         }
         fn health_check(&self) -> AdapterHealth {
@@ -181,7 +213,7 @@ mod tests {
                 source_type: "fixture".to_string(),
                 source_exists: true,
                 permission_state: "read_ok".to_string(),
-                adapter_version: "0.1.0".to_string(),
+                adapter_version: "0.2.0".to_string(),
                 last_detection_at: Some("2026-08-03T00:00:00Z".to_string()),
                 detection_error_code: String::new(),
             })
@@ -213,10 +245,12 @@ mod tests {
     #[test]
     fn refresh_all_records_evidence_and_ingests() {
         let state = test_state();
-        let outcomes = refresh_now(&state).expect("refresh");
-        assert_eq!(outcomes.len(), 1);
-        assert_eq!(outcomes[0].events_inserted, 2);
-        assert_eq!(outcomes[0].error_code, "");
+        let cycle = refresh_now(&state).expect("refresh");
+        assert_eq!(cycle.usage.len(), 1);
+        assert_eq!(cycle.usage[0].events_inserted, 2);
+        assert_eq!(cycle.usage[0].error_code, "");
+        assert_eq!(cycle.quota.len(), 1);
+        assert_eq!(cycle.quota[0].error_code, "UNSUPPORTED");
 
         let guard = state.ensure_storage().expect("storage");
         let storage = guard.as_ref().expect("storage value");
@@ -225,17 +259,17 @@ mod tests {
         assert_eq!(totals.events_inserted, 2);
         assert!(totals.last_successful_sync.is_some());
         assert_eq!(diag.provider_states().expect("states").len(), 1);
-        assert_eq!(diag.latest_runs().expect("runs").len(), 1);
-        assert_eq!(diag.migration_version().expect("migration"), 3);
+        assert_eq!(diag.latest_runs().expect("runs").len(), 2);
+        assert_eq!(diag.migration_version().expect("migration"), 4);
     }
 
     #[test]
     fn refresh_twice_is_idempotent() {
         let state = test_state();
         refresh_now(&state).expect("refresh 1");
-        let outcomes = refresh_now(&state).expect("refresh 2");
-        assert_eq!(outcomes[0].duplicates_skipped, 2);
-        assert_eq!(outcomes[0].events_inserted, 0);
+        let cycle = refresh_now(&state).expect("refresh 2");
+        assert_eq!(cycle.usage[0].duplicates_skipped, 2);
+        assert_eq!(cycle.usage[0].events_inserted, 0);
     }
 
     #[test]

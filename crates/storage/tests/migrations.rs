@@ -20,6 +20,14 @@ fn round_trip_empty_database() {
         "quota_snapshots table must exist"
     );
     assert!(
+        tables.contains(&"quota_reports".to_string()),
+        "quota_reports table must exist"
+    );
+    assert!(
+        tables.contains(&"quota_windows".to_string()),
+        "quota_windows table must exist"
+    );
+    assert!(
         tables.contains(&"sync_cursors".to_string()),
         "sync_cursors table must exist"
     );

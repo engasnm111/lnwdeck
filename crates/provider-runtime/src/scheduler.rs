@@ -169,7 +169,7 @@ mod tests {
     use crate::adapter::ProviderAdapter;
     use crate::health::{AdapterHealth, AdapterHealthStatus};
     use crate::permissions::Permission;
-    use lnwdeck_domain::{QuotaSnapshot, UsageBatch};
+    use lnwdeck_domain::{QuotaReport, UsageBatch};
 
     struct TestAdapter {
         id: String,
@@ -188,7 +188,7 @@ mod tests {
                 events: vec![],
             })
         }
-        fn collect_quota(&self) -> Result<Option<QuotaSnapshot>, String> {
+        fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
             Ok(None)
         }
         fn health_check(&self) -> AdapterHealth {
@@ -279,7 +279,7 @@ mod tests {
                     events: vec![],
                 })
             }
-            fn collect_quota(&self) -> Result<Option<QuotaSnapshot>, String> {
+            fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
                 Ok(None)
             }
             fn health_check(&self) -> AdapterHealth {

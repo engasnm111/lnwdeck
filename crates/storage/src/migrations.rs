@@ -11,6 +11,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "002_collector_diagnostics",
         include_str!("../migrations/002_collector_diagnostics.sql"),
     ),
+    (
+        "003_quota_reports",
+        include_str!("../migrations/003_quota_reports.sql"),
+    ),
 ];
 
 pub fn apply_all(conn: &Connection) -> Result<(), rusqlite::Error> {

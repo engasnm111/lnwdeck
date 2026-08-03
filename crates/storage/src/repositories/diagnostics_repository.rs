@@ -158,7 +158,8 @@ impl<'a> DiagnosticsRepository<'a> {
         Ok(states)
     }
 
-    /// Newest collector run per provider.
+    /// Newest collector run per provider and collector mode (one usage run
+    /// and one quota run per provider).
     pub fn latest_runs(&self) -> Result<Vec<CollectorRunRow>, rusqlite::Error> {
         let mut stmt = self.conn.prepare(
             "SELECT r.id, r.provider_id, r.collector_mode, r.started_at, r.finished_at,
@@ -167,8 +168,8 @@ impl<'a> DiagnosticsRepository<'a> {
                     r.events_inserted, r.quota_snapshots_inserted, r.warning_codes,
                     r.error_code, r.next_retry_at
              FROM collector_runs r
-             JOIN (SELECT provider_id, MAX(id) AS max_id
-                   FROM collector_runs GROUP BY provider_id) m
+             JOIN (SELECT provider_id, collector_mode, MAX(id) AS max_id
+                   FROM collector_runs GROUP BY provider_id, collector_mode) m
                ON r.id = m.max_id
              ORDER BY r.provider_id",
         )?;
