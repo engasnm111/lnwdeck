@@ -1,0 +1,14 @@
+{
+  "name": "@inwdeck/browser-extension",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"no tests yet\" && exit 0"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0",
+    "typescript": "~5.7"
+  }
+}

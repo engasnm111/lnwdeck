@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "inwdeck Browser Helper",
+  "version": "0.1.0",
+  "description": "Local-only AI usage tracker browser helper",
+  "permissions": ["nativeMessaging", "storage", "alarms"],
+  "optional_host_permissions": ["https://*/*"],
+  "host_permissions": [],
+  "background": {
+    "service_worker": "src/service-worker.ts"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*", "https://claude.ai/*", "https://gemini.google.com/*"],
+      "js": ["src/content/detector.ts"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "inwdeck"
+  }
+}
