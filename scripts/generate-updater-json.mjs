@@ -73,12 +73,25 @@ function main() {
     );
     process.exit(1);
   }
-  const json = buildUpdaterJson({ tag, repo, assetsDir });
-  const out = outputFile ?? "latest.json";
-  writeFileSync(out, `${JSON.stringify(json, null, 2)}\n`);
-  process.stdout.write(
-    `wrote ${out} for ${json.version} (${Object.keys(json.platforms).length} platforms)\n`,
-  );
+  try {
+    const json = buildUpdaterJson({ tag, repo, assetsDir });
+    const out = outputFile ?? "latest.json";
+    writeFileSync(out, `${JSON.stringify(json, null, 2)}\n`);
+    process.stdout.write(
+      `wrote ${out} for ${json.version} (${Object.keys(json.platforms).length} platforms)\n`,
+    );
+  } catch (err) {
+    let listing = "";
+    try {
+      listing = readdirSync(assetsDir)
+        .sort()
+        .join(", ");
+    } catch {
+      listing = `(cannot read ${assetsDir})`;
+    }
+    process.stderr.write(`::error::${err.message} | assets: [${listing}]\n`);
+    process.exit(1);
+  }
 }
 
 if (process.argv[1] && basename(process.argv[1]) === "generate-updater-json.mjs") {

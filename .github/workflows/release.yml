@@ -67,6 +67,20 @@ jobs:
           publish: false
           args: --target ${{ matrix.target }}
 
+      - name: Verify updater signatures exist
+        shell: pwsh
+        run: |
+          $bundle = "target/${{ matrix.target }}/release/bundle"
+          $sigs = @(Get-ChildItem -Recurse $bundle -Filter "*.sig" -ErrorAction SilentlyContinue)
+          if ($sigs.Count -eq 0) {
+            Write-Output "::error::no .sig files found under $bundle"
+            Get-ChildItem -Recurse $bundle -ErrorAction SilentlyContinue |
+              ForEach-Object { Write-Output "::error::file: $($_.FullName)" }
+            exit 1
+          }
+          Write-Output "found $($sigs.Count) signature(s)"
+          $sigs | ForEach-Object { Write-Output "sig: $($_.FullName)" }
+
       - name: Package portable ZIP
         shell: pwsh
         run: |
