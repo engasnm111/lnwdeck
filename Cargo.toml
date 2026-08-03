@@ -1,0 +1,25 @@
+[workspace]
+resolver = "2"
+members = [
+    "apps/desktop/src-tauri",
+    "crates/domain",
+    "crates/security",
+    "crates/storage",
+    "crates/application",
+    "crates/provider-runtime",
+    "crates/hook-manager",
+    "apps/native-messaging-host",
+    "crates/pricing",
+    "crates/analytics",
+    "crates/providers/claude",
+    "crates/providers/codex",
+    "crates/providers/opencode",
+    "crates/providers/ollama",
+    "crates/providers/openrouter",
+    "crates/providers/gemini",
+    "crates/providers/cursor",
+    "crates/providers/copilot",
+    "crates/providers/grok",
+    "crates/providers/kiro",
+    "crates/windows-integration",
+]

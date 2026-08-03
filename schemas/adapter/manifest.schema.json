@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Community Adapter Manifest",
+  "description": "Declares adapter identity, version, capabilities and entry point for sandboxed community adapters",
+  "type": "object",
+  "required": ["id", "name", "version", "entry", "capabilities"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]+$",
+      "description": "Unique adapter identifier"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "description": {
+      "type": "string"
+    },
+    "entry": {
+      "type": "string",
+      "description": "Path to the Wasm module relative to manifest"
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["filesystem:read", "filesystem:write", "network:http", "env:read"]
+      },
+      "uniqueItems": true
+    },
+    "runtime_limits": {
+      "type": "object",
+      "properties": {
+        "max_memory_bytes": { "type": "integer", "default": 67108864 },
+        "max_fuel": { "type": "integer", "default": 1000000 },
+        "max_output_bytes": { "type": "integer", "default": 1048576 },
+        "timeout_ms": { "type": "integer", "default": 5000 }
+      }
+    }
+  }
+}

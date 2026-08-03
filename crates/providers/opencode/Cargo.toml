@@ -1,0 +1,16 @@
+[package]
+name = "lnwdeck-provider-opencode"
+version = "0.1.0"
+edition = "2021"
+description = "OpenCode CLI provider adapter for lnwdeck"
+
+[dependencies]
+lnwdeck-domain = { path = "../../domain" }
+lnwdeck-provider-runtime = { path = "../../provider-runtime" }
+lnwdeck-security = { path = "../../security" }
+rusqlite = { version = "0.31", features = ["bundled"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tempfile = "3"

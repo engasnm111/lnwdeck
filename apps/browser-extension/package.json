@@ -1,0 +1,15 @@
+{
+  "name": "@lnwdeck/browser-extension",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types src/content/detector.test.ts"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0",
+    "@types/node": "^22",
+    "typescript": "~5.7"
+  }
+}

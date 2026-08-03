@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        target:
+          - x86_64-pc-windows-msvc
+          - aarch64-pc-windows-msvc
+          - i686-pc-windows-msvc
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install Rust toolchain
+        run: |
+          rustup target add ${{ matrix.target }}
+          rustup show
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lnwdeck-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/lnwdeck*.exe
+
+  generate-manifest:
+    name: Generate update manifest
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Generate latest.json
+        run: node scripts/generate-update-manifest.mjs
+
+      - name: Upload manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: update-manifest
+          path: latest.json

@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QuotaMessage",
+  "description": "Versioned message protocol between browser extension and native host",
+  "type": "object",
+  "required": ["type", "version", "timestamp", "nonce"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["quota_update", "health_check", "ack", "error"]
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "nonce": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 64
+    },
+    "payload": {
+      "type": "object"
+    }
+  }
+}

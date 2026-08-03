@@ -1,0 +1,19 @@
+// lnwdeck-adapter.wit — WIT interface for community adapter Wasm modules
+
+interface lnwdeck-adapter {
+  /// Collect usage events from this provider.
+  /// Returns a JSON-serialized UsageBatch.
+  collect-usage: func() -> string;
+
+  /// Collect quota snapshot from this provider.
+  /// Returns a JSON-serialized QuotaSnapshot or empty string for none.
+  collect-quota: func() -> string;
+
+  /// Report adapter health.
+  /// Returns a JSON-serialized AdapterHealth.
+  health-check: func() -> string;
+
+  /// Return the adapter's declared permissions.
+  /// Returns a JSON array of required permission strings.
+  required-permissions: func() -> string;
+}

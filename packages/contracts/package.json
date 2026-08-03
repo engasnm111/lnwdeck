@@ -1,0 +1,11 @@
+{
+  "name": "@lnwdeck/contracts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "~5.7"
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "version": "1",
+  "updated": "2026-08-03",
+  "providers": {
+    "openai": {
+      "models": {
+        "gpt-4o": { "input_per_1k": "0.00500", "output_per_1k": "0.01500" },
+        "gpt-4o-mini": { "input_per_1k": "0.00015", "output_per_1k": "0.00060" },
+        "gpt-4": { "input_per_1k": "0.03000", "output_per_1k": "0.06000" },
+        "gpt-3.5-turbo": { "input_per_1k": "0.00050", "output_per_1k": "0.00150" },
+        "codex": { "input_per_1k": "0.00250", "output_per_1k": "0.01000" },
+        "opencode-model": { "input_per_1k": "0.00150", "output_per_1k": "0.00500" }
+      }
+    },
+    "anthropic": {
+      "models": {
+        "claude-3-5-sonnet": { "input_per_1k": "0.00300", "output_per_1k": "0.01500" },
+        "claude-3-7-sonnet": { "input_per_1k": "0.00300", "output_per_1k": "0.01500" },
+        "claude-3-opus": { "input_per_1k": "0.01500", "output_per_1k": "0.07500" },
+        "claude-3-sonnet": { "input_per_1k": "0.00300", "output_per_1k": "0.01500" },
+        "claude-3-haiku": { "input_per_1k": "0.00025", "output_per_1k": "0.00125" }
+      }
+    },
+    "google": {
+      "models": {
+        "gemini-2.0-flash": { "input_per_1k": "0.00010", "output_per_1k": "0.00040" },
+        "gemini-1.5-pro": { "input_per_1k": "0.00125", "output_per_1k": "0.00500" },
+        "gemini-1.5-flash": { "input_per_1k": "0.000075", "output_per_1k": "0.00030" }
+      }
+    },
+    "kimi": {
+      "models": {
+        "moonshot-v1-8k": { "input_per_1k": "0.00120", "output_per_1k": "0.00120" },
+        "moonshot-v1-32k": { "input_per_1k": "0.00240", "output_per_1k": "0.00240" },
+        "kimi-latest": { "input_per_1k": "0.00150", "output_per_1k": "0.00150" }
+      }
+    },
+    "opencode": {
+      "models": {
+        "opencode-free": { "input_per_1k": "0.00000", "output_per_1k": "0.00000" },
+        "opencode-default": { "input_per_1k": "0.00150", "output_per_1k": "0.00500" }
+      }
+    }
+  }
+}

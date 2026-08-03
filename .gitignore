@@ -1,0 +1,77 @@
+# Rust / Cargo
+/target/
+**/target/
+Cargo.lock
+
+# Node / Web / Tauri
+node_modules/
+**/node_modules/
+dist/
+build/
+.next/
+out/
+.tauri/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.pytest_cache/
+.coverage
+
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+
+# Database & Local Storage
+*.sqlite
+*.sqlite-journal
+*.db
+*.db-journal
+
+# IDE & Editor files
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+.codegraph/
+.cursor/
+*.swp
+*.swo
+*~
+
+# Operating System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs & Temporary files
+*.log
+logs/
+*.tmp
+tmp/
+.temp/
+
+# Tauri auto-generated
+**/gen/
+
+# Portable mode marker & release bundles
+.lnwdeck_portable
+*.zip
+*.exe
+
+# Hook backup files
+*.lnwdeck_backup
+
+/prompts/*
+scripts/validate_prompt_plan_sync.py

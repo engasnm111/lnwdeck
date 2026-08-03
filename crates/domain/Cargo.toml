@@ -1,0 +1,13 @@
+[package]
+name = "lnwdeck-domain"
+version = "0.1.0"
+edition = "2021"
+description = "Privacy-safe domain types for lnwdeck"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+schemars = { version = "0.8", features = ["chrono"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+serde_json = "1"

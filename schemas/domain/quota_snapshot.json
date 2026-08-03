@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QuotaSnapshot",
+  "type": "object",
+  "required": [
+    "provider_id",
+    "quota_limit",
+    "quota_used",
+    "recorded_at"
+  ],
+  "properties": {
+    "provider_id": {
+      "type": "string"
+    },
+    "quota_limit": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "quota_used": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

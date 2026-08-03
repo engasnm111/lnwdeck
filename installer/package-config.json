@@ -1,0 +1,19 @@
+{
+  "name": "lnwdeck",
+  "version": "0.1.0",
+  "description": "Local-only Universal AI Usage Tracker",
+  "architectures": [
+    { "arch": "x64", "target": "x86_64-pc-windows-msvc", "artifact": "lnwdeck_0.1.0_x64-setup.exe" },
+    { "arch": "ARM64", "target": "aarch64-pc-windows-msvc", "artifact": "lnwdeck_0.1.0_arm64-setup.exe" },
+    { "arch": "x86", "target": "i686-pc-windows-msvc", "artifact": "lnwdeck_0.1.0_x86-setup.exe" }
+  ],
+  "portable": {
+    "artifact": "lnwdeck_0.1.0_portable.zip",
+    "marker_file": ".lnwdeck_portable"
+  },
+  "native_host": {
+    "name": "app.lnwdeck.browser_helper",
+    "chrome_extension_id": "chrome-extension://CHROME_EXTENSION_ID/",
+    "edge_extension_id": "chrome-extension://EDGE_EXTENSION_ID/"
+  }
+}

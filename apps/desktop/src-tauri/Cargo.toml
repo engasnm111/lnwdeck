@@ -1,0 +1,48 @@
+[package]
+name = "lnwdeck-desktop"
+version = "0.1.0"
+description = "lnwdeck desktop application"
+authors = ["lnwdeck contributors"]
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "lnwdeck_desktop_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[[bin]]
+name = "lnwdeck-desktop"
+path = "src/main.rs"
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+lnwdeck-domain = { path = "../../../crates/domain" }
+lnwdeck-security = { path = "../../../crates/security" }
+lnwdeck-storage = { path = "../../../crates/storage" }
+lnwdeck-application = { path = "../../../crates/application" }
+lnwdeck-pricing = { path = "../../../crates/pricing" }
+lnwdeck-analytics = { path = "../../../crates/analytics" }
+lnwdeck-hook-manager = { path = "../../../crates/hook-manager" }
+lnwdeck-provider-runtime = { path = "../../../crates/provider-runtime" }
+lnwdeck-provider-claude = { path = "../../../crates/providers/claude" }
+lnwdeck-provider-codex = { path = "../../../crates/providers/codex" }
+lnwdeck-provider-copilot = { path = "../../../crates/providers/copilot" }
+lnwdeck-provider-cursor = { path = "../../../crates/providers/cursor" }
+lnwdeck-provider-gemini = { path = "../../../crates/providers/gemini" }
+lnwdeck-provider-grok = { path = "../../../crates/providers/grok" }
+lnwdeck-provider-kiro = { path = "../../../crates/providers/kiro" }
+lnwdeck-provider-ollama = { path = "../../../crates/providers/ollama" }
+lnwdeck-provider-opencode = { path = "../../../crates/providers/opencode" }
+lnwdeck-provider-openrouter = { path = "../../../crates/providers/openrouter" }
+rusqlite = { version = "0.31", features = ["bundled"] }
+chrono = { version = "0.4", features = ["serde"] }
+getrandom = "0.3"
+hex = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dev-dependencies]
+tempfile = "3"
