@@ -1,0 +1,10 @@
+[package]
+name = "inwdeck-provider-openrouter"
+version = "0.1.0"
+edition = "2021"
+description = "OpenRouter provider adapter for inwdeck"
+
+[dependencies]
+inwdeck-domain = { path = "../../domain" }
+inwdeck-provider-runtime = { path = "../../provider-runtime" }
+chrono = { version = "0.4" }
