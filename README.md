@@ -9,22 +9,28 @@
 
 ---
 
-## 📸 Screenshots
+## 📸 Real Application Screenshots
 
 ### Overview Dashboard
+> *Real desktop app layout showing token aggregates, cost estimations, and data freshness.*
+
 ![Overview Dashboard](assets/screenshots/overview_dashboard.png)
 
-### Providers Management (Codex, Gemini, Kimi, Claude, OpenCode & more)
-![Providers Page](assets/screenshots/providers_page.png)
+### Providers Management
+> *Real engine adapters monitoring state across Codex, Gemini, Kimi, Claude, OpenCode, and others.*
+
+![Providers Management](assets/screenshots/providers_page.png)
 
 ### System Diagnostics & Data Pipeline Health
+> *Real database health status, migration audit, collector log records, and sanitized JSON exporter.*
+
 ![System Diagnostics](assets/screenshots/system_diagnostics.png)
 
 ---
 
 ## 🌟 Key Features
 
-- **🔒 100% Privacy-First & Metadata-Only**: Runs entirely locally on your machine with zero cloud server requirements. **lnwdeck** collects token and cost metadata—**never** your prompts, code snippets, AI responses, or private file paths.
+- **🔒 100% Privacy-First & Metadata-Only**: Operates 100% locally with zero cloud server requirements. **lnwdeck** collects token and cost metadata—**never** your prompts, code snippets, AI responses, or private file paths.
 - **💰 Dynamic Cost Calculation**: Calculates accurate and estimated AI costs across model families with pricing catalog support and fallback labels.
 - **🔌 Multi-Engine AI Adapters**: Detects and aggregates usage across 10 built-in AI engine adapters:
   - **Codex (OpenAI)**
@@ -37,7 +43,7 @@
   - **Grok (xAI)**
   - **Ollama** (Local LLMs)
   - **OpenRouter**
-- **💻 Desktop AppShell & System Tray**: Full dark-theme desktop application with system tray integration and customizable floating widget.
+- **💻 Desktop AppShell & System Tray**: Dark-theme desktop application with system tray integration and customizable floating widget.
 - **⚙️ Data Pipeline Diagnostics**: Comprehensive diagnostics page for database integrity, migration status, records parsed, inserted, duplicates skipped, and sanitized JSON exports.
 
 ---
