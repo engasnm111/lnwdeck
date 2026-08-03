@@ -1,4 +1,4 @@
-use inwdeck_domain::{Confidence, QuotaSnapshot, UsageBatch, UsageEvent};
+use inwdeck_domain::{QuotaSnapshot, UsageBatch};
 use inwdeck_provider_runtime::{AdapterHealth, AdapterHealthStatus, Permission, ProviderAdapter};
 
 pub struct ClaudeAdapter;
@@ -20,7 +20,10 @@ impl ProviderAdapter for ClaudeAdapter {
         Ok(None)
     }
     fn health_check(&self) -> AdapterHealth {
-        AdapterHealth { status: AdapterHealthStatus::Healthy, message: "Not detected".to_string() }
+        AdapterHealth {
+            status: AdapterHealthStatus::Healthy,
+            message: "Not detected".to_string(),
+        }
     }
     fn required_permissions(&self) -> Vec<Permission> {
         vec![]
