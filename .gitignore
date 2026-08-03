@@ -65,8 +65,10 @@ tmp/
 # Tauri auto-generated
 **/gen/
 
-# Portable mode marker
+# Portable mode marker & release bundles
 .lnwdeck_portable
+*.zip
+*.exe
 
 # Hook backup files
 *.lnwdeck_backup

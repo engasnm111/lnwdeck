@@ -1,5 +1,5 @@
 param(
-    [string]$BuildDir = "apps\desktop\src-tauri\target\release",
+    [string]$BuildDir = "target\release",
     [string]$OutputFile = "lnwdeck_0.1.0_portable.zip",
     [string]$Version = "0.1.0"
 )
@@ -10,14 +10,21 @@ $RepoRoot = Resolve-Path "$ScriptDir\.."
 
 Write-Host "=== lnwdeck Portable Packaging v$Version ==="
 
-$MarkerFile = "$RepoRoot\$BuildDir\.lnwdeck_portable"
+$TargetDir = "$RepoRoot\$BuildDir"
+if (-not (Test-Path $TargetDir)) {
+    New-Item -ItemType Directory -Path $TargetDir -Force | Out-Null
+}
+
+$MarkerFile = "$TargetDir\.lnwdeck_portable"
 Set-Content -Path $MarkerFile -Value "portable" -NoNewline
 Write-Host "[OK] Created portable marker file"
 
 # Collect files to zip
 $ZipItems = @()
-$ExeName = "lnwdeck.exe"
-$ExePath = "$RepoRoot\$BuildDir\$ExeName"
+$ExePath = "$TargetDir\lnwdeck-desktop.exe"
+if (-not (Test-Path $ExePath)) {
+    $ExePath = "$TargetDir\lnwdeck.exe"
+}
 
 if (-not (Test-Path $ExePath)) {
     Write-Error "Build artifact not found: $ExePath"
