@@ -68,3 +68,6 @@ tmp/
 
 # Hook backup files
 *.inwdeck_backup
+
+/prompts/*
+scripts/validate_prompt_plan_sync.py

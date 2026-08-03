@@ -1,38 +1,40 @@
 # Security Policy
 
-`inwdeck` เก็บข้อมูลแบบ Metadata-only และ local-only เป็นค่าเริ่มต้น แม้กระนั้นขอให้รายงานช่องโหว่โดยตรงผ่านช่องทางส่วนตัว ห้ามเปิดเป็น Public issue
+`inwdeck` operates under a local-only, metadata-only data policy by default. If you discover a security vulnerability, please report it privately. Do not open public issues for security vulnerabilities.
 
-## Reporting a vulnerability
+## Reporting a Vulnerability
 
-- อย่าเปิด Public GitHub issue สำหรับช่องโหว่
-- ส่งอีเมลไปยังทีมรักษาความปลอดภัยของ inwdeck พร้อม:
-  - รายละเอียดของปัญหาแบบย่อ
-  - ขั้นตอน Reproduce โดยใช้ Fixture สังเคราะห์เท่านั้น (ห้ามส่ง Log/ข้อมูลจริงของผู้ใช้)
-  - เวอร์ชันและสภาพแวดล้อม (Windows version, architecture)
-- Maintainer จะยืนยันการรับเรื่องภายใน 48 ชั่วโมงและประสานงานการแก้ไขและการเปิดเผย
+- **Do not open public GitHub issues** for security vulnerabilities.
+- Email the security team with:
+  - A brief summary of the issue.
+  - Steps to reproduce using **synthetic test fixtures only** (do not include real user logs or sensitive data).
+  - Version and environment details (Windows OS version, CPU architecture).
+- Maintainers will acknowledge receipt within 48 hours and coordinate patch development and disclosure.
 
-## Things to include in a report
+## Report Checklist
 
-- เวกเตอร์การโจมตีที่คาด
-- ผลกระทบต่อ privacy หรือการรั่วไหลของ Secret
-- ผลกระทบต่อการแก้ไข Config ของผู้ใช้
-- ผลกระทบต่อ Supply chain ของ Update
+Please include the following in your report where applicable:
 
-## Our posture
+- Estimated attack vector and mechanism.
+- Impact on privacy or risk of secret exposure.
+- Impact on user configuration or settings integrity.
+- Supply chain impact regarding update verification.
 
-- ความลับไม่ถูก Persist ลงไฟล์ธรรมดา
-- Secret ใช้ Windows Credential Manager หรือ Tauri Stronghold
-- Browser Helper ใช้ Manifest V3, origin allowlist และ Native Messaging ที่ต้อง validate
-- Community Adapter รันใน Wasm Sandbox แบบ deny-by-default
-- Release ถูกบล็อกเมื่อมี Critical/High finding ที่ยังไม่บรรเทา
-- Signature ของ Update ต้องตรวจสอบก่อนติดตั้ง
+## Security Posture & Safeguards
 
-## Disclosure and credit
+- Secrets are never persisted in plain text files.
+- Secrets are stored exclusively using Windows Credential Manager or Tauri Stronghold.
+- Browser Helper utilizes Chromium Manifest V3, strict origin allowlists, and validated Native Messaging protocols.
+- Community Adapters run inside Wasm Sandboxes with deny-by-default permission policies.
+- Releases are strictly blocked if unmitigated Critical or High severity findings exist.
+- Update artifact signatures must be cryptographically verified prior to installation.
 
-- Maintainer ใช้ GitHub Security Advisory สำหรับช่องโหว่ที่ยืนยันแล้ว
-- ผู้รายงานจะได้รับเครดิตตามข้อตกลงก่อนเปิดเผย
+## Disclosure and Attribution
 
-## Supported versions
+- Maintainers publish GitHub Security Advisories for confirmed vulnerabilities.
+- Reporters receive public credit according to prior agreement before advisory disclosure.
 
-- v0.1: stable ตัวเดียวที่สนับสนุน; แพทช์ความปลอดภัยแบบเร่งด่วนสำหรับ v0.1
-- เวอร์ชัน Alpha/Beta: โครงสร้าง database และ adapter ยังเปลี่ยนได้ รับการแก้ไขบน main
+## Supported Versions
+
+- **v0.1**: Currently supported stable version; receives urgent security patches.
+- **Alpha / Beta releases**: Database schemas and adapter interfaces are subject to change; fixes are applied directly to `main`.

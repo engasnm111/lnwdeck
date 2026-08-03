@@ -1,70 +1,70 @@
 # Contributing to inwdeck
 
-ขอบคุณที่สนใจช่วยพัฒนา inwdeck ขอให้อ่านเอกสารต่อไปนี้ก่อนเริ่ม:
+Thank you for your interest in contributing to inwdeck! Please review the following documents before getting started:
 
-- `AGENTS.md` — กฎบังคับสำหรับ AI agent และ Contributor
-- `docs/00_PROJECT_CHARTER.md` — เป้าหมาย ขอบเขต และการตัดสินใจที่ล็อกแล้ว
-- `docs/02_SYSTEM_ARCHITECTURE.md` — สถาปัตยกรรมและขอบเขตของ Layer
-- `docs/05_SECURITY_PRIVACY.md` — ข้อกำหนด Privacy/Secret/Hook/Browser
-- `docs/08_TESTING_QA.md` — Test strategy และ Quality gates
+- `AGENTS.md` — Mandatory rules for AI agents and human contributors
+- `docs/00_PROJECT_CHARTER.md` — Vision, scope, and locked decisions
+- `docs/02_SYSTEM_ARCHITECTURE.md` — Architecture and layer boundaries
+- `docs/05_SECURITY_PRIVACY.md` — Privacy, secrets, hook, and browser helper specifications
+- `docs/08_TESTING_QA.md` — Testing strategy and quality gates
 
-## หลักการทำงาน
+## Working Principles
 
-- ทำงานครั้งละ หนึ่ง Task จาก Implementation plan
-- Commit ต้อง เล็ก อ่านง่าย และมีจุดประสงค์เดียว
-- ห้ามแก้ Requirement เอง; ห้ามเริ่ม Task ถัดไปก่อน Task ปัจจุบัน review ผ่าน
-- ทำงาน Inline; ห้ามสร้าง Subagent เว้นแต่ได้รับอนุมัติ
+- Complete one task at a time from the Implementation Plan.
+- Commits must be small, readable, and focused on a single logical purpose.
+- Do not modify requirements independently; do not start the next task until the current task is reviewed and approved.
+- Execute work inline; do not spawn subagents unless explicitly authorized.
 
-## Privacy-first rule
+## Privacy-First Rule
 
-- เก็บเฉพาะ Metadata เท่านั้น
-- ห้ามเพิ่ม Prompt, Response, Source code, File name หรือ Absolute path
-- Data ใหม่ทุกตัวต้องผ่าน Privacy guard ที่ fail-closed
-- Fixture ต้องเป็นข้อมูลสังเคราะห์ ไม่มีข้อมูลจริงของผู้ใช้
+- Store metadata only.
+- Never store prompts, responses, source code, file names, or absolute paths.
+- All new data fields must pass fail-closed privacy guards.
+- Test fixtures must consist strictly of synthetic data with no real user information.
 
-## วิธีตรวจ Pull Request
+## Pull Request Quality Gates
 
-การตรวจสอบที่ต้องผ่านก่อน merge:
+The following checks must pass before merging a PR:
 
 - `pnpm check`
 - `pnpm test`
 - `cargo test --workspace --all-features`
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`
 - `cargo fmt --check`
-- หากเกี่ยวข้องกับ Provider: run contract suite + privacy scan
+- If modifying providers: run provider contract test suite + privacy scan
 
-## Community / Verified adapter
+## Community / Verified Adapters
 
-- Built-in: maintainer review + full contract tests
-- Verified community: source สาธารณะ, checksum, review, contract tests พาส
-- Unverified community: ต้องแสดง warning และ manual install
-- รันโค้ด Community ผ่าน Wasm sandbox; ห้าม native DLL plugin
+- **Built-in**: Maintainer code review + full contract test suite.
+- **Verified Community**: Public source repository, verified checksum, code review, passing contract tests.
+- **Unverified Community**: Requires user warning prompt and manual installation approval.
+- Execute community adapter code inside Wasm sandboxes; native DLL plugins are forbidden.
 
-## Dependency
+## Dependencies
 
-- Dependency ใหม่ต้องอธิบายเหตุผล ตรวจ License และ ปรับขนาดผลกระทบ
-- ห้ามโหลด Font / Script / UI asset จาก CDN ใน Runtime
+- New dependencies must state a valid justification, undergo license checks, and evaluate size impact.
+- Never load fonts, scripts, or UI assets from external CDNs at runtime.
 
-## แก้ Bug
+## Bug Fixes
 
-- Reproduce ก่อน ใส่ทีละครั้ง ไม่พังการทำงานของ Provider อื่น
-- Error ต้อง typed และ context ไม่เปิดเผยข้อมูลอ่อนไหว
-- ไม่มี `unwrap()`/`expect()` ใน Production path
+- Reproduce issues before fixing; implement isolated changes without breaking other provider integrations.
+- Errors must use typed error enums with sanitized contexts that do not expose sensitive data.
+- Avoid `unwrap()` and `expect()` in production execution paths.
 
-## Commit message
+## Commit Messages
 
-ใช้ Conventional commits เช่น `feat:`, `fix:`, `chore:`, `docs:`, `test:`, `build:`
+Follow Conventional Commits (e.g., `feat:`, `fix:`, `chore:`, `docs:`, `test:`, `build:`).
 
-ตัวอย่างจากแผนงาน:
+Example from implementation roadmap:
 
 ```text
 chore: establish inwdeck workspace
 feat: expose secure desktop application commands
 ```
 
-## ขั้นตอนเปิด PR
+## Pull Request Workflow
 
-1. ทำงานบน branch แยกจาก `main`/`dev`
-2. รัน Quality gates ให้ผ่าน
-3. เปิด PR โดยใช้เทมเพลตจาก `.github/PULL_REQUEST_TEMPLATE.md`
-4. มี Reviewer review; แล้วแต่อนุมัติและ merge
+1. Create a feature branch off `main` or `dev`.
+2. Ensure all quality gate checks pass locally.
+3. Open a Pull Request using `.github/PULL_REQUEST_TEMPLATE.md`.
+4. Await reviewer feedback, approval, and merge.

@@ -1,125 +1,125 @@
 # AGENTS.md — inwdeck Engineering Rules
 
-เอกสารนี้เป็นกฎบังคับสำหรับ AI coding agent และ Contributor ทุกคน
+This document outlines mandatory rules for all AI coding agents and human contributors.
 
-## 1. วิธีทำงาน
+## 1. Workflow Guidelines
 
-1. อ่านเอกสารใน `docs/` ก่อนแก้โค้ด
-2. ทำงานครั้งละหนึ่ง Task จาก Implementation plan
-3. ห้ามสร้าง Subagent เว้นแต่ผู้ใช้สั่งโดยตรง ให้ทำงาน Inline เป็นค่าเริ่มต้น
-4. ก่อนแก้ไฟล์ ให้สรุปขอบเขต Task และรายชื่อไฟล์ที่จะสร้างหรือแก้
-5. ใช้ Test-Driven Development:
-   - เขียน Test ที่ล้มเหลวก่อน
-   - รันเพื่อยืนยันว่าล้มเหลวด้วยเหตุผลที่ถูกต้อง
-   - เขียน Implementation ขั้นต่ำ
-   - รัน Test ที่เกี่ยวข้อง
-   - รัน Quality gates ของ Workspace
-6. หยุดและรายงานเมื่อ Task ผ่าน Acceptance criteria ห้ามไหลไปทำ Task ถัดไปเอง
-7. Commit ต้องเล็ก อ่านง่าย และมีจุดประสงค์เดียว
-8. ห้ามใช้ข้อความแทน Implementation จริง ห้ามเว้นฟังก์ชันว่าง และห้ามปิด Test เพื่อให้ CI ผ่าน
+1. Read documentation in `docs/` before modifying code.
+2. Complete one task at a time from the Implementation Plan.
+3. Do not create subagents unless explicitly instructed by the user; execute inline by default.
+4. Before modifying files, summarize the task scope and the list of files to be created or modified.
+5. Practice Test-Driven Development (TDD):
+   - Write a failing test first.
+   - Run to confirm failure for the expected reason.
+   - Write minimum necessary implementation code.
+   - Run relevant tests.
+   - Run workspace quality gates.
+6. Stop and report when a task passes its Acceptance Criteria. Do not automatically proceed to the next task.
+7. Commits must be small, readable, and focused on a single logical purpose.
+8. Never use placeholders or empty function implementations, and never disable tests to make CI pass.
 
-## 2. ขอบเขต Product ที่ห้ามเปลี่ยนเอง
+## 2. Immutable Product Scope Constraints
 
-- ชื่อ Product คือ `inwdeck`
-- Local-only เป็นค่าเริ่มต้นและ v0.1 ไม่มี Cloud account หรือ Cloud sync
-- เก็บเฉพาะ Metadata
-- ห้ามเก็บ Prompt, Response, Source code, File content, File name หรือ Absolute path
-- Project identity ต้องใช้ Alias และ Identifier แบบ keyed hash
-- Hooks ต้องเริ่มจาก Passive mode และต้องขออนุมัติผู้ใช้ก่อนติดตั้ง
-- ทุกการแก้ Config ต้อง Preview, Backup, Validate และ Rollback ได้
-- Browser Helper ห้ามส่ง Cookie หรือ Session token ออกจาก Browser
-- Community Adapter ต้องอยู่ใน Sandbox และไม่มีสิทธิ์โดยปริยาย
-- x64 และ ARM64 เป็น Tier 1; x86 เป็น Compatibility Tier
-- Windows 10 ขั้นต่ำคือ 22H2
+- Product name: `inwdeck`
+- Local-only by default in v0.1; no cloud accounts or cloud sync.
+- Store metadata only.
+- Never store prompts, responses, source code, file contents, file names, or absolute paths.
+- Project identity must use aliases and keyed hash identifiers.
+- Hooks must start in passive mode and require user approval before installation.
+- All configuration modifications must support preview, backup, validation, and rollback.
+- Browser Helper must never transmit cookies or session tokens out of the browser.
+- Community Adapters must run in sandboxes with deny-by-default permissions.
+- x64 and ARM64 are Tier 1 architectures; x86 is a Compatibility Tier.
+- Minimum supported Windows OS version: Windows 10 22H2.
 
-## 3. Architecture boundaries
+## 3. Architecture Boundaries
 
-- `crates/domain`: Domain types และ invariants เท่านั้น
-- `crates/application`: Use cases และ orchestration
-- `crates/storage`: SQLite, migrations และ repositories
-- `crates/security`: Credential, hashing, redaction และ permission checks
-- `crates/provider-runtime`: Adapter lifecycle, scheduling และ isolation
-- `crates/providers/*`: Built-in provider adapters
-- `apps/desktop/src`: React UI
-- `apps/desktop/src-tauri`: Tauri commands และ native integration
-- `apps/browser-extension`: Chromium Manifest V3 extension
-- `schemas`: JSON Schema และ WIT contracts ที่เป็น source of truth
-- UI ห้าม Query SQLite โดยตรง ต้องผ่าน Tauri command/use case
-- Provider adapter ห้ามเขียน Database โดยตรง ต้องคืน Normalized batch ให้ Core
-- Secret ห้ามไหลเข้า UI, Log, Analytics event หรือ Adapter ที่ไม่ได้รับสิทธิ์
+- `crates/domain`: Domain types and invariants only.
+- `crates/application`: Use cases and orchestration logic.
+- `crates/storage`: SQLite, migrations, and repositories.
+- `crates/security`: Credentials, hashing, redaction, and permission checks.
+- `crates/provider-runtime`: Adapter lifecycle, scheduling, and sandbox isolation.
+- `crates/providers/*`: Built-in provider adapters.
+- `apps/desktop/src`: React UI application.
+- `apps/desktop/src-tauri`: Tauri commands and native OS integration.
+- `apps/browser-extension`: Chromium Manifest V3 extension.
+- `schemas`: JSON Schema and WIT contracts as the single source of truth.
+- UI must never query SQLite directly; requests must pass through Tauri commands/use cases.
+- Provider adapters must never write to the database directly; they must return normalized batches to Core.
+- Secrets must never flow into the UI, logs, analytics events, or unauthorized adapters.
 
-## 4. Security rules
+## 4. Security Rules
 
-- Deny-by-default สำหรับ File, Network, Credential และ Hook permissions
-- ใช้ Windows Credential Manager หรือ Tauri Stronghold ตาม Threat model
-- ห้ามเก็บ Secret ใน `.env`, JSON, SQLite หรือ Source code
-- Log ต้องผ่าน Redaction ก่อนเขียน
-- Native Messaging ต้องตรวจ Extension origin แบบ allowlist
-- Network destination ต้องตรงกับ Domain ที่ประกาศใน Adapter manifest
-- ใช้ HTTPS เท่านั้น ยกเว้น Loopback/Local provider ที่ผู้ใช้เปิดเอง
-- Database migration ต้อง Backup ก่อนและ Transactional
-- Update artifact ต้องตรวจ Signature ก่อนติดตั้ง
-- Dependency ใหม่ต้องอธิบายเหตุผลและตรวจ License
+- Deny-by-default policy for File, Network, Credential, and Hook permissions.
+- Use Windows Credential Manager or Tauri Stronghold based on threat modeling.
+- Never store secrets in `.env`, JSON files, SQLite, or source code.
+- Logs must pass through redaction before being written to disk.
+- Native Messaging must validate extension origin against an allowlist.
+- Network destinations must match domains declared in the adapter manifest.
+- HTTPS only, except for loopback/local providers explicitly enabled by the user.
+- Database migrations must be transactional and backed up beforehand.
+- Update artifacts must verify cryptographic signatures before installation.
+- New dependencies must provide explicit justification and undergo license verification.
 
-## 5. Coding standards
+## 5. Coding Standards
 
 ### Rust
 
 - `cargo fmt --check`
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`
-- หลีกเลี่ยง `unwrap()` และ `expect()` ใน Production path
-- Error ต้องมี typed error และ context ที่ไม่เปิดเผยข้อมูลสำคัญ
-- Public API ต้องมี Rustdoc
-- Async task ทุกตัวต้อง Cancel ได้และมี timeout
+- Avoid `unwrap()` and `expect()` in production execution paths.
+- Errors must use typed error enums with sanitized contexts that do not expose sensitive data.
+- Public APIs must include Rustdoc documentation.
+- All async tasks must be cancellable and enforce timeout limits.
 
 ### TypeScript / React
 
-- TypeScript strict mode
-- ห้าม `any` เว้นแต่มี comment อธิบายและมี runtime validation
-- Component ต้องมีหน้าที่เดียว
-- Data จาก Native/Extension ต้อง validate ด้วย Schema
-- หลีกเลี่ยง State ซ้ำซ้อนและ Derived state ที่เก็บถาวร
-- UI state ต้องรองรับ Loading, Empty, Stale, Partial และ Error
-- Accessibility: Keyboard navigation, visible focus, semantic roles, reduced motion
+- TypeScript strict mode enforced.
+- No `any` types unless accompanied by an explanatory comment and runtime validation.
+- Components must adhere to the Single Responsibility Principle.
+- Data received from Native/Extension layers must be validated against schemas.
+- Avoid duplicate state and persistent derived state.
+- UI state must handle Loading, Empty, Stale, Partial, and Error states gracefully.
+- Accessibility: Keyboard navigation, visible focus indicators, semantic roles, reduced motion support.
 
 ### SQL
 
-- Migration เป็นแบบ append-only
-- ห้ามแก้ Migration ที่ถูก Release แล้ว
-- Query สำคัญต้องมี Index plan และ Test
-- Timestamp เก็บเป็น UTC
-- Monetary amount เก็บเป็น integer minor units หรือ decimal string ห้ามใช้ floating point
+- Database migrations are append-only.
+- Never modify existing released migrations.
+- Critical queries must include index execution plans and integration tests.
+- Timestamps must be stored in UTC.
+- Monetary amounts must be stored as integer minor units or decimal strings (never floating-point).
 
-## 6. Test requirements
+## 6. Testing Requirements
 
-- Domain logic: Unit tests
-- Storage: Migration + repository integration tests
-- Adapter: Contract tests + sanitized fixtures
-- Tauri commands: Integration tests
-- UI: Vitest + React Testing Library
-- Main workflow: Playwright E2E
-- Browser Helper: Extension unit tests + Native Messaging protocol tests
-- Privacy: Fixture scan ต้องยืนยันว่า Prompt/Response/Path ไม่ถูก Persist
-- Release: Smoke test Installer และ Portable อย่างน้อย x64; Tier 1 ต้องมี automated build checks
+- Domain logic: Unit tests.
+- Storage: Migration + repository integration tests.
+- Adapters: Contract tests + sanitized fixtures.
+- Tauri commands: Integration tests.
+- UI: Vitest + React Testing Library.
+- Main workflow: Playwright E2E tests.
+- Browser Helper: Extension unit tests + Native Messaging protocol tests.
+- Privacy: Fixture scans must verify that prompts, responses, and paths are not persisted.
+- Release: Smoke tests for Installer and Portable builds on x64; automated build checks required for Tier 1 architectures.
 
-## 7. File safety
+## 7. File Safety Guidelines
 
-- ห้ามแก้ไฟล์นอก Task โดยไม่มีเหตุผล
-- ห้ามลบ Config เดิมของผู้ใช้
-- ห้ามเขียนทับ Hook เดิม หากต่อ chain ไม่ได้ให้หยุดและแจ้ง
-- Generated files ต้องระบุว่า Generated และห้ามแก้ด้วยมือ
-- Fixture ต้องเป็นข้อมูลสังเคราะห์ ไม่มีข้อมูลจริงของผู้ใช้
-- Asset ภายนอกที่จำเป็นต่อ Offline UI ต้องเก็บใน Repository พร้อม License
-- ห้ามโหลด Font, Script หรือ UI asset จาก CDN ใน Runtime
+- Do not modify files outside the current task scope without justification.
+- Do not overwrite existing user configuration.
+- Do not overwrite pre-existing system hooks; if chain integration is not possible, stop and notify the user.
+- Generated files must be marked as generated and never edited manually.
+- Test fixtures must consist strictly of synthetic data with no real user information.
+- External assets required for offline UI must be vendored in the repository with proper licenses.
+- Never load fonts, scripts, or UI assets from external CDNs at runtime.
 
-## 8. Completion report
+## 8. Completion Report
 
-เมื่อจบ Task ให้รายงาน:
+Upon completing a task, provide a report covering:
 
-1. ไฟล์ที่เปลี่ยน
-2. พฤติกรรมที่เพิ่มหรือแก้
-3. Test และคำสั่งที่รัน พร้อมผล
-4. ข้อจำกัดที่ยังมี
+1. Modified files
+2. Added or updated behavior
+3. Tests and verification commands executed, including results
+4. Remaining limitations or constraints
 5. Security/Privacy impact
-6. Commit hash หากมี
-7. ยืนยันว่าไม่ได้ทำ Task ถัดไป
+6. Commit hash (if applicable)
+7. Confirmation that the next task was not executed automatically

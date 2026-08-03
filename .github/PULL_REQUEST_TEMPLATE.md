@@ -1,37 +1,37 @@
 ## Purpose
 
-_อธิบายหนึ่งจุดประสงค์ของ PR นี้_
+_Explain the single purpose of this Pull Request._
 
-## Task ต้นทาง
+## Source Task
 
-- [ ] Task: _Task ID/name จาก Implementation plan_
-- [ ] ไม่ได้ทำ Task อื่นนอกเหนือจากที่แจ้ง
+- [ ] Task: _Task ID/name from the Implementation Plan_
+- [ ] No changes performed outside the specified task scope.
 
-## สิ่งที่เปลี่ยน
+## Summary of Changes
 
-- ไฟล์ที่เพิ่ม/แก้:
-- พฤติกรรมที่เปลี่ยน:
+- Modified/Added files:
+- Behavior changes:
 
-## Test / Quality gates
+## Test / Quality Gates
 
-- [ ] `pnpm check` ผ่าน
-- [ ] `pnpm test` ผ่าน
-- [ ] `cargo test --workspace --all-features` ผ่าน
-- [ ] `cargo clippy --workspace --all-targets --all-features -- -D warnings` ผ่าน
-- [ ] `cargo fmt --check` ผ่าน
-- [ ] Privacy scan ผ่าน (ถ้าเกี่ยวข้อง)
+- [ ] `pnpm check` passed
+- [ ] `pnpm test` passed
+- [ ] `cargo test --workspace --all-features` passed
+- [ ] `cargo clippy --workspace --all-targets --all-features -- -D warnings` passed
+- [ ] `cargo fmt --check` passed
+- [ ] Privacy scan passed (if applicable)
 
-## Security / Privacy impact
+## Security / Privacy Impact
 
-_ระบุผลต่อ Metadata-only, Secret, Permission หรือ Hook อย่างชัดเจน_
+_Specify impacts on metadata-only policy, secrets, permissions, or hooks._
 
-## Dependency ใหม่
+## New Dependencies
 
-_รายชื่อ dependency, เหตุผล, License_
+_List new dependencies, justifications, and licenses (if any)._
 
 ## Checklist
 
-- [ ] ไม่มี Prompt/Response/Path/Secret ถูก Persist
-- [ ] Fixture เป็นข้อมูลสังเคราะห์เท่านั้น
-- [ ] Documentation ตรงกับโค้ด
-- [ ] Commit เล็กและอ่านง่าย
+- [ ] No prompts, responses, paths, or secrets are persisted.
+- [ ] Test fixtures contain synthetic data only.
+- [ ] Documentation accurately reflects code changes.
+- [ ] Commits are small, readable, and focused.
