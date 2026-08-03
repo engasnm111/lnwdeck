@@ -1,7 +1,5 @@
 use lnwdeck_domain::{QuotaSnapshot, UsageBatch};
-use lnwdeck_provider_runtime::{
-    AdapterHealth, AdapterHealthStatus, Permission, ProviderAdapter,
-};
+use lnwdeck_provider_runtime::{AdapterHealth, AdapterHealthStatus, Permission, ProviderAdapter};
 
 struct TestAdapter;
 
