@@ -5,11 +5,15 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
-  build:
-    name: Build ${{ matrix.target }}
+  publish:
+    name: Publish ${{ matrix.target }}
     runs-on: windows-latest
     strategy:
+      fail-fast: false
       matrix:
         target:
           - x86_64-pc-windows-msvc
@@ -29,42 +33,53 @@ jobs:
           cache: pnpm
 
       - name: Install Rust toolchain
-        run: |
-          rustup target add ${{ matrix.target }}
-          rustup show
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
-      - name: Build
-        run: cargo build --release --target ${{ matrix.target }}
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Build and publish
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          # Password is intentionally empty (key generated with --ci).
+          # GitHub Actions sets CI=true, which makes the Tauri CLI fall back to
+          # an empty password when TAURI_SIGNING_PRIVATE_KEY_PASSWORD is unset.
         with:
-          name: lnwdeck-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/lnwdeck*.exe
+          projectPath: apps/desktop/src-tauri
+          tagName: ${{ github.ref_name }}
+          releaseName: lnwdeck ${{ github.ref_name }}
+          releaseBody: |
+            ## lnwdeck — local-first AI usage & cost tracker
 
-  generate-manifest:
-    name: Generate update manifest
-    needs: build
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
+            All metadata stays on your machine. No cloud accounts, no sync.
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: latest
+            ### Highlights
+            - Local-only usage tracking (SQLite) with passive collectors
+            - Overview, Analytics, Provider health, Costs, Budgets and Alerts views
+            - System tray widget with at-a-glance usage
+            - Automatic updates: signed installers verified with the public key in `tauri.conf.json`
+            - Privacy-first: prompts, responses and file paths are never stored
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
+            ### Providers
+            | Provider | Mode | Status |
+            |---|---|---|
+            | OpenCode | Local CLI | Active |
+            | Codex (OpenAI) | API / Credential | Requires API key |
+            | Gemini (Google) | API / Credential | Requires API key |
+            | Kimi | API / Credential | Requires API key |
+            | Claude (Anthropic) | API / Credential | Requires API key |
 
-      - name: Generate latest.json
-        run: node scripts/generate-update-manifest.mjs
+            ### Requirements
+            - Windows 10 22H2 or later (x64 / ARM64 Tier 1, x86 compatibility)
+            - WebView2 Runtime
 
-      - name: Upload manifest
-        uses: actions/upload-artifact@v4
-        with:
-          name: update-manifest
-          path: latest.json
+            See the assets below to download and install this version.
+          generateReleaseNotes: true
+          releaseDraft: true
+          prerelease: false
+          updaterJsonPreferNsis: true
+          args: --target ${{ matrix.target }}
