@@ -37,6 +37,35 @@ export function ProvidersPage() {
     }
   }, [load]);
 
+  const renderStatusBadge = (p: DetailedProviderInfo) => {
+    if (p.health_status.startsWith("Error")) {
+      return <Badge tone="danger">{p.health_status}</Badge>;
+    }
+    if (p.event_count > 0) {
+      return <Badge tone="success">Active</Badge>;
+    }
+    if (p.detected) {
+      return <Badge tone="info">Detected (No events)</Badge>;
+    }
+    if (p.health_status === "Permission required") {
+      return <Badge tone="warning">Permission required</Badge>;
+    }
+    return <Badge tone="default">Not configured</Badge>;
+  };
+
+  const renderCostBadge = (support: string) => {
+    switch (support) {
+      case "Exact":
+        return <Badge tone="success">Exact Pricing</Badge>;
+      case "Estimated":
+        return <Badge tone="info">Estimated Pricing</Badge>;
+      case "Free / Local":
+        return <Badge tone="success">Free / Local</Badge>;
+      default:
+        return <Badge tone="default">Pricing N/A</Badge>;
+    }
+  };
+
   const isEmpty = providers.length === 0 && !loading;
 
   return (
@@ -52,7 +81,7 @@ export function ProvidersPage() {
         <div>
           <h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>Providers</h2>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>
-            Local AI engine adapters and collection state
+            Local AI engine adapters and collection state (Codex, Gemini, Kimi, Claude, OpenCode & more)
           </p>
         </div>
         <Button
@@ -82,11 +111,9 @@ export function ProvidersPage() {
           {providers.map((p) => (
             <Card key={p.provider_id} title={p.display_name}>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Status</span>
-                  <Badge tone={p.detected ? "success" : "warning"}>
-                    {p.detected ? "Detected" : "Not Detected"}
-                  </Badge>
+                  {renderStatusBadge(p)}
                 </div>
 
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -94,11 +121,9 @@ export function ProvidersPage() {
                   <span style={{ fontSize: "0.875rem" }}>{p.source_type}</span>
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Health</span>
-                  <Badge tone={p.health_status.includes("Error") ? "danger" : "success"}>
-                    {p.health_status}
-                  </Badge>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Cost Support</span>
+                  {renderCostBadge(p.cost_support || "Exact")}
                 </div>
 
                 <div style={{ display: "flex", justifyContent: "space-between" }}>

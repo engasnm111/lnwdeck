@@ -15,9 +15,91 @@ pub struct DetailedProviderInfo {
     pub quota_summary: String,
     pub reset_at: Option<String>,
     pub confidence: String,
+    pub cost_support: String,
 }
 
 pub struct ScanProviders;
+
+pub struct StandardProviderMeta {
+    pub id: &'static str,
+    pub display_name: &'static str,
+    pub source_type: &'static str,
+    pub default_health: &'static str,
+    pub cost_support: &'static str,
+}
+
+pub const STANDARD_PROVIDERS: &[StandardProviderMeta] = &[
+    StandardProviderMeta {
+        id: "opencode",
+        display_name: "OpenCode",
+        source_type: "Local CLI / JSON",
+        default_health: "Detected",
+        cost_support: "Exact",
+    },
+    StandardProviderMeta {
+        id: "openai_codex",
+        display_name: "Codex (OpenAI)",
+        source_type: "API / Credential",
+        default_health: "Not configured",
+        cost_support: "Exact",
+    },
+    StandardProviderMeta {
+        id: "google_gemini",
+        display_name: "Gemini (Google)",
+        source_type: "API / Credential",
+        default_health: "Not configured",
+        cost_support: "Exact",
+    },
+    StandardProviderMeta {
+        id: "kiro_ai",
+        display_name: "Kimi",
+        source_type: "API / Credential",
+        default_health: "Not configured",
+        cost_support: "Estimated",
+    },
+    StandardProviderMeta {
+        id: "anthropic_claude",
+        display_name: "Claude (Anthropic)",
+        source_type: "API / Credential",
+        default_health: "Not configured",
+        cost_support: "Exact",
+    },
+    StandardProviderMeta {
+        id: "copilot",
+        display_name: "GitHub Copilot",
+        source_type: "IDE Extension",
+        default_health: "Not configured",
+        cost_support: "Unavailable",
+    },
+    StandardProviderMeta {
+        id: "cursor",
+        display_name: "Cursor",
+        source_type: "Local Log / SQLite",
+        default_health: "Not configured",
+        cost_support: "Estimated",
+    },
+    StandardProviderMeta {
+        id: "grok",
+        display_name: "Grok (xAI)",
+        source_type: "API / Credential",
+        default_health: "Not configured",
+        cost_support: "Exact",
+    },
+    StandardProviderMeta {
+        id: "ollama",
+        display_name: "Ollama",
+        source_type: "Local HTTP API",
+        default_health: "Not configured",
+        cost_support: "Free / Local",
+    },
+    StandardProviderMeta {
+        id: "openrouter",
+        display_name: "OpenRouter",
+        source_type: "API / Credential",
+        default_health: "Not configured",
+        cost_support: "Exact",
+    },
+];
 
 impl ScanProviders {
     pub fn execute(conn: &Connection) -> Result<Vec<DetailedProviderInfo>, rusqlite::Error> {
@@ -25,77 +107,63 @@ impl ScanProviders {
         let states = diag.provider_states().unwrap_or_default();
         let runs = diag.latest_runs().unwrap_or_default();
 
-        let mut results = Vec::new();
+        let mut results: Vec<DetailedProviderInfo> = Vec::new();
 
-        if states.is_empty() {
-            // Check usage_events directly if states repository is empty
-            let mut stmt = conn.prepare(
-                "SELECT provider_id, COUNT(*), COALESCE(SUM(tokens_input + tokens_output), 0), MAX(timestamp)
-                 FROM usage_events GROUP BY provider_id",
-            )?;
-            let rows = stmt.query_map([], |row| {
-                let pid: String = row.get(0)?;
-                let count: i64 = row.get(1)?;
-                let tokens: i64 = row.get(2)?;
-                let max_ts: Option<String> = row.get(3)?;
-                Ok(DetailedProviderInfo {
-                    provider_id: pid.clone(),
-                    display_name: pid.clone(),
-                    enabled: true,
-                    detected: true,
-                    source_type: "auto".to_string(),
-                    health_status: "Healthy".to_string(),
-                    event_count: count,
-                    total_tokens: tokens,
-                    last_sync: max_ts,
-                    quota_summary: "Active".to_string(),
-                    reset_at: None,
-                    confidence: "High".to_string(),
-                })
-            })?;
-            for info in rows.flatten() {
-                results.push(info);
-            }
+        for std_prov in STANDARD_PROVIDERS {
+            let state_opt = states.iter().find(|s| s.provider_id == std_prov.id);
+            let run_opt = runs.iter().find(|r| r.provider_id == std_prov.id);
 
-            return Ok(results);
-        }
-
-        for st in states {
-            let run = runs.iter().find(|r| r.provider_id == st.provider_id);
+            let like_pat = format!("%{}%", std_prov.id);
             let (event_count, total_tokens, last_ts): (i64, i64, Option<String>) = conn
                 .query_row(
                     "SELECT COUNT(*), COALESCE(SUM(tokens_input + tokens_output), 0), MAX(timestamp)
-                     FROM usage_events WHERE provider_id = ?",
-                    [&st.provider_id],
+                     FROM usage_events WHERE provider_id = ? OR provider_id LIKE ?",
+                    [std_prov.id, &like_pat],
                     |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
                 )
                 .unwrap_or((0, 0, None));
 
-            let health = if let Some(r) = run {
+            let detected = state_opt
+                .map(|s| s.detected)
+                .unwrap_or(std_prov.id == "opencode");
+            let enabled = state_opt.map(|s| s.enabled).unwrap_or(true);
+
+            let health = if let Some(r) = run_opt {
                 if !r.error_code.is_empty() {
                     format!("Error ({})", r.error_code)
                 } else {
                     "Healthy".to_string()
                 }
-            } else if st.detected {
+            } else if detected && event_count > 0 {
                 "Healthy".to_string()
+            } else if detected {
+                "Detected".to_string()
             } else {
-                "Not detected".to_string()
+                std_prov.default_health.to_string()
+            };
+
+            let quota_summary = if event_count > 0 {
+                format!("{event_count} events recorded")
+            } else if detected {
+                "No records yet".to_string()
+            } else {
+                "Not configured".to_string()
             };
 
             results.push(DetailedProviderInfo {
-                provider_id: st.provider_id.clone(),
-                display_name: st.display_name.clone(),
-                enabled: st.enabled,
-                detected: st.detected,
-                source_type: st.source_type.clone(),
+                provider_id: std_prov.id.to_string(),
+                display_name: std_prov.display_name.to_string(),
+                enabled,
+                detected,
+                source_type: std_prov.source_type.to_string(),
                 health_status: health,
                 event_count,
                 total_tokens,
-                last_sync: last_ts.or_else(|| run.map(|r| r.finished_at.clone())),
-                quota_summary: "Active".to_string(),
+                last_sync: last_ts.or_else(|| run_opt.map(|r| r.finished_at.clone())),
+                quota_summary,
                 reset_at: None,
                 confidence: "High".to_string(),
+                cost_support: std_prov.cost_support.to_string(),
             });
         }
 

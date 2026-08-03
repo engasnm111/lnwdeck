@@ -24,7 +24,16 @@ lnwdeck-pricing = { path = "../../../crates/pricing" }
 lnwdeck-analytics = { path = "../../../crates/analytics" }
 lnwdeck-hook-manager = { path = "../../../crates/hook-manager" }
 lnwdeck-provider-runtime = { path = "../../../crates/provider-runtime" }
+lnwdeck-provider-claude = { path = "../../../crates/providers/claude" }
+lnwdeck-provider-codex = { path = "../../../crates/providers/codex" }
+lnwdeck-provider-copilot = { path = "../../../crates/providers/copilot" }
+lnwdeck-provider-cursor = { path = "../../../crates/providers/cursor" }
+lnwdeck-provider-gemini = { path = "../../../crates/providers/gemini" }
+lnwdeck-provider-grok = { path = "../../../crates/providers/grok" }
+lnwdeck-provider-kiro = { path = "../../../crates/providers/kiro" }
+lnwdeck-provider-ollama = { path = "../../../crates/providers/ollama" }
 lnwdeck-provider-opencode = { path = "../../../crates/providers/opencode" }
+lnwdeck-provider-openrouter = { path = "../../../crates/providers/openrouter" }
 rusqlite = { version = "0.31", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 getrandom = "0.3"

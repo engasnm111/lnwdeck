@@ -1,5 +1,14 @@
 use crate::state::AppState;
+use lnwdeck_provider_claude::ClaudeAdapter;
+use lnwdeck_provider_codex::CodexAdapter;
+use lnwdeck_provider_copilot::CopilotAdapter;
+use lnwdeck_provider_cursor::CursorAdapter;
+use lnwdeck_provider_gemini::GeminiAdapter;
+use lnwdeck_provider_grok::GrokAdapter;
+use lnwdeck_provider_kiro::KiroAdapter;
+use lnwdeck_provider_ollama::OllamaAdapter;
 use lnwdeck_provider_opencode::OpenCodeAdapter;
+use lnwdeck_provider_openrouter::OpenRouterAdapter;
 use lnwdeck_provider_runtime::{CollectionOutcome, ProviderAdapter};
 use lnwdeck_storage::repositories::{
     AppSettingsRepository, CollectorRunRow, DiagnosticsRepository, PipelineTotals, ProviderStateRow,
@@ -37,7 +46,18 @@ fn load_or_create_hash_key(conn: &rusqlite::Connection) -> Result<Vec<u8>, Strin
 }
 
 fn builtin_adapters(hash_key: &[u8]) -> Vec<Box<dyn ProviderAdapter>> {
-    vec![Box::new(OpenCodeAdapter::new(hash_key))]
+    vec![
+        Box::new(OpenCodeAdapter::new(hash_key)),
+        Box::new(CodexAdapter),
+        Box::new(GeminiAdapter),
+        Box::new(KiroAdapter),
+        Box::new(ClaudeAdapter),
+        Box::new(CopilotAdapter),
+        Box::new(CursorAdapter),
+        Box::new(GrokAdapter),
+        Box::new(OllamaAdapter),
+        Box::new(OpenRouterAdapter),
+    ]
 }
 
 /// Runs detection and collection for every registered adapter, then

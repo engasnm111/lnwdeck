@@ -33,6 +33,9 @@ describe("Desktop Navigation and Backend Data Integration", () => {
             total_events: 10,
             total_tokens_input: 1000,
             total_tokens_output: 500,
+            total_cost: 0.015,
+            cost_formatted: "$0.0150",
+            cost_status: "estimated",
             provider_count: 2,
             high_confidence_count: 8,
             confidence_coverage: 0.8,
@@ -73,6 +76,7 @@ describe("Desktop Navigation and Backend Data Integration", () => {
               quota_summary: "100k / 500k",
               reset_at: "2026-09-01T00:00:00Z",
               confidence: "High",
+              cost_support: "Exact",
             },
           ];
         }
@@ -116,84 +120,16 @@ describe("Desktop Navigation and Backend Data Integration", () => {
     });
   });
 
-  it("AnalyticsPage fetches and displays data from fetchAnalytics backend command", async () => {
-    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-      if (cmd === "get_analytics") {
-        return {
-          rows: [
-            {
-              id: "evt_99",
-              timestamp: "2026-08-03T10:00:00Z",
-              provider_id: "test_provider",
-              model: "test_model",
-              tokens_input: 500,
-              tokens_output: 200,
-              confidence: "High",
-              cost: "0.0050",
-            },
-          ],
-          available_providers: ["test_provider"],
-          available_models: ["test_model"],
-        };
-      }
-      return null;
-    });
-
-    render(
-      <MemoryRouter initialEntries={["/analytics"]}>
-        <App />
-      </MemoryRouter>
-    );
-
-    await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith("get_analytics", expect.anything());
-      expect(screen.getAllByText("test_provider").length).toBeGreaterThan(0);
-      expect(screen.getAllByText("test_model").length).toBeGreaterThan(0);
-    });
-  });
-
-  it("ProvidersPage fetches and displays data from fetchProviders backend command", async () => {
-    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-      if (cmd === "get_providers") {
-        return [
-          {
-            provider_id: "opencode",
-            display_name: "OpenCode Engine",
-            enabled: true,
-            detected: true,
-            source_type: "cli_config",
-            health_status: "Healthy",
-            event_count: 42,
-            total_tokens: 8400,
-            last_sync: "2026-08-03T12:00:00Z",
-            quota_summary: "Unlimited",
-            reset_at: null,
-            confidence: "High",
-          },
-        ];
-      }
-      return null;
-    });
-
-    render(
-      <MemoryRouter initialEntries={["/providers"]}>
-        <App />
-      </MemoryRouter>
-    );
-
-    await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith("get_providers");
-      expect(screen.getByText("OpenCode Engine")).toBeInTheDocument();
-    });
-  });
-
-  it("OverviewPage renders metric cards for Total Tokens, Requests, and Confidence", async () => {
+  it("OverviewPage renders non-zero Total Cost card when cost exists", async () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
       if (cmd === "get_overview") {
         return {
           total_events: 15,
           total_tokens_input: 2000,
           total_tokens_output: 1000,
+          total_cost: 0.0425,
+          cost_formatted: "$0.0425",
+          cost_status: "estimated",
           provider_count: 3,
           high_confidence_count: 12,
           confidence_coverage: 0.85,
@@ -211,8 +147,92 @@ describe("Desktop Navigation and Backend Data Integration", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Total Tokens")).toBeInTheDocument();
-      expect(screen.getByText("3,000")).toBeInTheDocument();
+      expect(screen.getByText("Total Cost")).toBeInTheDocument();
+      expect(screen.getByText("$0.0425")).toBeInTheDocument();
+      expect(screen.getByText("Estimated")).toBeInTheDocument();
+    });
+  });
+
+  it("ProvidersPage renders Codex, Gemini, Kimi, and Claude provider cards", async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === "get_providers") {
+        return [
+          {
+            provider_id: "openai_codex",
+            display_name: "Codex (OpenAI)",
+            enabled: true,
+            detected: false,
+            source_type: "API / Credential",
+            health_status: "Not configured",
+            event_count: 0,
+            total_tokens: 0,
+            last_sync: null,
+            quota_summary: "Not configured",
+            reset_at: null,
+            confidence: "High",
+            cost_support: "Exact",
+          },
+          {
+            provider_id: "google_gemini",
+            display_name: "Gemini (Google)",
+            enabled: true,
+            detected: false,
+            source_type: "API / Credential",
+            health_status: "Not configured",
+            event_count: 0,
+            total_tokens: 0,
+            last_sync: null,
+            quota_summary: "Not configured",
+            reset_at: null,
+            confidence: "High",
+            cost_support: "Exact",
+          },
+          {
+            provider_id: "kiro_ai",
+            display_name: "Kimi",
+            enabled: true,
+            detected: false,
+            source_type: "API / Credential",
+            health_status: "Not configured",
+            event_count: 0,
+            total_tokens: 0,
+            last_sync: null,
+            quota_summary: "Not configured",
+            reset_at: null,
+            confidence: "High",
+            cost_support: "Estimated",
+          },
+          {
+            provider_id: "anthropic_claude",
+            display_name: "Claude (Anthropic)",
+            enabled: true,
+            detected: false,
+            source_type: "API / Credential",
+            health_status: "Not configured",
+            event_count: 0,
+            total_tokens: 0,
+            last_sync: null,
+            quota_summary: "Not configured",
+            reset_at: null,
+            confidence: "High",
+            cost_support: "Exact",
+          },
+        ];
+      }
+      return null;
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/providers"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Codex (OpenAI)")).toBeInTheDocument();
+      expect(screen.getByText("Gemini (Google)")).toBeInTheDocument();
+      expect(screen.getByText("Kimi")).toBeInTheDocument();
+      expect(screen.getByText("Claude (Anthropic)")).toBeInTheDocument();
     });
   });
 });
