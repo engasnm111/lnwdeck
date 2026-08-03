@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { Badge, Button } from "@lnwdeck/ui";
 import {
   OverviewIcon,
