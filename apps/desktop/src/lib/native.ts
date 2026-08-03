@@ -343,3 +343,7 @@ export async function fetchPipelineDiagnostics(): Promise<PipelineDiagnostics> {
 export async function refreshAll(): Promise<CollectorRunRow[]> {
   return safeInvoke<CollectorRunRow[]>("refresh_all", undefined, []);
 }
+
+export async function checkForUpdate(): Promise<string> {
+  return safeInvoke<string>("check_for_update", undefined, "Update check not available in browser mode.");
+}

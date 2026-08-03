@@ -16,6 +16,7 @@ path = "src/main.rs"
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-updater = "2"
 lnwdeck-domain = { path = "../../../crates/domain" }
 lnwdeck-security = { path = "../../../crates/security" }
 lnwdeck-storage = { path = "../../../crates/storage" }

@@ -14,6 +14,7 @@ import {
   RefreshIcon,
 } from "../components/Icons";
 import { refreshAll } from "../lib/native";
+import { UpdateNotification } from "../components/UpdateNotification";
 
 const navItems = [
   { to: "/", label: "Overview", icon: OverviewIcon },
@@ -102,6 +103,7 @@ export function AppShell() {
       </nav>
 
       <div className="app-main-container">
+        <UpdateNotification />
         <header className="app-topbar">
           <h1 className="app-topbar-title">{currentNav.label}</h1>
           <div className="app-topbar-actions">

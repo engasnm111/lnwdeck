@@ -1,6 +1,7 @@
 mod commands;
 mod state;
 mod tray;
+mod updater;
 mod windows;
 
 use state::AppState;
@@ -30,11 +31,13 @@ pub fn run() {
     let db_path = default_db_path();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::new(db_path))
         .setup(|app| {
             windows::setup_windows(app);
             tray::setup_tray(app).ok();
             spawn_refresh_loop(app.handle().clone());
+            updater::spawn_update_check(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -53,6 +56,7 @@ pub fn run() {
             windows::hide_widget,
             windows::set_widget_opacity,
             windows::show_main_window,
+            updater::check_for_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
