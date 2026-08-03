@@ -21,5 +21,6 @@ members = [
     "crates/providers/copilot",
     "crates/providers/grok",
     "crates/providers/kiro",
+    "crates/provider-contract-tests",
     "crates/windows-integration",
 ]

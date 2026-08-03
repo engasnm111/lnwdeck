@@ -1,5 +1,8 @@
 use chrono::{DateTime, Utc};
-use lnwdeck_domain::{Confidence, QuotaSnapshot, UsageBatch, UsageEvent};
+use lnwdeck_domain::{
+    Confidence, QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope, UsageBatch, UsageEvent,
+    DEFAULT_FRESHNESS,
+};
 use lnwdeck_provider_runtime::{
     AdapterHealth, AdapterHealthStatus, CollectionOutcome, CollectionResult, DetectionResult,
     Permission, ProviderAdapter,
@@ -19,7 +22,7 @@ pub struct OpenCodeAdapter {
     db_path: PathBuf,
 }
 
-const ADAPTER_VERSION: &str = "0.1.0";
+const ADAPTER_VERSION: &str = "0.2.0";
 
 /// OpenCode may store the model as a JSON descriptor like
 /// `{"id":"glm-5.2","providerID":"opencode-go"}`. Reduce it to the model id
@@ -77,7 +80,7 @@ impl OpenCodeAdapter {
     fn detection(&self) -> Result<DetectionResult, String> {
         let source_exists = self.db_path.is_file();
         let mut result = DetectionResult {
-            provider_id: "opencode_cli".to_string(),
+            provider_id: "opencode".to_string(),
             display_name: "OpenCode".to_string(),
             enabled: true,
             detected: false,
@@ -136,7 +139,7 @@ impl OpenCodeAdapter {
                 return CollectionResult {
                     batch: None,
                     outcome: CollectionOutcome::failure(
-                        "opencode_cli",
+                        "opencode",
                         "passive_scan",
                         started_at,
                         code,
@@ -159,7 +162,7 @@ impl OpenCodeAdapter {
                 return CollectionResult {
                     batch: None,
                     outcome: CollectionOutcome::failure(
-                        "opencode_cli",
+                        "opencode",
                         "passive_scan",
                         started_at,
                         "INVALID_PROVIDER_DATA",
@@ -196,7 +199,7 @@ impl OpenCodeAdapter {
                 return CollectionResult {
                     batch: None,
                     outcome: CollectionOutcome::failure(
-                        "opencode_cli",
+                        "opencode",
                         "passive_scan",
                         started_at,
                         "INVALID_PROVIDER_DATA",
@@ -242,7 +245,7 @@ impl OpenCodeAdapter {
             events.push(UsageEvent {
                 id: fingerprint,
                 timestamp,
-                provider_id: "opencode_cli".to_string(),
+                provider_id: "opencode".to_string(),
                 model: normalize_model(model),
                 tokens_input: tokens_input.max(0) as u64,
                 tokens_output: (tokens_output + tokens_reasoning).max(0) as u64,
@@ -255,12 +258,8 @@ impl OpenCodeAdapter {
         }
 
         let events_normalized = events.len() as u64;
-        let mut outcome = CollectionOutcome::success(
-            "opencode_cli",
-            "passive_scan",
-            started_at,
-            events_normalized,
-        );
+        let mut outcome =
+            CollectionOutcome::success("opencode", "passive_scan", started_at, events_normalized);
         outcome.source_records_seen = seen;
         outcome.records_parsed = parsed;
         if !warnings.is_empty() {
@@ -276,11 +275,68 @@ impl OpenCodeAdapter {
             next_cursor,
         }
     }
+
+    /// Local usage-based quota estimate. OpenCode Go subscription quota is
+    /// not derivable from local session history alone, so these windows are
+    /// token-usage estimates with unknown limits (`limit = 0`), explicitly
+    /// marked `estimated`; the UI must never render a fake remaining bar.
+    fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
+        if !self.db_path.is_file() {
+            return Ok(None);
+        }
+        let conn = self.open_read_only()?;
+        let now_ms = Utc::now().timestamp_millis();
+        let buckets = [
+            (
+                "5h",
+                "5-hour",
+                QuotaWindowScope::Rolling,
+                5 * 3600 * 1000i64,
+            ),
+            (
+                "7d",
+                "7-day",
+                QuotaWindowScope::Weekly,
+                7 * 24 * 3600 * 1000i64,
+            ),
+            (
+                "30d",
+                "30-day",
+                QuotaWindowScope::Monthly,
+                30 * 24 * 3600 * 1000i64,
+            ),
+        ];
+        let mut windows = Vec::with_capacity(buckets.len());
+        for (key, label, scope, window_ms) in buckets {
+            let used: i64 = conn
+                .query_row(
+                    "SELECT COALESCE(SUM(tokens_input + tokens_output + tokens_reasoning), 0)
+                     FROM session
+                     WHERE (tokens_input > 0 OR tokens_output > 0 OR cost > 0)
+                       AND time_updated >= ?1",
+                    [now_ms - window_ms],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+            windows.push(QuotaWindow::new(
+                key,
+                label,
+                scope,
+                QuotaKind::Tokens,
+                used.max(0) as u64,
+                0,
+                None,
+                Confidence::Medium,
+            ));
+        }
+        let report = QuotaReport::new("opencode", "local_estimate", windows, DEFAULT_FRESHNESS);
+        Ok(Some(report))
+    }
 }
 
 impl ProviderAdapter for OpenCodeAdapter {
     fn id(&self) -> &str {
-        "opencode_cli"
+        "opencode"
     }
     fn name(&self) -> &str {
         "OpenCode"
@@ -290,8 +346,8 @@ impl ProviderAdapter for OpenCodeAdapter {
             .batch
             .ok_or_else(|| "SOURCE_UNAVAILABLE".to_string())
     }
-    fn collect_quota(&self) -> Result<Option<QuotaSnapshot>, String> {
-        Ok(None)
+    fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
+        self.quota_estimate()
     }
     fn health_check(&self) -> AdapterHealth {
         match self.detection() {

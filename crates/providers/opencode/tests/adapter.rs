@@ -128,7 +128,7 @@ fn collection_normalizes_sessions_to_usage_events() {
     assert_eq!(first.tokens_input, 100);
     assert_eq!(first.tokens_output, 55, "reasoning tokens added to output");
     assert_eq!(first.cost, "0.001200");
-    assert_eq!(first.provider_id, "opencode_cli");
+    assert_eq!(first.provider_id, "opencode");
     assert_eq!(first.data_source, "opencode_db");
     assert_eq!(first.confidence, lnwdeck_domain::Confidence::High);
     assert_eq!(first.id.len(), 64, "keyed hash fingerprint");
@@ -294,14 +294,50 @@ fn health_reflects_detection() {
 }
 
 #[test]
-fn quota_is_not_available_from_local_source() {
+fn quota_estimate_returns_usage_windows_without_fake_limits() {
     let dir = tempdir().expect("temp dir");
     let db_path = create_fixture_db(dir.path());
+    let conn = Connection::open(&db_path).expect("open");
+    let now = chrono::Utc::now().timestamp_millis();
+    conn.execute(
+        "UPDATE session SET time_updated = ?1 WHERE id = 'sess_0001'",
+        [now - 3600 * 1000],
+    )
+    .expect("fresh session 1");
+    conn.execute(
+        "UPDATE session SET time_updated = ?1 WHERE id = 'sess_0002'",
+        [now - 60 * 1000],
+    )
+    .expect("fresh session 2");
+    conn.close().expect("close");
     let adapter = adapter_for(&db_path);
 
+    let report = adapter
+        .collect_quota()
+        .expect("quota call")
+        .expect("report");
+    assert_eq!(report.provider_id, "opencode");
+    assert_eq!(report.source, "local_estimate");
+    assert!(report.is_usable());
+    assert_eq!(report.windows.len(), 3);
+
+    let window = report
+        .windows
+        .iter()
+        .find(|w| w.window_key == "5h")
+        .expect("5h window");
+    assert_eq!(window.used, 775, "sum of input+output+reasoning tokens");
+    assert_eq!(window.limit, 0, "limit is unknown, never fabricated");
+    assert_eq!(window.confidence, lnwdeck_domain::Confidence::Medium);
+}
+
+#[test]
+fn quota_estimate_is_none_when_source_missing() {
+    let dir = tempdir().expect("temp dir");
+    let adapter = adapter_for(&dir.path().join("missing.db"));
     assert!(
         adapter.collect_quota().expect("quota call").is_none(),
-        "quota is provider-dependent and must not be fabricated"
+        "no local source means no estimate"
     );
 }
 

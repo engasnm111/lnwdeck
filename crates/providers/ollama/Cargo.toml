@@ -1,6 +1,6 @@
 [package]
 name = "lnwdeck-provider-ollama"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Ollama local LLM provider adapter for lnwdeck"
 
@@ -8,3 +8,6 @@ description = "Ollama local LLM provider adapter for lnwdeck"
 lnwdeck-domain = { path = "../../domain" }
 lnwdeck-provider-runtime = { path = "../../provider-runtime" }
 chrono = { version = "0.4" }
+
+[dev-dependencies]
+lnwdeck-security = { path = "../../security" }

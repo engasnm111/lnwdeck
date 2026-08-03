@@ -1,0 +1,20 @@
+[package]
+name = "lnwdeck-provider-contract-tests"
+version = "0.2.0"
+edition = "2021"
+description = "Shared contract suite every lnwdeck provider adapter must satisfy"
+
+[dependencies]
+lnwdeck-domain = { path = "../domain" }
+lnwdeck-security = { path = "../security" }
+lnwdeck-provider-runtime = { path = "../provider-runtime" }
+lnwdeck-provider-claude = { path = "../providers/claude" }
+lnwdeck-provider-codex = { path = "../providers/codex" }
+lnwdeck-provider-copilot = { path = "../providers/copilot" }
+lnwdeck-provider-cursor = { path = "../providers/cursor" }
+lnwdeck-provider-gemini = { path = "../providers/gemini" }
+lnwdeck-provider-grok = { path = "../providers/grok" }
+lnwdeck-provider-kiro = { path = "../providers/kiro" }
+lnwdeck-provider-ollama = { path = "../providers/ollama" }
+lnwdeck-provider-opencode = { path = "../providers/opencode" }
+lnwdeck-provider-openrouter = { path = "../providers/openrouter" }
