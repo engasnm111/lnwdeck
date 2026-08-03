@@ -70,16 +70,17 @@ jobs:
       - name: Package portable ZIP
         shell: pwsh
         run: |
+          # Tauri builds into the workspace-root target dir (cargo workspace)
           powershell -ExecutionPolicy Bypass -File scripts/package-portable.ps1 `
-            -BuildDir "apps/desktop/src-tauri/target/release"
+            -BuildDir "target/release"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: bundles-${{ matrix.target }}
           path: |
-            apps/desktop/src-tauri/target/release/bundle/**/*.exe
-            apps/desktop/src-tauri/target/release/bundle/**/*.sig
+            target/release/bundle/**/*.exe
+            target/release/bundle/**/*.sig
             lnwdeck_*_portable.zip
           if-no-files-found: error
 
