@@ -4,21 +4,43 @@ use inwdeck_provider_runtime::{AdapterHealth, AdapterHealthStatus, Permission, P
 pub struct CodexAdapter;
 
 impl ProviderAdapter for CodexAdapter {
-    fn id(&self) -> &str { "openai_codex" }
-    fn name(&self) -> &str { "Codex (OpenAI)" }
+    fn id(&self) -> &str {
+        "openai_codex"
+    }
+    fn name(&self) -> &str {
+        "Codex (OpenAI)"
+    }
     fn collect_usage(&self) -> Result<UsageBatch, String> {
-        Ok(UsageBatch { batch_id: format!("codex_{}", chrono::Utc::now().timestamp()), events: vec![] })
+        Ok(UsageBatch {
+            batch_id: format!("codex_{}", chrono::Utc::now().timestamp()),
+            events: vec![],
+        })
     }
-    fn collect_quota(&self) -> Result<Option<QuotaSnapshot>, String> { Ok(None) }
+    fn collect_quota(&self) -> Result<Option<QuotaSnapshot>, String> {
+        Ok(None)
+    }
     fn health_check(&self) -> AdapterHealth {
-        AdapterHealth { status: AdapterHealthStatus::Healthy, message: "Not configured".to_string() }
+        AdapterHealth {
+            status: AdapterHealthStatus::Healthy,
+            message: "Not configured".to_string(),
+        }
     }
-    fn required_permissions(&self) -> Vec<Permission> { vec![Permission::Credential] }
+    fn required_permissions(&self) -> Vec<Permission> {
+        vec![Permission::Credential]
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test] fn id_is_correct() { assert_eq!(CodexAdapter.id(), "openai_codex"); }
-    #[test] fn requires_credential() { assert!(CodexAdapter.required_permissions().contains(&Permission::Credential)); }
+    #[test]
+    fn id_is_correct() {
+        assert_eq!(CodexAdapter.id(), "openai_codex");
+    }
+    #[test]
+    fn requires_credential() {
+        assert!(CodexAdapter
+            .required_permissions()
+            .contains(&Permission::Credential));
+    }
 }

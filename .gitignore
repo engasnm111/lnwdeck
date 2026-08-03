@@ -60,6 +60,11 @@ logs/
 tmp/
 .temp/
 
-/docs/
-/scripts/
-/prompts/
+# Tauri auto-generated
+**/gen/
+
+# Portable mode marker
+.inwdeck_portable
+
+# Hook backup files
+*.inwdeck_backup
