@@ -1,7 +1,7 @@
 use chrono::DateTime;
-use inwdeck_domain::{Confidence, UsageBatch, UsageEvent};
-use inwdeck_storage::repositories::UsageRepository;
-use inwdeck_storage::{migrations::apply_all, Storage};
+use lnwdeck_domain::{Confidence, UsageBatch, UsageEvent};
+use lnwdeck_storage::repositories::UsageRepository;
+use lnwdeck_storage::{migrations::apply_all, Storage};
 use tempfile::tempdir;
 
 fn sample_event(id: &str, provider: &str) -> UsageEvent {

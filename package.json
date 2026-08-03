@@ -1,5 +1,5 @@
 {
-  "name": "inwdeck",
+  "name": "lnwdeck",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,8 +8,8 @@
     "test:rs": "cargo test --workspace",
     "test:ts": "pnpm -r run test",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
-    "tauri:dev": "pnpm --filter @inwdeck/desktop tauri dev",
-    "tauri:build": "pnpm --filter @inwdeck/desktop tauri build"
+    "tauri:dev": "pnpm --filter @lnwdeck/desktop tauri dev",
+    "tauri:build": "pnpm --filter @lnwdeck/desktop tauri build"
   },
   "devDependencies": {
     "vitest": "^3"

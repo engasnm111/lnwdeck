@@ -135,7 +135,7 @@ mod tests {
             release_date: "2025-06-01".to_string(),
             artifacts: vec![ArtifactEntry {
                 target: "x86_64-pc-windows-msvc".to_string(),
-                url: "https://releases.inwdeck.app/0.2.0/inwdeck_0.2.0_x64-setup.exe".to_string(),
+                url: "https://releases.lnwdeck.app/0.2.0/lnwdeck_0.2.0_x64-setup.exe".to_string(),
                 sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
                     .to_string(),
                 signature: Some("deadbeef".to_string()),

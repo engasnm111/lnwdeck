@@ -1,4 +1,4 @@
-# inwdeck Provider Adapter SDK
+# lnwdeck Provider Adapter SDK
 
 ## 1. Goals
 
@@ -91,14 +91,10 @@ Core `hook-manager` performs Backup, Atomic write and Rollback
   "runtime": {
     "type": "wasm-component",
     "entry": "adapter.wasm",
-    "minimumInwdeckVersion": "0.1.0"
+    "minimumlnwdeckVersion": "0.1.0"
   },
   "architectures": ["portable-wasm"],
-  "capabilities": [
-    "detection",
-    "usage-events",
-    "quota-snapshots"
-  ],
+  "capabilities": ["detection", "usage-events", "quota-snapshots"],
   "permissions": {
     "filesystem": [
       {
@@ -209,18 +205,18 @@ Repeated crash policy:
 
 ## 8. v0.1 capability matrix target
 
-| Provider group | Local log | Hook | API | Browser | Quota | Cost |
-|---|---:|---:|---:|---:|---:|---:|
-| Claude | Yes | Yes | Optional | Yes | Yes | Yes |
-| Codex/OpenAI | Yes | Yes | Optional | Yes | Yes | Yes |
-| Cursor | Yes | No by default | Provider-dependent | Optional | Yes | Estimated/Exact |
-| Gemini | Yes | Yes | Optional | Yes | Yes | Yes |
-| Copilot | Yes | Provider-dependent | Optional | Optional | Yes | Estimated |
-| OpenCode | Yes | Plugin/Hook with consent | No | No | Provider-dependent | Estimated |
-| Grok | Yes | Yes | Optional | Yes | Yes | Yes |
-| Kiro | Yes | Provider-dependent | No | Optional | Yes | Estimated |
-| Ollama | Local API/log | No | Local API | No | Not applicable | Zero or user override |
-| OpenRouter | No | No | Yes | Optional | Credit/limit | Exact |
+| Provider group |     Local log |                     Hook |                API |  Browser |              Quota |                  Cost |
+| -------------- | ------------: | -----------------------: | -----------------: | -------: | -----------------: | --------------------: |
+| Claude         |           Yes |                      Yes |           Optional |      Yes |                Yes |                   Yes |
+| Codex/OpenAI   |           Yes |                      Yes |           Optional |      Yes |                Yes |                   Yes |
+| Cursor         |           Yes |            No by default | Provider-dependent | Optional |                Yes |       Estimated/Exact |
+| Gemini         |           Yes |                      Yes |           Optional |      Yes |                Yes |                   Yes |
+| Copilot        |           Yes |       Provider-dependent |           Optional | Optional |                Yes |             Estimated |
+| OpenCode       |           Yes | Plugin/Hook with consent |                 No |       No | Provider-dependent |             Estimated |
+| Grok           |           Yes |                      Yes |           Optional |      Yes |                Yes |                   Yes |
+| Kiro           |           Yes |       Provider-dependent |                 No | Optional |                Yes |             Estimated |
+| Ollama         | Local API/log |                       No |          Local API |       No |     Not applicable | Zero or user override |
+| OpenRouter     |            No |                       No |                Yes | Optional |       Credit/limit |                 Exact |
 
 Final capability must be verified against current provider behavior during implementation. Unsupported capability must be shown honestly, not fabricated.
 

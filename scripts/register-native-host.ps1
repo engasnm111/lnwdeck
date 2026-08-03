@@ -1,8 +1,8 @@
 param(
     [ValidateSet("register", "unregister")]
     [string]$Action = "register",
-    [string]$HostName = "app.inwdeck.browser_helper",
-    [string]$HostExePath = "$env:LOCALAPPDATA\Programs\inwdeck\inwdeck-browser-host.exe",
+    [string]$HostName = "app.lnwdeck.browser_helper",
+    [string]$HostExePath = "$env:LOCALAPPDATA\Programs\lnwdeck\lnwdeck-browser-host.exe",
     [string]$ChromeExtensionId = "",
     [string]$EdgeExtensionId = ""
 )
@@ -30,7 +30,7 @@ function Write-Registry {
 
         $manifest = @{
             name = $HostName
-            description = "inwdeck Browser Helper Native Messaging Host"
+            description = "lnwdeck Browser Helper Native Messaging Host"
             path = $HostExePath
             type = "stdio"
             allowed_origins = @(
@@ -57,7 +57,7 @@ function Write-Registry {
     }
 }
 
-Write-Host "=== inwdeck Native Messaging Host $Action ==="
+Write-Host "=== lnwdeck Native Messaging Host $Action ==="
 
 Write-Registry -Browser "Chrome" -ExtensionId $ChromeExtensionId
 Write-Registry -Browser "Edge" -ExtensionId $EdgeExtensionId

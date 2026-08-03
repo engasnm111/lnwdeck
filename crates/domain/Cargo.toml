@@ -1,8 +1,8 @@
 [package]
-name = "inwdeck-domain"
+name = "lnwdeck-domain"
 version = "0.1.0"
 edition = "2021"
-description = "Privacy-safe domain types for inwdeck"
+description = "Privacy-safe domain types for lnwdeck"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

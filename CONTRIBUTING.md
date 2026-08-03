@@ -1,6 +1,6 @@
-# Contributing to inwdeck
+# Contributing to lnwdeck
 
-Thank you for your interest in contributing to inwdeck! Please review the following documents before getting started:
+Thank you for your interest in contributing to lnwdeck! Please review the following documents before getting started:
 
 - `AGENTS.md` — Mandatory rules for AI agents and human contributors
 - `docs/00_PROJECT_CHARTER.md` — Vision, scope, and locked decisions
@@ -58,7 +58,7 @@ Follow Conventional Commits (e.g., `feat:`, `fix:`, `chore:`, `docs:`, `test:`, 
 Example from implementation roadmap:
 
 ```text
-chore: establish inwdeck workspace
+chore: establish lnwdeck workspace
 feat: expose secure desktop application commands
 ```
 

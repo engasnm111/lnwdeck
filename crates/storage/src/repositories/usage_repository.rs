@@ -1,4 +1,4 @@
-use inwdeck_domain::UsageBatch;
+use lnwdeck_domain::UsageBatch;
 use rusqlite::Connection;
 
 pub struct UsageRepository<'a> {

@@ -1,4 +1,4 @@
-# inwdeck v0.1 Design Specification
+# lnwdeck v0.1 Design Specification
 
 ## Status
 
@@ -6,11 +6,11 @@ Approved design based on the product decisions made on 2026-08-03
 
 ## Summary
 
-`inwdeck` is a Windows-first, open-source Universal AI Usage Tracker. It combines local logs, hooks, official APIs, browser extraction and local provider APIs into one normalized, privacy-safe local database. It exposes the same read models through a full Dashboard, System Tray popup and Always-on-top Floating Widget.
+`lnwdeck` is a Windows-first, open-source Universal AI Usage Tracker. It combines local logs, hooks, official APIs, browser extraction and local provider APIs into one normalized, privacy-safe local database. It exposes the same read models through a full Dashboard, System Tray popup and Always-on-top Floating Widget.
 
 ## Locked decisions
 
-- Name: `inwdeck`
+- Name: `lnwdeck`
 - License: MIT
 - Desktop: Tauri + React + TypeScript + Rust
 - Windows: Windows 10 22H2 and Windows 11

@@ -1,3 +1,3 @@
 fn main() {
-    inwdeck_desktop_lib::run();
+    lnwdeck_desktop_lib::run();
 }

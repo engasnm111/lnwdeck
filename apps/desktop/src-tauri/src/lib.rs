@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 #[tauri::command]
 fn greet() -> String {
-    "Hello from inwdeck!".to_string()
+    "Hello from lnwdeck!".to_string()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -40,11 +40,11 @@ pub fn run() {
 
 fn default_db_path() -> PathBuf {
     if let Ok(appdata) = std::env::var("APPDATA") {
-        let dir = std::path::PathBuf::from(appdata).join("inwdeck");
+        let dir = std::path::PathBuf::from(appdata).join("lnwdeck");
         std::fs::create_dir_all(&dir).ok();
-        dir.join("inwdeck.db")
+        dir.join("lnwdeck.db")
     } else {
-        PathBuf::from("inwdeck.db")
+        PathBuf::from("lnwdeck.db")
     }
 }
 
@@ -53,8 +53,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn greet_returns_inwdeck_message() {
+    fn greet_returns_lnwdeck_message() {
         let result = greet();
-        assert!(result.contains("inwdeck"));
+        assert!(result.contains("lnwdeck"));
     }
 }

@@ -64,10 +64,10 @@ tmp/
 **/gen/
 
 # Portable mode marker
-.inwdeck_portable
+.lnwdeck_portable
 
 # Hook backup files
-*.inwdeck_backup
+*.lnwdeck_backup
 
 /prompts/*
 scripts/validate_prompt_plan_sync.py

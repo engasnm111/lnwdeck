@@ -42,8 +42,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: inwdeck-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/inwdeck*.exe
+          name: lnwdeck-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/lnwdeck*.exe
 
   generate-manifest:
     name: Generate update manifest

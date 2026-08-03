@@ -1,5 +1,5 @@
-use inwdeck_domain::{Confidence, UsageBatch, UsageEvent};
-use inwdeck_security::{IdentifierHasher, PrivacyGuard, Redactor};
+use lnwdeck_domain::{Confidence, UsageBatch, UsageEvent};
+use lnwdeck_security::{IdentifierHasher, PrivacyGuard, Redactor};
 use serde_json::Value;
 
 fn sample_batch() -> UsageBatch {

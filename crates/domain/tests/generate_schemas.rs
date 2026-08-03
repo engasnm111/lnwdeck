@@ -16,26 +16,26 @@ mod tests {
 
     #[test]
     fn generate_usage_event_schema() {
-        write_schema::<inwdeck_domain::UsageEvent>("usage_event");
+        write_schema::<lnwdeck_domain::UsageEvent>("usage_event");
     }
 
     #[test]
     fn generate_usage_batch_schema() {
-        write_schema::<inwdeck_domain::UsageBatch>("usage_batch");
+        write_schema::<lnwdeck_domain::UsageBatch>("usage_batch");
     }
 
     #[test]
     fn generate_quota_snapshot_schema() {
-        write_schema::<inwdeck_domain::QuotaSnapshot>("quota_snapshot");
+        write_schema::<lnwdeck_domain::QuotaSnapshot>("quota_snapshot");
     }
 
     #[test]
     fn generate_provider_descriptor_schema() {
-        write_schema::<inwdeck_domain::ProviderDescriptor>("provider_descriptor");
+        write_schema::<lnwdeck_domain::ProviderDescriptor>("provider_descriptor");
     }
 
     #[test]
     fn generate_confidence_schema() {
-        write_schema::<inwdeck_domain::Confidence>("confidence");
+        write_schema::<lnwdeck_domain::Confidence>("confidence");
     }
 }

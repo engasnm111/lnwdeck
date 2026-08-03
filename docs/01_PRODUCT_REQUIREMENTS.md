@@ -1,4 +1,4 @@
-# inwdeck Product Requirements
+# lnwdeck Product Requirements
 
 ## 1. Users
 
@@ -20,7 +20,7 @@
 
 ### First run
 
-1. เปิด `inwdeck`
+1. เปิด `lnwdeck`
 2. App แสดง Privacy summary
 3. ผู้ใช้เลือก Scan local tools
 4. App แสดง Provider ที่ตรวจพบและ Data source ที่อ่านได้
@@ -41,7 +41,7 @@
 
 ### Browser quota
 
-1. ผู้ใช้ติดตั้ง `inwdeck Browser Helper`
+1. ผู้ใช้ติดตั้ง `lnwdeck Browser Helper`
 2. Extension ขอ Host permission เฉพาะ Provider ที่ผู้ใช้เปิด
 3. ผู้ใช้เปิดหน้า Usage ที่ Login อยู่
 4. Extension extract เฉพาะ normalized usage fields

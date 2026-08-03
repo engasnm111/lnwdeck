@@ -1,5 +1,5 @@
 use crate::state::AppState;
-use inwdeck_application::overview::QueryOverview;
+use lnwdeck_application::overview::QueryOverview;
 use serde::Serialize;
 use tauri::State;
 
@@ -36,8 +36,8 @@ pub fn get_overview(state: State<'_, AppState>) -> Result<OverviewResponse, Stri
 
 #[cfg(test)]
 mod tests {
-    use inwdeck_application::overview::QueryOverview;
-    use inwdeck_storage::{migrations::apply_all, Storage};
+    use lnwdeck_application::overview::QueryOverview;
+    use lnwdeck_storage::{migrations::apply_all, Storage};
     use tempfile::tempdir;
 
     #[test]

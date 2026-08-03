@@ -69,7 +69,7 @@ export function UpdateView() {
         <div role="alert">
           <p>Update ready to install.</p>
           <p>
-            <strong>Please restart inwdeck to apply the update.</strong>
+            <strong>Please restart lnwdeck to apply the update.</strong>
           </p>
         </div>
       )}

@@ -1,6 +1,6 @@
 use crate::health::AdapterHealth;
 use crate::permissions::Permission;
-use inwdeck_domain::{QuotaSnapshot, UsageBatch};
+use lnwdeck_domain::{QuotaSnapshot, UsageBatch};
 
 pub trait ProviderAdapter: Send + Sync {
     fn id(&self) -> &str;

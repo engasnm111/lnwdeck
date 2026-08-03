@@ -1,4 +1,4 @@
-# inwdeck Windows Build and Release
+# lnwdeck Windows Build and Release
 
 ## 1. Supported Windows
 
@@ -41,12 +41,12 @@ Requirements:
 Artifacts:
 
 ```text
-inwdeck_<version>_windows_x64_setup.exe
-inwdeck_<version>_windows_x64_portable.zip
-inwdeck_<version>_windows_arm64_setup.exe
-inwdeck_<version>_windows_arm64_portable.zip
-inwdeck_<version>_windows_x86_setup.exe
-inwdeck_<version>_windows_x86_portable.zip
+lnwdeck_<version>_windows_x64_setup.exe
+lnwdeck_<version>_windows_x64_portable.zip
+lnwdeck_<version>_windows_arm64_setup.exe
+lnwdeck_<version>_windows_arm64_portable.zip
+lnwdeck_<version>_windows_x86_setup.exe
+lnwdeck_<version>_windows_x86_portable.zip
 SHA256SUMS
 latest.json
 SBOM files
@@ -69,7 +69,7 @@ Installer behavior:
 ## 4. Portable mode
 
 - Marker file identifies portable mode
-- Data stored under `inwdeck-data`
+- Data stored under `lnwdeck-data`
 - No auto-start registration unless user requests
 - Native Messaging registration requires explicit action and must point to current portable path
 - Portable updater downloads new ZIP and prompts user to replace manually

@@ -1,5 +1,5 @@
-use inwdeck_native_messaging_host::process_message;
-use inwdeck_native_messaging_host::protocol::{read_message, write_message};
+use lnwdeck_native_messaging_host::process_message;
+use lnwdeck_native_messaging_host::protocol::{read_message, write_message};
 use std::io::{self, Write};
 
 fn main() {

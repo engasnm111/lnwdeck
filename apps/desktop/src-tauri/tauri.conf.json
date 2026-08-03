@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-cli/schema.json",
-  "productName": "inwdeck",
+  "productName": "lnwdeck",
   "version": "0.1.0",
-  "identifier": "app.inwdeck.desktop",
+  "identifier": "app.lnwdeck.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -31,7 +31,7 @@
         "installerIcon": "icons/icon.ico",
         "languages": ["English"],
         "displayLanguageSelector": false,
-        "startMenuFolder": "inwdeck"
+        "startMenuFolder": "lnwdeck"
       },
       "wix": null
     }

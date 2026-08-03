@@ -38,7 +38,7 @@ response to behaviour they deem inappropriate.
 
 Leaders have the right and responsibility to remove, edit, or reject comments,
 commits, code, collections, issues, and other contributions that are not aligned
-to this Code of Conduct and the inwdeck project rules (see `AGENTS.md` and
+to this Code of Conduct and the lnwdeck project rules (see `AGENTS.md` and
 `docs/09_OPEN_SOURCE_GOVERNANCE.md`), and to moderate other behaviours.
 
 ## Enforcement

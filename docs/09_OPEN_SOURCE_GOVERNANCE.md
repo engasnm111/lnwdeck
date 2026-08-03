@@ -1,4 +1,4 @@
-# inwdeck Open Source Governance
+# lnwdeck Open Source Governance
 
 ## 1. License
 
@@ -85,6 +85,6 @@ TokenTracker and other Open Source projects may be studied for collection techni
 1. Confirm license
 2. Record source file and commit
 3. Preserve required notices
-4. Adapt to inwdeck privacy and architecture rules
+4. Adapt to lnwdeck privacy and architecture rules
 5. Add tests
 6. Avoid copying branding or proprietary assets

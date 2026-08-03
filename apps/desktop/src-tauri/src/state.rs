@@ -1,4 +1,4 @@
-use inwdeck_storage::Storage;
+use lnwdeck_storage::Storage;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
@@ -19,7 +19,7 @@ impl AppState {
         let mut guard = self.storage.lock().map_err(|e| e.to_string())?;
         if guard.is_none() {
             let storage = Storage::open(&self.db_path).map_err(|e| format!("storage open: {e}"))?;
-            inwdeck_storage::migrations::apply_all(&storage.conn)
+            lnwdeck_storage::migrations::apply_all(&storage.conn)
                 .map_err(|e| format!("migration: {e}"))?;
             *guard = Some(storage);
         }
@@ -29,7 +29,7 @@ impl AppState {
 
 impl Default for AppState {
     fn default() -> Self {
-        let db_path = dirs_document_dir().join("inwdeck").join("inwdeck.db");
+        let db_path = dirs_document_dir().join("lnwdeck").join("lnwdeck.db");
         Self::new(db_path)
     }
 }

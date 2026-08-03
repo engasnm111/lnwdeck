@@ -1,8 +1,8 @@
 [package]
-name = "inwdeck-analytics"
+name = "lnwdeck-analytics"
 version = "0.1.0"
 edition = "2021"
-description = "Usage analytics, rollups, budgets and forecast for inwdeck"
+description = "Usage analytics, rollups, budgets and forecast for lnwdeck"
 
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }

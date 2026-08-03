@@ -1,4 +1,4 @@
-use inwdeck_hook_manager::{apply_change, preview_change, restore_backup, RestoreResult};
+use lnwdeck_hook_manager::{apply_change, preview_change, restore_backup, RestoreResult};
 use std::fs;
 use tempfile::TempDir;
 
@@ -168,7 +168,7 @@ fn backup_file_removed_after_successful_rollback() {
     apply_change(&path, &new_content, Some(&original_hash)).unwrap();
     restore_backup(&path).unwrap();
 
-    let backup_path = format!("{}.inwdeck_backup", path);
+    let backup_path = format!("{}.lnwdeck_backup", path);
     assert!(
         !std::path::Path::new(&backup_path).exists(),
         "backup file must be removed after rollback"

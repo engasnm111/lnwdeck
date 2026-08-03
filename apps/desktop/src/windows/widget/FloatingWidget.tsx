@@ -8,7 +8,7 @@ interface WidgetState {
   lockMode: LockMode;
 }
 
-const STORAGE_KEY = "inwdeck_widget_state";
+const STORAGE_KEY = "lnwdeck_widget_state";
 
 function loadWidgetState(): WidgetState {
   try {
@@ -82,7 +82,9 @@ export function FloatingWidget() {
       <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
         <button
           onClick={toggleLock}
-          aria-label={state.lockMode === "locked" ? "Unlock widget" : "Lock widget"}
+          aria-label={
+            state.lockMode === "locked" ? "Unlock widget" : "Lock widget"
+          }
           style={{ fontSize: "0.75rem" }}
         >
           {state.lockMode === "locked" ? "🔒" : "🔓"}
@@ -105,16 +107,20 @@ export function FloatingWidget() {
 
       {data ? (
         <div style={{ textAlign: "center", fontSize: "0.8rem" }}>
-          <p><strong>{data.total_events.toLocaleString()}</strong> events</p>
+          <p>
+            <strong>{data.total_events.toLocaleString()}</strong> events
+          </p>
           <p>
             <strong>
-              {(data.total_tokens_input + data.total_tokens_output).toLocaleString()}
+              {(
+                data.total_tokens_input + data.total_tokens_output
+              ).toLocaleString()}
             </strong>{" "}
             tokens
           </p>
         </div>
       ) : (
-        <p style={{ fontSize: "0.8rem" }}>inwdeck</p>
+        <p style={{ fontSize: "0.8rem" }}>lnwdeck</p>
       )}
     </div>
   );

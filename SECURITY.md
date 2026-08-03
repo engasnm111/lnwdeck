@@ -1,6 +1,6 @@
 # Security Policy
 
-`inwdeck` operates under a local-only, metadata-only data policy by default. If you discover a security vulnerability, please report it privately. Do not open public issues for security vulnerabilities.
+`lnwdeck` operates under a local-only, metadata-only data policy by default. If you discover a security vulnerability, please report it privately. Do not open public issues for security vulnerabilities.
 
 ## Reporting a Vulnerability
 

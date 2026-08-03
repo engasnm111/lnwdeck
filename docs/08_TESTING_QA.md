@@ -1,4 +1,4 @@
-# inwdeck Testing and Quality Plan
+# lnwdeck Testing and Quality Plan
 
 ## 1. Test pyramid
 
@@ -136,14 +136,14 @@ Performance regression threshold is recorded in CI for reference environment; no
 
 ## 8. Architecture matrix
 
-| Test | x64 | ARM64 | x86 |
-|---|---:|---:|---:|
-| Compile | Required | Required | Required |
-| Unit tests | Required | Required | Required where runner exists |
-| Installer build | Required | Required | Required |
-| Portable build | Required | Required | Required |
-| Full E2E | Required | Scheduled/manual | Compatibility smoke |
-| Updater manifest | Required | Required | Required |
+| Test             |      x64 |            ARM64 |                          x86 |
+| ---------------- | -------: | ---------------: | ---------------------------: |
+| Compile          | Required |         Required |                     Required |
+| Unit tests       | Required |         Required | Required where runner exists |
+| Installer build  | Required |         Required |                     Required |
+| Portable build   | Required |         Required |                     Required |
+| Full E2E         | Required | Scheduled/manual |          Compatibility smoke |
+| Updater manifest | Required |         Required |                     Required |
 
 ## 9. Quality gates
 

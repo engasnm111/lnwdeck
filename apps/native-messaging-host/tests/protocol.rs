@@ -1,4 +1,4 @@
-use inwdeck_native_messaging_host::protocol::{read_message, write_message, QuotaMessage};
+use lnwdeck_native_messaging_host::protocol::{read_message, write_message, QuotaMessage};
 use std::io::Cursor;
 
 fn valid_message() -> QuotaMessage {

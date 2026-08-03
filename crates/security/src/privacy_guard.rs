@@ -1,4 +1,4 @@
-use inwdeck_domain::UsageBatch;
+use lnwdeck_domain::UsageBatch;
 use serde_json::Value;
 
 pub struct PrivacyGuard;

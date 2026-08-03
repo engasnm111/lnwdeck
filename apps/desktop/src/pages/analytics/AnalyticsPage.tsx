@@ -1,4 +1,4 @@
-import { DataState } from "@inwdeck/ui";
+import { DataState } from "@lnwdeck/ui";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Confidence = "Low" | "Medium" | "High";
@@ -36,7 +36,9 @@ function useAnalytics() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return { rows, loading, error, reload: load };
 }
@@ -53,12 +55,16 @@ export function AnalyticsPage() {
     return rows.filter((r) => {
       if (filters.provider && r.provider_id !== filters.provider) return false;
       if (filters.model && r.model !== filters.model) return false;
-      if (filters.confidence && r.confidence !== filters.confidence) return false;
+      if (filters.confidence && r.confidence !== filters.confidence)
+        return false;
       return true;
     });
   }, [rows, filters]);
 
-  const totalTokens = filtered.reduce((s, r) => s + r.tokens_input + r.tokens_output, 0);
+  const totalTokens = filtered.reduce(
+    (s, r) => s + r.tokens_input + r.tokens_output,
+    0,
+  );
   const totalCost = filtered.reduce((s, r) => s + parseFloat(r.cost || "0"), 0);
 
   return (
@@ -69,7 +75,9 @@ export function AnalyticsPage() {
         <select
           id="filter-provider"
           value={filters.provider}
-          onChange={(e) => setFilters((f) => ({ ...f, provider: e.target.value }))}
+          onChange={(e) =>
+            setFilters((f) => ({ ...f, provider: e.target.value }))
+          }
         >
           <option value="">All</option>
           <option value="openai">OpenAI</option>
@@ -91,7 +99,9 @@ export function AnalyticsPage() {
         <select
           id="filter-confidence"
           value={filters.confidence}
-          onChange={(e) => setFilters((f) => ({ ...f, confidence: e.target.value }))}
+          onChange={(e) =>
+            setFilters((f) => ({ ...f, confidence: e.target.value }))
+          }
         >
           <option value="">All</option>
           <option value="High">High</option>
@@ -104,11 +114,17 @@ export function AnalyticsPage() {
         loading={loading}
         error={error}
         isEmpty={rows.length === 0 && !loading}
-        emptyFallback={<p>No usage data yet. Connect a provider to start tracking.</p>}
+        emptyFallback={
+          <p>No usage data yet. Connect a provider to start tracking.</p>
+        }
       >
         <div role="region" aria-label="Summary" style={{ margin: "1rem 0" }}>
-          <p>Total Tokens: <strong>{totalTokens.toLocaleString()}</strong></p>
-          <p>Total Cost: <strong>${totalCost.toFixed(4)}</strong></p>
+          <p>
+            Total Tokens: <strong>{totalTokens.toLocaleString()}</strong>
+          </p>
+          <p>
+            Total Cost: <strong>${totalCost.toFixed(4)}</strong>
+          </p>
         </div>
 
         <table role="table" aria-label="Usage events">

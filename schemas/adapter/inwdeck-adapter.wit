@@ -1,6 +1,6 @@
-// inwdeck-adapter.wit — WIT interface for community adapter Wasm modules
+// lnwdeck-adapter.wit — WIT interface for community adapter Wasm modules
 
-interface inwdeck-adapter {
+interface lnwdeck-adapter {
   /// Collect usage events from this provider.
   /// Returns a JSON-serialized UsageBatch.
   collect-usage: func() -> string;

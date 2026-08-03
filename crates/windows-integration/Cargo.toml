@@ -1,8 +1,8 @@
 [package]
-name = "inwdeck-windows-integration"
+name = "lnwdeck-windows-integration"
 version = "0.1.0"
 edition = "2021"
-description = "Windows-specific integration services for inwdeck"
+description = "Windows-specific integration services for lnwdeck"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

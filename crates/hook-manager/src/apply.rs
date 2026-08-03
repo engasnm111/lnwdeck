@@ -31,7 +31,7 @@ fn write_atomic(target: &str, content: &str) -> std::io::Result<()> {
 }
 
 fn backup_file(target: &str) -> Result<(), crate::HookError> {
-    let backup_path = format!("{}.inwdeck_backup", target);
+    let backup_path = format!("{}.lnwdeck_backup", target);
     if Path::new(&backup_path).exists() {
         fs::remove_file(&backup_path).map_err(|_| crate::HookError::BackupFailed)?;
     }

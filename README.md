@@ -1,4 +1,4 @@
-# inwdeck
+# lnwdeck
 
 > **Universal AI Usage Tracker for Windows**  
 > Aggregate tokens, costs, quotas, and reset windows across all your AI tools and providers in a single, privacy-first local dashboard.
@@ -11,11 +11,11 @@
 
 ## 🌟 Overview
 
-**inwdeck** is an open-source, local-first application for Windows designed to bring all your AI provider quotas, token usage, costs, and reset schedules into a single unified view. Whether you use CLI tools, local models, web interfaces, or IDE extensions, **inwdeck** detects and collects metadata locally without sacrificing privacy.
+**lnwdeck** is an open-source, local-first application for Windows designed to bring all your AI provider quotas, token usage, costs, and reset schedules into a single unified view. Whether you use CLI tools, local models, web interfaces, or IDE extensions, **lnwdeck** detects and collects metadata locally without sacrificing privacy.
 
 ### Key Highlights
 
-- **🔒 Local-First & Metadata-Only**: Operates 100% locally with zero cloud servers or user accounts required in v0.1. **inwdeck** collects only usage metrics—**never** your prompts, AI responses, source code, file contents, or personal paths.
+- **🔒 Local-First & Metadata-Only**: Operates 100% locally with zero cloud servers or user accounts required in v0.1. **lnwdeck** collects only usage metrics—**never** your prompts, AI responses, source code, file contents, or personal paths.
 - **📊 Unified Multi-View UI**:
   - **Main Dashboard**: Detailed analytics, historical charts, cost breakdown, and budget forecasts.
   - **System Tray Popup**: Quick glance at remaining quotas and upcoming reset windows.
@@ -47,8 +47,8 @@ Invoke-WebRequest -Uri "https://win.rustup.rs/x86_64" -OutFile "$env:TEMP\rustup
 npm install -g pnpm
 
 # Clone and enter project
-git clone https://github.com/engasnm111/inwdeck.git
-cd inwdeck
+git clone https://github.com/engasnm111/lnwdeck.git
+cd lnwdeck
 ```
 
 ### Development
@@ -83,7 +83,7 @@ pwsh ./scripts/package-portable.ps1
 ### Project Structure
 
 ```
-inwdeck/
+lnwdeck/
 ├── apps/
 │   ├── desktop/               Tauri + React application
 │   │   ├── src/               React UI (pages, components, routes)
@@ -125,7 +125,7 @@ inwdeck/
 9. **Ollama** (Local models)
 10. **OpenRouter**
 
-*Supports custom/community adapters via the inwdeck Provider SDK.*
+_Supports custom/community adapters via the lnwdeck Provider SDK._
 
 ---
 
@@ -154,19 +154,19 @@ inwdeck/
 
 Detailed documentation is available in the [`docs/`](docs) directory:
 
-| Document | Description |
-|---|---|
-| [`00_PROJECT_CHARTER.md`](docs/00_PROJECT_CHARTER.md) | Vision, principles, scope, and non-goals |
-| [`01_PRODUCT_REQUIREMENTS.md`](docs/01_PRODUCT_REQUIREMENTS.md) | Core requirements and acceptance criteria |
-| [`02_SYSTEM_ARCHITECTURE.md`](docs/02_SYSTEM_ARCHITECTURE.md) | Process, module, and data flow architecture |
-| [`03_PROVIDER_ADAPTER_SDK.md`](docs/03_PROVIDER_ADAPTER_SDK.md) | Adapter contract, permissions, and sandbox specs |
-| [`04_DATA_ANALYTICS_PRICING.md`](docs/04_DATA_ANALYTICS_PRICING.md) | SQLite schema, pricing engine, and forecasting |
-| [`05_SECURITY_PRIVACY.md`](docs/05_SECURITY_PRIVACY.md) | Threat model, redaction rules, and security guidelines |
-| [`06_UI_UX_SPEC.md`](docs/06_UI_UX_SPEC.md) | Specs for Dashboard, Tray Popup, and Floating Widget |
-| [`07_WINDOWS_BUILD_RELEASE.md`](docs/07_WINDOWS_BUILD_RELEASE.md) | Installer, Portable builds, and Auto-update design |
-| [`08_TESTING_QA.md`](docs/08_TESTING_QA.md) | Test strategy, CI setup, and privacy verification |
-| [`09_OPEN_SOURCE_GOVERNANCE.md`](docs/09_OPEN_SOURCE_GOVERNANCE.md) | Governance, contribution rules, and license terms |
-| [`10_ROADMAP.md`](docs/10_ROADMAP.md) | Milestones and future roadmap |
+| Document                                                            | Description                                            |
+| ------------------------------------------------------------------- | ------------------------------------------------------ |
+| [`00_PROJECT_CHARTER.md`](docs/00_PROJECT_CHARTER.md)               | Vision, principles, scope, and non-goals               |
+| [`01_PRODUCT_REQUIREMENTS.md`](docs/01_PRODUCT_REQUIREMENTS.md)     | Core requirements and acceptance criteria              |
+| [`02_SYSTEM_ARCHITECTURE.md`](docs/02_SYSTEM_ARCHITECTURE.md)       | Process, module, and data flow architecture            |
+| [`03_PROVIDER_ADAPTER_SDK.md`](docs/03_PROVIDER_ADAPTER_SDK.md)     | Adapter contract, permissions, and sandbox specs       |
+| [`04_DATA_ANALYTICS_PRICING.md`](docs/04_DATA_ANALYTICS_PRICING.md) | SQLite schema, pricing engine, and forecasting         |
+| [`05_SECURITY_PRIVACY.md`](docs/05_SECURITY_PRIVACY.md)             | Threat model, redaction rules, and security guidelines |
+| [`06_UI_UX_SPEC.md`](docs/06_UI_UX_SPEC.md)                         | Specs for Dashboard, Tray Popup, and Floating Widget   |
+| [`07_WINDOWS_BUILD_RELEASE.md`](docs/07_WINDOWS_BUILD_RELEASE.md)   | Installer, Portable builds, and Auto-update design     |
+| [`08_TESTING_QA.md`](docs/08_TESTING_QA.md)                         | Test strategy, CI setup, and privacy verification      |
+| [`09_OPEN_SOURCE_GOVERNANCE.md`](docs/09_OPEN_SOURCE_GOVERNANCE.md) | Governance, contribution rules, and license terms      |
+| [`10_ROADMAP.md`](docs/10_ROADMAP.md)                               | Milestones and future roadmap                          |
 
 ---
 
@@ -182,4 +182,4 @@ Interested in adding support for a new AI provider? Check out [`docs/03_PROVIDER
 
 ## 📄 License
 
-**inwdeck** is licensed under the [MIT License](LICENSE).
+**lnwdeck** is licensed under the [MIT License](LICENSE).

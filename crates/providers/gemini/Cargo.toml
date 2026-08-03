@@ -1,10 +1,10 @@
 [package]
-name = "inwdeck-provider-gemini"
+name = "lnwdeck-provider-gemini"
 version = "0.1.0"
 edition = "2021"
-description = "Gemini/Google provider adapter for inwdeck"
+description = "Gemini/Google provider adapter for lnwdeck"
 
 [dependencies]
-inwdeck-domain = { path = "../../domain" }
-inwdeck-provider-runtime = { path = "../../provider-runtime" }
+lnwdeck-domain = { path = "../../domain" }
+lnwdeck-provider-runtime = { path = "../../provider-runtime" }
 chrono = { version = "0.4" }

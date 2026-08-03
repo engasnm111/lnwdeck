@@ -1,4 +1,4 @@
-# inwdeck Data, Analytics and Pricing
+# lnwdeck Data, Analytics and Pricing
 
 ## 1. Storage strategy
 

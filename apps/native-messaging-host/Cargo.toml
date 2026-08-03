@@ -1,11 +1,11 @@
 [package]
-name = "inwdeck-native-messaging-host"
+name = "lnwdeck-native-messaging-host"
 version = "0.1.0"
 edition = "2021"
-description = "Native messaging host for inwdeck browser helper"
+description = "Native messaging host for lnwdeck browser helper"
 
 [[bin]]
-name = "inwdeck-browser-host"
+name = "lnwdeck-browser-host"
 path = "src/main.rs"
 
 [dependencies]

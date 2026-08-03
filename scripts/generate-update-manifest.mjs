@@ -2,7 +2,7 @@ import { writeFileSync } from "node:fs";
 
 const version = process.env.GITHUB_REF_NAME?.replace(/^v/, "") ?? "0.0.0";
 const releaseDate = new Date().toISOString().split("T")[0];
-const baseUrl = `https://releases.inwdeck.app/${version}`;
+const baseUrl = `https://releases.lnwdeck.app/${version}`;
 
 const manifest = {
   version,
@@ -10,21 +10,21 @@ const manifest = {
   artifacts: [
     {
       target: "x86_64-pc-windows-msvc",
-      url: `${baseUrl}/inwdeck_${version}_x64-setup.exe`,
+      url: `${baseUrl}/lnwdeck_${version}_x64-setup.exe`,
       sha256: "",
       signature: "",
       size_bytes: 0,
     },
     {
       target: "aarch64-pc-windows-msvc",
-      url: `${baseUrl}/inwdeck_${version}_arm64-setup.exe`,
+      url: `${baseUrl}/lnwdeck_${version}_arm64-setup.exe`,
       sha256: "",
       signature: "",
       size_bytes: 0,
     },
     {
       target: "i686-pc-windows-msvc",
-      url: `${baseUrl}/inwdeck_${version}_x86-setup.exe`,
+      url: `${baseUrl}/lnwdeck_${version}_x86-setup.exe`,
       sha256: "",
       signature: "",
       size_bytes: 0,

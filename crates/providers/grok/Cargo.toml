@@ -1,10 +1,10 @@
 [package]
-name = "inwdeck-provider-grok"
+name = "lnwdeck-provider-grok"
 version = "0.1.0"
 edition = "2021"
-description = "Grok/xAI provider adapter for inwdeck"
+description = "Grok/xAI provider adapter for lnwdeck"
 
 [dependencies]
-inwdeck-domain = { path = "../../domain" }
-inwdeck-provider-runtime = { path = "../../provider-runtime" }
+lnwdeck-domain = { path = "../../domain" }
+lnwdeck-provider-runtime = { path = "../../provider-runtime" }
 chrono = { version = "0.4" }

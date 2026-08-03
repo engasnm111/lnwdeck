@@ -1,5 +1,5 @@
 {
-  "name": "@inwdeck/desktop",
+  "name": "@lnwdeck/desktop",
   "private": true,
   "type": "module",
   "scripts": {
@@ -14,7 +14,7 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
-    "@inwdeck/ui": "workspace:*",
+    "@lnwdeck/ui": "workspace:*",
     "@tauri-apps/api": "^2",
     "react": "^19",
     "react-dom": "^19",

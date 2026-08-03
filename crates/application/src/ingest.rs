@@ -1,6 +1,6 @@
-use inwdeck_domain::{QuotaSnapshot, UsageBatch};
-use inwdeck_security::PrivacyGuard;
-use inwdeck_storage::repositories::{QuotaRepository, UsageRepository};
+use lnwdeck_domain::{QuotaSnapshot, UsageBatch};
+use lnwdeck_security::PrivacyGuard;
+use lnwdeck_storage::repositories::{QuotaRepository, UsageRepository};
 use rusqlite::Connection;
 
 pub struct IngestUsageBatch;

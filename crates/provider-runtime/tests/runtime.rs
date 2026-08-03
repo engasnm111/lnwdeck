@@ -1,5 +1,5 @@
-use inwdeck_domain::{Confidence, QuotaSnapshot, UsageBatch, UsageEvent};
-use inwdeck_provider_runtime::{
+use lnwdeck_domain::{Confidence, QuotaSnapshot, UsageBatch, UsageEvent};
+use lnwdeck_provider_runtime::{
     AdapterHealth, AdapterHealthStatus, AdapterRegistry, AdaptiveScheduler, Permission,
     Permissions, ProviderAdapter,
 };

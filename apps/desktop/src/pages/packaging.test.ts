@@ -17,26 +17,26 @@ describe("Packaging configuration", () => {
 
   it("portable mode has marker file configured", () => {
     const config = {
-      portable: { marker_file: ".inwdeck_portable" },
+      portable: { marker_file: ".lnwdeck_portable" },
     };
-    expect(config.portable.marker_file).toBe(".inwdeck_portable");
+    expect(config.portable.marker_file).toBe(".lnwdeck_portable");
   });
 
   it("native host name matches convention", () => {
-    const hostName = "app.inwdeck.browser_helper";
+    const hostName = "app.lnwdeck.browser_helper";
     expect(hostName).toMatch(/^app\.\w+\.\w+$/);
-    expect(hostName).toBe("app.inwdeck.browser_helper");
+    expect(hostName).toBe("app.lnwdeck.browser_helper");
   });
 
   it("artifact names follow documented pattern", () => {
     const expected = [
-      "inwdeck_0.1.0_x64-setup.exe",
-      "inwdeck_0.1.0_arm64-setup.exe",
-      "inwdeck_0.1.0_x86-setup.exe",
-      "inwdeck_0.1.0_portable.zip",
+      "lnwdeck_0.1.0_x64-setup.exe",
+      "lnwdeck_0.1.0_arm64-setup.exe",
+      "lnwdeck_0.1.0_x86-setup.exe",
+      "lnwdeck_0.1.0_portable.zip",
     ];
     for (const name of expected) {
-      expect(name).toMatch(/^inwdeck_0\.1\.0/);
+      expect(name).toMatch(/^lnwdeck_0\.1\.0/);
     }
   });
 });

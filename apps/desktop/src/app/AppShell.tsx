@@ -26,7 +26,7 @@ export function AppShell() {
       >
         <h1 style={{ fontSize: "1.25rem", marginBottom: "1.5rem" }}>
           <Link to="/" style={{ textDecoration: "none", color: "inherit" }}>
-            inwdeck
+            lnwdeck
           </Link>
         </h1>
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>

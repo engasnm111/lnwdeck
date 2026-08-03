@@ -1,4 +1,4 @@
-use inwdeck_domain::UsageEvent;
+use lnwdeck_domain::UsageEvent;
 use serde_json::Value;
 
 const FORBIDDEN_FIELDS: &[&str] = &["prompt", "response", "path", "file_name", "cookie", "token"];

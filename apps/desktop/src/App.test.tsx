@@ -4,13 +4,13 @@ import { MemoryRouter } from "react-router-dom";
 import App from "./App";
 
 describe("App", () => {
-  it("renders the inwdeck product name", () => {
+  it("renders the lnwdeck product name", () => {
     render(
       <MemoryRouter initialEntries={["/"]}>
         <App />
       </MemoryRouter>,
     );
-    expect(screen.getByRole("heading", { name: "inwdeck" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "lnwdeck" })).toBeVisible();
   });
 
   it("renders overview heading on home route", () => {

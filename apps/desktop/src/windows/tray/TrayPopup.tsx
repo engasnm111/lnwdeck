@@ -18,12 +18,23 @@ export function TrayPopup() {
   }, [load]);
 
   return (
-    <div style={{ padding: "0.5rem", fontSize: "0.875rem", minWidth: 200 }}>
+    <div style={{ padding: "0.5rem", fontSize: "0.875rem", mlnwidth: 200 }}>
       {data ? (
         <>
-          <p><strong>{data.total_events}</strong> events</p>
-          <p><strong>{(data.total_tokens_input + data.total_tokens_output).toLocaleString()}</strong> tokens</p>
-          <p><strong>{data.provider_count}</strong> providers</p>
+          <p>
+            <strong>{data.total_events}</strong> events
+          </p>
+          <p>
+            <strong>
+              {(
+                data.total_tokens_input + data.total_tokens_output
+              ).toLocaleString()}
+            </strong>{" "}
+            tokens
+          </p>
+          <p>
+            <strong>{data.provider_count}</strong> providers
+          </p>
         </>
       ) : (
         <p>Loading...</p>

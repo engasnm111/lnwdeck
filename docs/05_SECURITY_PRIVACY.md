@@ -1,4 +1,4 @@
-# inwdeck Security and Privacy Specification
+# lnwdeck Security and Privacy Specification
 
 ## 1. Security objectives
 
@@ -147,18 +147,18 @@ Native DLL plugin loading is forbidden
 
 ## 9. Threat model summary
 
-| Threat | Main control |
-|---|---|
-| Malicious provider log | Parser limits, schema validation, no code execution |
-| Malicious community adapter | Wasm sandbox, deny-by-default permissions |
-| Secret leak in log | Central redaction and secret-free UI contract |
-| Browser extension spoof | Exact extension origin, nonce, local IPC auth |
-| Replay of Browser message | Timestamp and nonce cache |
-| Hook config corruption | Backup, atomic write, validation, rollback |
-| Duplicate usage inflation | Stable fingerprint and transaction |
-| Supply chain tampering | Signed updater, checksum, provenance |
-| Database theft | Metadata-only; optional encrypted DB considered after v0.1 |
-| Path disclosure | Keyed hash and alias before persistence |
+| Threat                      | Main control                                               |
+| --------------------------- | ---------------------------------------------------------- |
+| Malicious provider log      | Parser limits, schema validation, no code execution        |
+| Malicious community adapter | Wasm sandbox, deny-by-default permissions                  |
+| Secret leak in log          | Central redaction and secret-free UI contract              |
+| Browser extension spoof     | Exact extension origin, nonce, local IPC auth              |
+| Replay of Browser message   | Timestamp and nonce cache                                  |
+| Hook config corruption      | Backup, atomic write, validation, rollback                 |
+| Duplicate usage inflation   | Stable fingerprint and transaction                         |
+| Supply chain tampering      | Signed updater, checksum, provenance                       |
+| Database theft              | Metadata-only; optional encrypted DB considered after v0.1 |
+| Path disclosure             | Keyed hash and alias before persistence                    |
 
 ## 10. Security gates
 

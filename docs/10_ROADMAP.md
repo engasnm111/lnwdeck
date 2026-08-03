@@ -1,8 +1,8 @@
-# inwdeck v0.1 Roadmap
+# lnwdeck v0.1 Roadmap
 
 ## Milestone 0 — Foundation
 
-Deliverable: Repository builds and opens a named `inwdeck` Tauri app
+Deliverable: Repository builds and opens a named `lnwdeck` Tauri app
 
 - Monorepo
 - Rust workspace

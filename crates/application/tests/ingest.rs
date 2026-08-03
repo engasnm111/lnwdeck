@@ -1,7 +1,7 @@
 use chrono::DateTime;
-use inwdeck_domain::{Confidence, UsageBatch, UsageEvent};
-use inwdeck_security::PrivacyGuard;
-use inwdeck_storage::{migrations::apply_all, repositories::UsageRepository, Storage};
+use lnwdeck_domain::{Confidence, UsageBatch, UsageEvent};
+use lnwdeck_security::PrivacyGuard;
+use lnwdeck_storage::{migrations::apply_all, repositories::UsageRepository, Storage};
 use std::cell::RefCell;
 use tempfile::tempdir;
 

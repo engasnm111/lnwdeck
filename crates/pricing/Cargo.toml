@@ -1,8 +1,8 @@
 [package]
-name = "inwdeck-pricing"
+name = "lnwdeck-pricing"
 version = "0.1.0"
 edition = "2021"
-description = "Provider pricing and cost calculation for inwdeck"
+description = "Provider pricing and cost calculation for lnwdeck"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

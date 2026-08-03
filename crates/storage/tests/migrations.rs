@@ -1,4 +1,4 @@
-use inwdeck_storage::{migrations::apply_all, Storage};
+use lnwdeck_storage::{migrations::apply_all, Storage};
 use std::fs;
 use tempfile::tempdir;
 

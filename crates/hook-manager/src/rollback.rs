@@ -8,7 +8,7 @@ pub enum RestoreResult {
 }
 
 pub fn restore_backup(target: &str) -> Result<RestoreResult, crate::HookError> {
-    let backup_path = format!("{}.inwdeck_backup", target);
+    let backup_path = format!("{}.lnwdeck_backup", target);
     if !Path::new(&backup_path).exists() {
         return Ok(RestoreResult::NoBackupFound);
     }

@@ -1,4 +1,4 @@
-import { DataState } from "@inwdeck/ui";
+import { DataState } from "@lnwdeck/ui";
 
 export function BudgetsPage() {
   return (

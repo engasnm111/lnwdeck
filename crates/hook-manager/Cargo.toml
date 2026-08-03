@@ -1,5 +1,5 @@
 [package]
-name = "inwdeck-hook-manager"
+name = "lnwdeck-hook-manager"
 version = "0.1.0"
 edition = "2021"
 description = "Safe hook configuration manager with preview, backup and rollback"

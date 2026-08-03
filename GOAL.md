@@ -1,9 +1,8 @@
-
-# GOAL.md — inwdeck Master Goal
+# GOAL.md — lnwdeck Master Goal
 
 ## Mission
 
-Implement the **entire inwdeck project** exactly as specified.
+Implement the **entire lnwdeck project** exactly as specified.
 
 The implementation plan is the **single source of truth**.
 
@@ -15,8 +14,8 @@ Read completely, in this order:
 
 1. AGENTS.md
 2. README.md
-3. docs/inwdeck-complete-plan.md
-4. docs/superpowers/plans/2026-08-03-inwdeck-v0.1-implementation.md
+3. docs/lnwdeck-complete-plan.md
+4. docs/superpowers/plans/2026-08-03-lnwdeck-v0.1-implementation.md
 
 Do not start coding until all documents are read.
 

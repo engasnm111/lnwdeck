@@ -1,4 +1,4 @@
-# AGENTS.md — inwdeck Engineering Rules
+# AGENTS.md — lnwdeck Engineering Rules
 
 This document outlines mandatory rules for all AI coding agents and human contributors.
 
@@ -20,7 +20,7 @@ This document outlines mandatory rules for all AI coding agents and human contri
 
 ## 2. Immutable Product Scope Constraints
 
-- Product name: `inwdeck`
+- Product name: `lnwdeck`
 - Local-only by default in v0.1; no cloud accounts or cloud sync.
 - Store metadata only.
 - Never store prompts, responses, source code, file contents, file names, or absolute paths.

@@ -1,6 +1,6 @@
 param(
     [string]$BuildDir = "apps\desktop\src-tauri\target\release",
-    [string]$OutputFile = "inwdeck_0.1.0_portable.zip",
+    [string]$OutputFile = "lnwdeck_0.1.0_portable.zip",
     [string]$Version = "0.1.0"
 )
 
@@ -8,15 +8,15 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = Resolve-Path "$ScriptDir\.."
 
-Write-Host "=== inwdeck Portable Packaging v$Version ==="
+Write-Host "=== lnwdeck Portable Packaging v$Version ==="
 
-$MarkerFile = "$RepoRoot\$BuildDir\.inwdeck_portable"
+$MarkerFile = "$RepoRoot\$BuildDir\.lnwdeck_portable"
 Set-Content -Path $MarkerFile -Value "portable" -NoNewline
 Write-Host "[OK] Created portable marker file"
 
 # Collect files to zip
 $ZipItems = @()
-$ExeName = "inwdeck.exe"
+$ExeName = "lnwdeck.exe"
 $ExePath = "$RepoRoot\$BuildDir\$ExeName"
 
 if (-not (Test-Path $ExePath)) {

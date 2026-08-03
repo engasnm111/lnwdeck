@@ -1,6 +1,6 @@
 ---
 name: Feature Request
-about: Suggest an idea for inwdeck
+about: Suggest an idea for lnwdeck
 title: "[Feature] "
 labels: enhancement
 assignees: []

@@ -1,5 +1,5 @@
 {
-  "name": "@inwdeck/browser-extension",
+  "name": "@lnwdeck/browser-extension",
   "private": true,
   "type": "module",
   "scripts": {

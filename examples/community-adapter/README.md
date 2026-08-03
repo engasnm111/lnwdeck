@@ -1,6 +1,6 @@
 # Community Adapter Example
 
-This directory demonstrates the structure of a sandboxed community adapter for inwdeck.
+This directory demonstrates the structure of a sandboxed community adapter for lnwdeck.
 
 ## Structure
 
@@ -13,6 +13,7 @@ community-adapter/
 ## Manifest
 
 The `manifest.json` declares:
+
 - `id`: unique adapter identifier
 - `name`: display name
 - `capabilities`: explicit list of granted permissions (deny-by-default)
@@ -21,6 +22,7 @@ The `manifest.json` declares:
 ## Capabilities
 
 Community adapters run in a sandbox with deny-by-default permissions:
+
 - `filesystem:read` — read access to declared files
 - `filesystem:write` — write access to declared paths
 - `network:http` — HTTP requests to declared domains
@@ -29,6 +31,7 @@ Community adapters run in a sandbox with deny-by-default permissions:
 ## Security
 
 Adapters run in a Wasm sandbox with:
+
 - Memory limits (default 64 MiB)
 - Execution fuel metering
 - Output size bounds

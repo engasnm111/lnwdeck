@@ -1,4 +1,4 @@
-use inwdeck_analytics::forecast::ForecastService;
+use lnwdeck_analytics::forecast::ForecastService;
 
 #[test]
 fn forecast_requires_minimum_seven_days() {
@@ -60,14 +60,14 @@ fn weighted_moving_average_gives_more_weight_to_recent() {
     );
 }
 
-fn make_days(count: usize) -> Vec<inwdeck_analytics::forecast::DayTotals> {
+fn make_days(count: usize) -> Vec<lnwdeck_analytics::forecast::DayTotals> {
     (0..count)
         .map(|i| day_totals(100 + i as u64 * 10))
         .collect()
 }
 
-fn day_totals(tokens: u64) -> inwdeck_analytics::forecast::DayTotals {
-    inwdeck_analytics::forecast::DayTotals {
+fn day_totals(tokens: u64) -> lnwdeck_analytics::forecast::DayTotals {
+    lnwdeck_analytics::forecast::DayTotals {
         date: "2025-01-01".to_string(),
         tokens_input: tokens,
         tokens_output: tokens / 2,

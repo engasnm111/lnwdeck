@@ -1,4 +1,4 @@
-use inwdeck_domain::QuotaSnapshot;
+use lnwdeck_domain::QuotaSnapshot;
 use rusqlite::Connection;
 
 pub struct QuotaRepository<'a> {

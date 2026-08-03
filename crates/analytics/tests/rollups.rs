@@ -1,4 +1,4 @@
-use inwdeck_analytics::rollups::{RollupBucket, RollupService};
+use lnwdeck_analytics::rollups::{RollupBucket, RollupService};
 
 #[test]
 fn rollup_creates_hourly_buckets() {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchOverview, OverviewData } from "../lib/native";
-import { DataState } from "@inwdeck/ui";
+import { DataState } from "@lnwdeck/ui";
 
 export function OverviewPage() {
   const [data, setData] = useState<OverviewData | null>(null);
@@ -33,7 +33,9 @@ export function OverviewPage() {
         loading={loading}
         error={error}
         isEmpty={isEmpty}
-        emptyFallback={<p>No usage data yet. Start tracking to see insights.</p>}
+        emptyFallback={
+          <p>No usage data yet. Start tracking to see insights.</p>
+        }
       >
         {data && (
           <div role="region" aria-label="Usage overview">

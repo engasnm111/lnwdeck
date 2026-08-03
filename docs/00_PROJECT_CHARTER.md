@@ -1,4 +1,4 @@
-# inwdeck Project Charter
+# lnwdeck Project Charter
 
 ## Vision
 
@@ -8,7 +8,7 @@
 
 ผู้ใช้ AI หลายเครื่องมือจำเป็นต้องเปิด Dashboard หลายแห่งและอ่าน Log หลายรูปแบบ บางบริการมี API บางบริการมีเฉพาะหน้าเว็บ บาง CLI เก็บ JSONL หรือ SQLite ภายในเครื่อง การรวมข้อมูลด้วยวิธีเดียวจึงไม่เพียงพอ
 
-`inwdeck` แก้ปัญหาด้วย Hybrid collection:
+`lnwdeck` แก้ปัญหาด้วย Hybrid collection:
 
 - Local session logs
 - Hooks และ File watchers
@@ -62,7 +62,7 @@ Provider อาจเปิดใช้ Capability ไม่เท่ากั�
 ## Non-goals ของ v0.1
 
 - Cloud sync
-- Account ของ inwdeck
+- Account ของ lnwdeck
 - Mobile app
 - macOS/Linux native release
 - เก็บ Prompt/Response
@@ -88,10 +88,10 @@ Provider อาจเปิดใช้ Capability ไม่เท่ากั�
 
 ## Product naming
 
-- Brand: `inwdeck`
-- Executable: `inwdeck.exe`
-- CLI: `inwdeck`
-- App identifier: `app.inwdeck.desktop`
-- Native messaging host: `app.inwdeck.browser_helper`
-- Data directory installed mode: `%LOCALAPPDATA%\inwdeck`
-- Portable data directory: `<app-directory>\inwdeck-data`
+- Brand: `lnwdeck`
+- Executable: `lnwdeck.exe`
+- CLI: `lnwdeck`
+- App identifier: `app.lnwdeck.desktop`
+- Native messaging host: `app.lnwdeck.browser_helper`
+- Data directory installed mode: `%LOCALAPPDATA%\lnwdeck`
+- Portable data directory: `<app-directory>\lnwdeck-data`

@@ -169,7 +169,7 @@ mod tests {
     use crate::adapter::ProviderAdapter;
     use crate::health::{AdapterHealth, AdapterHealthStatus};
     use crate::permissions::Permission;
-    use inwdeck_domain::{QuotaSnapshot, UsageBatch};
+    use lnwdeck_domain::{QuotaSnapshot, UsageBatch};
 
     struct TestAdapter {
         id: String,

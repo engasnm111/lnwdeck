@@ -1,4 +1,4 @@
-use inwdeck_pricing::{calculate_cost, PriceResolver};
+use lnwdeck_pricing::{calculate_cost, PriceResolver};
 use serde_json::json;
 
 #[test]

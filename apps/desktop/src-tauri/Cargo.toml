@@ -1,29 +1,29 @@
 [package]
-name = "inwdeck-desktop"
+name = "lnwdeck-desktop"
 version = "0.1.0"
-description = "inwdeck desktop application"
-authors = ["inwdeck contributors"]
+description = "lnwdeck desktop application"
+authors = ["lnwdeck contributors"]
 edition = "2021"
 rust-version = "1.77"
 
 [lib]
-name = "inwdeck_desktop_lib"
+name = "lnwdeck_desktop_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [[bin]]
-name = "inwdeck-desktop"
+name = "lnwdeck-desktop"
 path = "src/main.rs"
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
-inwdeck-domain = { path = "../../../crates/domain" }
-inwdeck-security = { path = "../../../crates/security" }
-inwdeck-storage = { path = "../../../crates/storage" }
-inwdeck-application = { path = "../../../crates/application" }
-inwdeck-pricing = { path = "../../../crates/pricing" }
-inwdeck-analytics = { path = "../../../crates/analytics" }
-inwdeck-hook-manager = { path = "../../../crates/hook-manager" }
-inwdeck-provider-runtime = { path = "../../../crates/provider-runtime" }
+lnwdeck-domain = { path = "../../../crates/domain" }
+lnwdeck-security = { path = "../../../crates/security" }
+lnwdeck-storage = { path = "../../../crates/storage" }
+lnwdeck-application = { path = "../../../crates/application" }
+lnwdeck-pricing = { path = "../../../crates/pricing" }
+lnwdeck-analytics = { path = "../../../crates/analytics" }
+lnwdeck-hook-manager = { path = "../../../crates/hook-manager" }
+lnwdeck-provider-runtime = { path = "../../../crates/provider-runtime" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

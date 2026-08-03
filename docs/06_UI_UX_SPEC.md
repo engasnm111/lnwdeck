@@ -1,8 +1,8 @@
-# inwdeck UI/UX Specification
+# lnwdeck UI/UX Specification
 
 ## 1. Brand
 
-- Product name: `inwdeck`
+- Product name: `lnwdeck`
 - Working tagline: `Universal AI Usage Tracker`
 - Default theme: Dark
 - Optional theme: Light and Follow system
@@ -118,7 +118,7 @@ Width target: 320–380 px
 
 Content:
 
-- `inwdeck`
+- `lnwdeck`
 - This month tokens
 - This month cost
 - Budget progress
@@ -202,7 +202,7 @@ Examples:
 - `Claude weekly quota reached 90%`
 - `OpenRouter monthly budget reached 80%`
 - `Codex data has not refreshed for 30 minutes`
-- `inwdeck update is ready. Restart when convenient.`
+- `lnwdeck update is ready. Restart when convenient.`
 
 Repeated notifications for same condition are suppressed until state changes
 

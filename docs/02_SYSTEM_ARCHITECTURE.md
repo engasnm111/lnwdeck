@@ -1,8 +1,8 @@
-# inwdeck System Architecture
+# lnwdeck System Architecture
 
 ## 1. Architectural style
 
-`inwdeck` ใช้ Modular monolith ใน Desktop process ร่วมกับ Process isolation สำหรับ Browser Native Host และ Community Adapter
+`lnwdeck` ใช้ Modular monolith ใน Desktop process ร่วมกับ Process isolation สำหรับ Browser Native Host และ Community Adapter
 
 ```text
 Local tools / Logs / APIs / Web pages
@@ -23,7 +23,7 @@ Local tools / Logs / APIs / Web pages
 ## 2. Repository structure
 
 ```text
-inwdeck/
+lnwdeck/
 ├─ apps/
 │  ├─ desktop/
 │  │  ├─ src/                       React UI
@@ -226,7 +226,7 @@ Responsibilities:
 ## 6. Error model
 
 ```rust
-pub enum InwdeckError {
+pub enum lnwdeckError {
     PermissionDenied,
     SourceUnavailable,
     AuthenticationExpired,

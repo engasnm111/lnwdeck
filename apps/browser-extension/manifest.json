@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "inwdeck Browser Helper",
+  "name": "lnwdeck Browser Helper",
   "version": "0.1.0",
   "description": "Local-only AI usage tracker browser helper",
   "permissions": ["nativeMessaging", "storage", "alarms"],
@@ -17,6 +17,6 @@
     }
   ],
   "action": {
-    "default_title": "inwdeck"
+    "default_title": "lnwdeck"
   }
 }
