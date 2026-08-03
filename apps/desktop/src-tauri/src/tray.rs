@@ -5,8 +5,13 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
     let show = MenuItemBuilder::with_id("show", "Show").build(app)?;
+    let widget_toggle = MenuItemBuilder::with_id("widget", "Toggle Widget").build(app)?;
     let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
-    let menu = MenuBuilder::new(app).item(&show).item(&quit).build()?;
+    let menu = MenuBuilder::new(app)
+        .item(&show)
+        .item(&widget_toggle)
+        .item(&quit)
+        .build()?;
 
     let _tray = TrayIconBuilder::new()
         .menu(&menu)
@@ -15,6 +20,16 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 if let Some(window) = app.get_webview_window("main") {
                     window.show().ok();
                     window.set_focus().ok();
+                }
+            }
+            "widget" => {
+                if let Some(widget) = app.get_webview_window("widget") {
+                    if widget.is_visible().unwrap_or(false) {
+                        widget.hide().ok();
+                    } else {
+                        widget.show().ok();
+                        widget.set_focus().ok();
+                    }
                 }
             }
             "quit" => {

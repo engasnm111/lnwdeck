@@ -7,6 +7,7 @@ import { CostsPage } from "./pages/costs/CostsPage";
 import { BudgetsPage } from "./pages/budgets/BudgetsPage";
 import { ModelsPage } from "./pages/models/ModelsPage";
 import { AlertsPage } from "./pages/alerts/AlertsPage";
+import { FloatingWidget } from "./windows/widget/FloatingWidget";
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
         <Route path="models" element={<ModelsPage />} />
         <Route path="alerts" element={<AlertsPage />} />
       </Route>
+      <Route path="widget" element={<FloatingWidget />} />
     </Routes>
   );
 }

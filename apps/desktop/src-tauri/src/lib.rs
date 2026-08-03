@@ -30,6 +30,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             commands::overview::get_overview,
+            windows::show_widget,
+            windows::hide_widget,
+            windows::set_widget_opacity,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
