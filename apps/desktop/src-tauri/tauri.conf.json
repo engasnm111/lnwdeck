@@ -11,13 +11,6 @@
   },
   "app": {
     "withGlobalTauri": true,
-    "windows": [
-      {
-        "title": "inwdeck",
-        "width": 1200,
-        "height": 800
-      }
-    ],
     "security": {
       "csp": null
     }
