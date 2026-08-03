@@ -34,11 +34,6 @@ pub fn calculate_cost_with_provider(
 
     let pricing = resolver
         .resolve(norm_prov, model)
-        .or_else(|| resolver.resolve("openai", model))
-        .or_else(|| resolver.resolve("anthropic", model))
-        .or_else(|| resolver.resolve("google", model))
-        .or_else(|| resolver.resolve("kimi", model))
-        .or_else(|| resolver.resolve("opencode", model))
         .ok_or_else(|| format!("unknown model pricing: {model}"))?;
 
     let input_rate = decimal_from_str(&pricing.input_per_1k);
@@ -51,6 +46,10 @@ pub fn calculate_cost_with_provider(
     Ok(format_decimal(total))
 }
 
+/// Maps a provider identifier to the canonical catalog provider. Unknown
+/// providers map to `"unknown"` and are never charged with an unrelated
+/// provider's rates. Kiro is a separate product from Kimi Code and must not
+/// be priced as Kimi.
 pub fn normalize_provider_id(provider: &str) -> &str {
     let p = provider.to_lowercase();
     if p.contains("openai") || p.contains("codex") {
@@ -59,12 +58,12 @@ pub fn normalize_provider_id(provider: &str) -> &str {
         "anthropic"
     } else if p.contains("google") || p.contains("gemini") {
         "google"
-    } else if p.contains("kimi") || p.contains("moonshot") || p.contains("kiro") {
+    } else if p.contains("moonshot") || p.contains("kimi") {
         "kimi"
     } else if p.contains("opencode") {
         "opencode"
     } else {
-        "openai"
+        "unknown"
     }
 }
 
@@ -116,5 +115,36 @@ mod tests {
             calculate_cost_with_provider("anthropic", "claude-3-5-sonnet", 1000, 1000, &resolver)
                 .unwrap();
         assert_eq!(cost, "0.018000");
+    }
+
+    #[test]
+    fn kiro_is_not_normalized_to_kimi() {
+        assert_eq!(normalize_provider_id("kiro_ai"), "unknown");
+        assert_eq!(normalize_provider_id("kimi_code"), "kimi");
+        assert_eq!(normalize_provider_id("moonshot-v1"), "kimi");
+    }
+
+    #[test]
+    fn unknown_provider_never_defaults_to_openai() {
+        assert_eq!(normalize_provider_id("mystery_tool"), "unknown");
+        assert_eq!(normalize_provider_id("anthropic_claude"), "anthropic");
+    }
+
+    #[test]
+    fn kiro_is_not_priced_with_kimi_rates() {
+        let resolver = PriceResolver::new_with_overrides(&json!([]));
+        let result =
+            calculate_cost_with_provider("kiro_ai", "kimi-k2-instruct", 1000, 1000, &resolver);
+        assert!(result.is_err(), "Kiro must not be charged with Kimi rates");
+    }
+
+    #[test]
+    fn unknown_provider_is_not_charged_with_openai_rates() {
+        let resolver = PriceResolver::new_with_overrides(&json!([]));
+        let result = calculate_cost_with_provider("mystery_tool", "gpt-4o", 1000, 1000, &resolver);
+        assert!(
+            result.is_err(),
+            "unknown provider must not fall back to OpenAI pricing"
+        );
     }
 }

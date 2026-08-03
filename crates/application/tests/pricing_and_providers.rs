@@ -22,7 +22,7 @@ fn provider_registry_includes_codex_gemini_kimi_claude() {
     );
     assert!(
         provider_ids.contains(&"kiro_ai"),
-        "Kimi must be in provider registry"
+        "Kiro must be in provider registry"
     );
     assert!(
         provider_ids.contains(&"anthropic_claude"),
