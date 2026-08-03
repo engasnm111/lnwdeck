@@ -40,6 +40,8 @@ ENV/
 !.vscode/launch.json
 !.vscode/extensions.json
 .idea/
+.codegraph/
+.cursor/
 *.swp
 *.swo
 *~
