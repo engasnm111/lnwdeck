@@ -1,0 +1,13 @@
+{
+  "name": "inwdeck",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "test": "pnpm run /^test:.*/",
+    "test:rs": "cargo test --workspace",
+    "test:ts": "pnpm -r run test",
+    "tauri:dev": "pnpm --filter @inwdeck/desktop tauri dev",
+    "tauri:build": "pnpm --filter @inwdeck/desktop tauri build"
+  }
+}
