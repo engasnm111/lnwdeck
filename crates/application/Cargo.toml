@@ -9,6 +9,7 @@ lnwdeck-domain = { path = "../domain" }
 lnwdeck-security = { path = "../security" }
 lnwdeck-storage = { path = "../storage" }
 lnwdeck-provider-runtime = { path = "../provider-runtime" }
+lnwdeck-pricing = { path = "../pricing" }
 rusqlite = { version = "0.31", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }

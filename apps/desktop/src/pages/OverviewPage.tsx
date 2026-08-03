@@ -29,6 +29,20 @@ export function OverviewPage() {
     ? data.total_tokens_input + data.total_tokens_output
     : 0;
 
+  const renderCostBadge = (status: string) => {
+    switch (status) {
+      case "exact":
+        return <Badge tone="success">Exact</Badge>;
+      case "estimated":
+        return <Badge tone="info">Estimated</Badge>;
+      case "missing_pricing":
+        return <Badge tone="warning">Missing pricing</Badge>;
+      case "no_data":
+      default:
+        return <Badge tone="default">Unavailable</Badge>;
+    }
+  };
+
   return (
     <div>
       <div
@@ -75,9 +89,9 @@ export function OverviewPage() {
               />
               <MetricCard
                 title="Total Cost"
-                value="$0.00"
-                subtitle="Calculated from pricing tables"
-                badge={<Badge tone="info">Estimated</Badge>}
+                value={data.cost_formatted || (data.total_cost > 0 ? `$${data.total_cost.toFixed(4)}` : "$0.00")}
+                subtitle={data.cost_status === "missing_pricing" ? "Pricing catalog incomplete" : "Calculated from pricing tables"}
+                badge={renderCostBadge(data.cost_status)}
               />
               <MetricCard
                 title="Requests / Events"

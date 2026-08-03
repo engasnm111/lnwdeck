@@ -4,6 +4,9 @@ export interface OverviewData {
   total_events: number;
   total_tokens_input: number;
   total_tokens_output: number;
+  total_cost: number;
+  cost_formatted: string;
+  cost_status: string;
   provider_count: number;
   high_confidence_count: number;
   confidence_coverage: number;
@@ -57,6 +60,7 @@ export interface DetailedProviderInfo {
   quota_summary: string;
   reset_at: string | null;
   confidence: string;
+  cost_support: string;
 }
 
 export async function fetchProviders(): Promise<DetailedProviderInfo[]> {

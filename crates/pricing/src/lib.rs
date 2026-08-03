@@ -1,5 +1,5 @@
-mod calculator;
-mod catalog;
+pub mod calculator;
+pub mod catalog;
 
-pub use calculator::{calculate_cost, resolve_price};
+pub use calculator::{calculate_cost, calculate_cost_with_provider, resolve_price};
 pub use catalog::PriceResolver;

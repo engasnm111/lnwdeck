@@ -8,6 +8,9 @@ pub struct OverviewResponse {
     pub total_events: i64,
     pub total_tokens_input: i64,
     pub total_tokens_output: i64,
+    pub total_cost: f64,
+    pub cost_formatted: String,
+    pub cost_status: String,
     pub provider_count: i64,
     pub high_confidence_count: i64,
     pub confidence_coverage: f64,
@@ -26,6 +29,9 @@ pub fn get_overview(state: State<'_, AppState>) -> Result<OverviewResponse, Stri
         total_events: result.total_events,
         total_tokens_input: result.total_tokens_input,
         total_tokens_output: result.total_tokens_output,
+        total_cost: result.total_cost,
+        cost_formatted: result.cost_formatted,
+        cost_status: result.cost_status,
         provider_count: result.provider_count,
         high_confidence_count: result.high_confidence_count,
         confidence_coverage: result.confidence_coverage,
@@ -49,5 +55,6 @@ mod tests {
 
         let result = QueryOverview::execute(&storage.conn).unwrap();
         assert_eq!(result.total_events, 0);
+        assert_eq!(result.cost_status, "no_data");
     }
 }
