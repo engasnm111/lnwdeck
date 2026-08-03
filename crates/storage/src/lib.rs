@@ -1,5 +1,6 @@
 pub mod migrations;
 pub mod repositories;
+pub mod retention;
 
 use rusqlite::Connection;
 use std::path::Path;

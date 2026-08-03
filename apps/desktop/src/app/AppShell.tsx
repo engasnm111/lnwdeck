@@ -8,6 +8,8 @@ const navItems = [
   { to: "/budgets", label: "Budgets" },
   { to: "/models", label: "Models" },
   { to: "/alerts", label: "Alerts" },
+  { to: "/settings", label: "Settings" },
+  { to: "/system", label: "System" },
 ];
 
 export function AppShell() {
