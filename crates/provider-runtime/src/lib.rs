@@ -3,6 +3,7 @@ pub mod health;
 pub mod permissions;
 pub mod registry;
 pub mod scheduler;
+pub mod wasm;
 
 pub use adapter::ProviderAdapter;
 pub use health::{AdapterHealth, AdapterHealthStatus};

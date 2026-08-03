@@ -1,0 +1,14 @@
+{
+  "id": "community_example",
+  "name": "Example Community Adapter",
+  "version": "0.1.0",
+  "description": "Sample community adapter reading synthetic fixture data through granted capabilities only.",
+  "entry": "example_adapter.wasm",
+  "capabilities": ["filesystem:read"],
+  "runtime_limits": {
+    "max_memory_bytes": 67108864,
+    "max_fuel": 500000,
+    "max_output_bytes": 65536,
+    "timeout_ms": 3000
+  }
+}
