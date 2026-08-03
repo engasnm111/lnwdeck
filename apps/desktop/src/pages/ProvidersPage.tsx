@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { fetchProviders, refreshAll, type DetailedProviderInfo } from "../lib/native";
+import { fetchProviders, refreshAll, refreshProvider, type DetailedProviderInfo } from "../lib/native";
 import { DataState, Card, Badge, Button } from "@lnwdeck/ui";
 
 export function ProvidersPage() {
   const [providers, setProviders] = useState<DetailedProviderInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
   const load = useCallback(async () => {
@@ -36,6 +37,21 @@ export function ProvidersPage() {
       await load();
     }
   }, [load]);
+
+  const handleRefreshProvider = useCallback(
+    async (providerId: string) => {
+      setRefreshingId(providerId);
+      try {
+        await refreshProvider(providerId);
+      } catch (e) {
+        setError(e instanceof Error ? e : new Error(String(e)));
+      } finally {
+        setRefreshingId(null);
+        await load();
+      }
+    },
+    [load],
+  );
 
   const renderStatusBadge = (p: DetailedProviderInfo) => {
     if (p.health_status.startsWith("Error")) {
@@ -81,7 +97,7 @@ export function ProvidersPage() {
         <div>
           <h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>Providers</h2>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>
-            Local AI engine adapters and collection state (Codex, Gemini, Kimi, Claude, OpenCode & more)
+            Local AI engine adapters and collection state (Codex, Gemini, Kiro, Claude, OpenCode & more)
           </p>
         </div>
         <Button
@@ -149,8 +165,15 @@ export function ProvidersPage() {
                 </div>
 
                 <div style={{ marginTop: "0.5rem" }}>
-                  <Button variant="secondary" onClick={handleRefresh} disabled={refreshing} style={{ width: "100%" }}>
-                    Refresh Adapter
+                  <Button
+                    variant="secondary"
+                    onClick={() => void handleRefreshProvider(p.provider_id)}
+                    disabled={refreshingId === p.provider_id}
+                    style={{ width: "100%" }}
+                  >
+                    {refreshingId === p.provider_id
+                      ? "Refreshing…"
+                      : "Refresh Adapter"}
                   </Button>
                 </div>
               </div>

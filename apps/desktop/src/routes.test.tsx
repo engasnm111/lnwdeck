@@ -82,7 +82,7 @@ describe("Desktop Navigation and Backend Data Integration", () => {
         }
         if (cmd === "get_pipeline_diagnostics") {
           return {
-            app_version: "0.1.0",
+            app_version: "0.2.0",
             db_ok: true,
             integrity_ok: true,
             migration_version: 3,

@@ -1,0 +1,155 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, "Segoe UI", sans-serif;
+  font-size: 12px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+}
+
+.widget-root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0.6rem;
+  background: rgba(20, 22, 28, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  user-select: none;
+}
+
+.widget-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.3rem;
+}
+
+.widget-title {
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+}
+
+.widget-refreshed {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.7rem;
+}
+
+.widget-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 0.4rem;
+}
+
+.widget-controls-spacer {
+  flex: 1;
+}
+
+.widget-button {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.8);
+  border-radius: 4px;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.65rem;
+  cursor: pointer;
+}
+
+.widget-button:hover {
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+.widget-body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.widget-providers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.widget-provider-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.widget-provider-name {
+  font-weight: 500;
+}
+
+.widget-status {
+  font-size: 0.65rem;
+  border-radius: 3px;
+  padding: 0.05rem 0.3rem;
+}
+
+.widget-status-ok {
+  color: #7ee2a8;
+}
+
+.widget-status-stale {
+  color: #e8c15a;
+  border: 1px solid rgba(232, 193, 90, 0.5);
+}
+
+.widget-status-error {
+  color: #f0a3a3;
+  border: 1px solid rgba(240, 163, 163, 0.5);
+}
+
+.widget-window {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+}
+
+.widget-window-metric {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.75);
+  white-space: nowrap;
+}
+
+.widget-estimate {
+  color: rgba(255, 255, 255, 0.45);
+  font-style: italic;
+}
+
+.widget-bar {
+  flex: 1;
+  height: 0.4rem;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.widget-bar-fill {
+  height: 100%;
+  background: #4c9aff;
+  border-radius: 3px;
+}
+
+.widget-empty {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.75rem;
+  margin: 0.5rem 0;
+}

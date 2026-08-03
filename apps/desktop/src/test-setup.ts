@@ -106,7 +106,7 @@ vi.mock("@tauri-apps/api/core", () => ({
     }
     if (cmd === "get_pipeline_diagnostics") {
       return {
-        app_version: "0.1.0",
+        app_version: "0.2.0",
         db_ok: true,
         integrity_ok: true,
         migration_version: 3,
@@ -133,7 +133,7 @@ vi.mock("@tauri-apps/api/core", () => ({
             source_type: "Local CLI / JSON",
             source_exists: true,
             permission_state: "Granted",
-            adapter_version: "0.1.0",
+            adapter_version: "0.2.0",
             last_detection_at: "2026-08-04T00:00:00Z",
             detection_error_code: "",
           },

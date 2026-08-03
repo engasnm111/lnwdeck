@@ -1,20 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
 
-async function safeInvoke<T>(
-  cmd: string,
-  args?: Record<string, unknown>,
-  fallback?: T,
-): Promise<T> {
-  try {
-    return await invoke<T>(cmd, args);
-  } catch (e) {
-    if (fallback !== undefined) {
-      return fallback;
-    }
-    throw e;
-  }
-}
-
 export interface OverviewData {
   total_events: number;
   total_tokens_input: number;
@@ -29,20 +14,10 @@ export interface OverviewData {
   oldest_event_at: string | null;
 }
 
+/** Fetches real backend data. Throws on failure so the caller renders an
+ * explicit error state; no fabricated values are ever returned. */
 export async function fetchOverview(): Promise<OverviewData> {
-  return safeInvoke<OverviewData>("get_overview", undefined, {
-    total_events: 15,
-    total_tokens_input: 1650000,
-    total_tokens_output: 800000,
-    total_cost: 0.0425,
-    cost_formatted: "$0.0425",
-    cost_status: "estimated",
-    provider_count: 5,
-    high_confidence_count: 15,
-    confidence_coverage: 1.0,
-    latest_event_at: "2026-08-04T00:00:00Z",
-    oldest_event_at: "2026-08-01T00:00:00Z",
-  });
+  return invoke<OverviewData>("get_overview");
 }
 
 export interface AnalyticsRow {
@@ -71,11 +46,7 @@ export interface AnalyticsFilter {
 export async function fetchAnalytics(
   filter?: AnalyticsFilter,
 ): Promise<AnalyticsResult> {
-  return safeInvoke<AnalyticsResult>("get_analytics", { filter }, {
-    rows: [],
-    available_providers: ["opencode", "openai_codex", "google_gemini", "kiro_ai", "anthropic_claude"],
-    available_models: ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-pro", "moonshot-v1-8k"],
-  });
+  return invoke<AnalyticsResult>("get_analytics", { filter });
 }
 
 export interface DetailedProviderInfo {
@@ -95,83 +66,7 @@ export interface DetailedProviderInfo {
 }
 
 export async function fetchProviders(): Promise<DetailedProviderInfo[]> {
-  return safeInvoke<DetailedProviderInfo[]>("get_providers", undefined, [
-    {
-      provider_id: "opencode",
-      display_name: "OpenCode",
-      enabled: true,
-      detected: true,
-      source_type: "Local CLI / JSON",
-      health_status: "Healthy",
-      event_count: 15,
-      total_tokens: 2450000,
-      last_sync: "2026-08-04T00:00:00Z",
-      quota_summary: "15 events recorded",
-      reset_at: null,
-      confidence: "High",
-      cost_support: "Exact",
-    },
-    {
-      provider_id: "openai_codex",
-      display_name: "Codex (OpenAI)",
-      enabled: true,
-      detected: false,
-      source_type: "API / Credential",
-      health_status: "Not configured",
-      event_count: 0,
-      total_tokens: 0,
-      last_sync: null,
-      quota_summary: "Not configured",
-      reset_at: null,
-      confidence: "High",
-      cost_support: "Exact",
-    },
-    {
-      provider_id: "google_gemini",
-      display_name: "Gemini (Google)",
-      enabled: true,
-      detected: false,
-      source_type: "API / Credential",
-      health_status: "Not configured",
-      event_count: 0,
-      total_tokens: 0,
-      last_sync: null,
-      quota_summary: "Not configured",
-      reset_at: null,
-      confidence: "High",
-      cost_support: "Exact",
-    },
-    {
-      provider_id: "kiro_ai",
-      display_name: "Kimi",
-      enabled: true,
-      detected: false,
-      source_type: "API / Credential",
-      health_status: "Not configured",
-      event_count: 0,
-      total_tokens: 0,
-      last_sync: null,
-      quota_summary: "Not configured",
-      reset_at: null,
-      confidence: "High",
-      cost_support: "Estimated",
-    },
-    {
-      provider_id: "anthropic_claude",
-      display_name: "Claude (Anthropic)",
-      enabled: true,
-      detected: false,
-      source_type: "API / Credential",
-      health_status: "Not configured",
-      event_count: 0,
-      total_tokens: 0,
-      last_sync: null,
-      quota_summary: "Not configured",
-      reset_at: null,
-      confidence: "High",
-      cost_support: "Exact",
-    },
-  ]);
+  return invoke<DetailedProviderInfo[]>("get_providers");
 }
 
 export interface PipelineTotals {
@@ -232,118 +127,123 @@ export interface PipelineDiagnostics {
 }
 
 export async function fetchPipelineDiagnostics(): Promise<PipelineDiagnostics> {
-  return safeInvoke<PipelineDiagnostics>("get_pipeline_diagnostics", undefined, {
-    app_version: "0.1.0",
-    db_ok: true,
-    integrity_ok: true,
-    migration_version: 3,
-    total_events: 15,
-    totals: {
-      events_seen: 15,
-      events_parsed: 15,
-      events_normalized: 15,
-      events_rejected: 0,
-      duplicates_skipped: 0,
-      events_inserted: 15,
-      quota_snapshots_inserted: 1,
-      privacy_rejections: 0,
-      last_successful_sync: "2026-08-04T00:00:00Z",
-      next_retry_at: null,
-    },
-    providers: [
-      {
-        provider_id: "opencode",
-        display_name: "OpenCode",
-        enabled: true,
-        detected: true,
-        detection_method: "cli_config",
-        source_type: "Local CLI / JSON",
-        source_exists: true,
-        permission_state: "Granted",
-        adapter_version: "0.1.0",
-        last_detection_at: "2026-08-04T00:00:00Z",
-        detection_error_code: "",
-      },
-      {
-        provider_id: "openai_codex",
-        display_name: "Codex (OpenAI)",
-        enabled: true,
-        detected: false,
-        detection_method: "api_credentials",
-        source_type: "API / Credential",
-        source_exists: false,
-        permission_state: "Unconfigured",
-        adapter_version: "0.1.0",
-        last_detection_at: "2026-08-04T00:00:00Z",
-        detection_error_code: "",
-      },
-      {
-        provider_id: "google_gemini",
-        display_name: "Gemini (Google)",
-        enabled: true,
-        detected: false,
-        detection_method: "api_credentials",
-        source_type: "API / Credential",
-        source_exists: false,
-        permission_state: "Unconfigured",
-        adapter_version: "0.1.0",
-        last_detection_at: "2026-08-04T00:00:00Z",
-        detection_error_code: "",
-      },
-      {
-        provider_id: "kiro_ai",
-        display_name: "Kimi",
-        enabled: true,
-        detected: false,
-        detection_method: "api_credentials",
-        source_type: "API / Credential",
-        source_exists: false,
-        permission_state: "Unconfigured",
-        adapter_version: "0.1.0",
-        last_detection_at: "2026-08-04T00:00:00Z",
-        detection_error_code: "",
-      },
-      {
-        provider_id: "anthropic_claude",
-        display_name: "Claude (Anthropic)",
-        enabled: true,
-        detected: false,
-        detection_method: "api_credentials",
-        source_type: "API / Credential",
-        source_exists: false,
-        permission_state: "Unconfigured",
-        adapter_version: "0.1.0",
-        last_detection_at: "2026-08-04T00:00:00Z",
-        detection_error_code: "",
-      },
-    ],
-    runs: [
-      {
-        id: 1,
-        provider_id: "opencode",
-        collector_mode: "passive",
-        started_at: "2026-08-04T00:00:00Z",
-        finished_at: "2026-08-04T00:00:01Z",
-        duration_ms: 120,
-        source_records_seen: 15,
-        records_parsed: 15,
-        events_normalized: 15,
-        events_rejected: 0,
-        duplicates_skipped: 0,
-        events_inserted: 15,
-        quota_snapshots_inserted: 0,
-        warning_codes: [],
-        error_code: "",
-        next_retry_at: null,
-      },
-    ],
-  });
+  return invoke<PipelineDiagnostics>("get_pipeline_diagnostics");
 }
 
-export async function refreshAll(): Promise<CollectorRunRow[]> {
-  return safeInvoke<CollectorRunRow[]>("refresh_all", undefined, []);
+export interface QuotaWindowData {
+  window_key: string;
+  label: string;
+  scope: "rolling" | "daily" | "weekly" | "monthly" | "session" | "other";
+  kind: "requests" | "tokens" | "credits" | "parallel";
+  used: number;
+  limit: number;
+  remaining: number;
+  used_percent: number;
+  remaining_percent: number;
+  reset_at: string | null;
+  is_unlimited: boolean;
+  confidence: "Low" | "Medium" | "High";
+}
+
+export interface ProviderQuotaCard {
+  provider_id: string;
+  display_name: string;
+  status:
+    | "fresh"
+    | "stale"
+    | "unavailable"
+    | "auth_expired"
+    | "rate_limited"
+    | "error";
+  plan: string | null;
+  source: string;
+  collected_at: string;
+  stale_at: string;
+  error_code: string | null;
+  windows: QuotaWindowData[];
+}
+
+export interface QuotaDashboardData {
+  generated_at: string;
+  providers: ProviderQuotaCard[];
+}
+
+export interface CollectionOutcome {
+  provider_id: string;
+  collector_mode: string;
+  started_at: string;
+  finished_at: string;
+  duration_ms: number;
+  source_records_seen: number;
+  records_parsed: number;
+  events_normalized: number;
+  events_rejected: number;
+  duplicates_skipped: number;
+  events_inserted: number;
+  quota_snapshots_inserted: number;
+  warning_codes: string[];
+  error_code: string;
+  next_retry_at: string | null;
+}
+
+export interface QuotaCollectionOutcome {
+  provider_id: string;
+  collector_mode: string;
+  started_at: string;
+  finished_at: string;
+  duration_ms: number;
+  windows_collected: number;
+  status:
+    | QuotaWindowData["confidence"]
+    | "fresh"
+    | "stale"
+    | "unavailable"
+    | "auth_expired"
+    | "rate_limited"
+    | "error";
+  error_code: string;
+}
+
+export interface RefreshCycle {
+  usage: CollectionOutcome[];
+  quota: QuotaCollectionOutcome[];
+}
+
+/** Fetches the normalized quota dashboard. Throws on failure; the caller
+ * renders loading/error states instead of fabricated data. */
+export async function fetchQuotaDashboard(): Promise<QuotaDashboardData> {
+  return invoke<QuotaDashboardData>("get_quota_dashboard");
+}
+
+export async function refreshAll(): Promise<RefreshCycle> {
+  return invoke<RefreshCycle>("refresh_all");
+}
+
+/** Refreshes a single provider (detection + usage + quota channels). */
+export async function refreshProvider(
+  providerId: string,
+): Promise<RefreshCycle> {
+  return invoke<RefreshCycle>("refresh_provider", { providerId });
+}
+
+/** Hides the floating widget window. No-op-safe outside Tauri. */
+export async function hideWidgetWindow(): Promise<void> {
+  try {
+    await invoke("hide_widget");
+  } catch {
+    // outside a Tauri runtime the widget is a normal page
+  }
+}
+
+/** Brings the main dashboard window to the front. */
+export async function showMainWindow(): Promise<void> {
+  try {
+    await invoke("show_main_window");
+  } catch {
+    // no-op outside a Tauri runtime
+  }
 }
 
 export async function checkForUpdate(): Promise<string> {
-  return safeInvoke<string>("check_for_update", undefined, "Update check not available in browser mode.");
+  return invoke<string>("check_for_update");
 }

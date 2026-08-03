@@ -14,7 +14,7 @@ vi.mock("../../lib/native", () => ({
 }));
 
 const fixture: PipelineDiagnostics = {
-  app_version: "0.1.0",
+  app_version: "0.2.0",
   db_ok: true,
   integrity_ok: true,
   migration_version: 3,
@@ -41,7 +41,7 @@ const fixture: PipelineDiagnostics = {
       source_type: "sqlite",
       source_exists: true,
       permission_state: "read_ok",
-      adapter_version: "0.1.0",
+      adapter_version: "0.2.0",
       last_detection_at: "2026-08-03T12:00:00Z",
       detection_error_code: "",
     },
@@ -89,7 +89,7 @@ describe("SystemPage Data Pipeline", () => {
     expect(
       await screen.findByRole("heading", { name: "Data Pipeline" }),
     ).toBeVisible();
-    expect(screen.getByText("0.1.0")).toBeInTheDocument();
+    expect(screen.getByText("0.2.0")).toBeInTheDocument();
     expect(screen.getByText("Migration version")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.getByText("Events stored")).toBeInTheDocument();
@@ -161,7 +161,7 @@ describe("SystemPage Data Pipeline", () => {
     vi.mocked(fetchPipelineDiagnostics)
       .mockResolvedValueOnce(emptyFixture)
       .mockResolvedValueOnce(fixture);
-    vi.mocked(refreshAll).mockResolvedValue(fixture.runs);
+    vi.mocked(refreshAll).mockResolvedValue({ usage: fixture.runs, quota: [] });
     const user = userEvent.setup();
     render(<SystemPage />);
 
@@ -196,7 +196,7 @@ describe("SystemPage Data Pipeline", () => {
     const text = screen.getByRole("region", { name: /exported diagnostics/i })
       .textContent ?? "";
     expect(text).toContain("opencode_cli");
-    expect(text).toContain("0.1.0");
+    expect(text).toContain("0.2.0");
     expect(text.toLowerCase()).not.toContain("prompt");
     expect(text.toLowerCase()).not.toContain("response");
   });
