@@ -7,4 +7,5 @@ members = [
     "crates/storage",
     "crates/application",
     "crates/provider-runtime",
+    "crates/hook-manager",
 ]
