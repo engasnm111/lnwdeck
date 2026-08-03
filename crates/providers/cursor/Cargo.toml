@@ -1,0 +1,10 @@
+[package]
+name = "inwdeck-provider-cursor"
+version = "0.1.0"
+edition = "2021"
+description = "Cursor IDE provider adapter for inwdeck"
+
+[dependencies]
+inwdeck-domain = { path = "../../domain" }
+inwdeck-provider-runtime = { path = "../../provider-runtime" }
+chrono = { version = "0.4" }
