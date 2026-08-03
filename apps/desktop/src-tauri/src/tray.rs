@@ -28,13 +28,19 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             "widget" => {
-                if let Some(widget) = app.get_webview_window("widget") {
-                    if widget.is_visible().unwrap_or(false) {
-                        widget.hide().ok();
-                    } else {
-                        widget.show().ok();
-                        widget.set_focus().ok();
-                    }
+                // Toggling through the window commands keeps the stored widget
+                // visibility in step with what is on screen.
+                let visible = app
+                    .get_webview_window("widget")
+                    .and_then(|widget| widget.is_visible().ok())
+                    .unwrap_or(false);
+                let result = if visible {
+                    crate::windows::hide_widget(app.clone())
+                } else {
+                    crate::windows::show_widget(app.clone())
+                };
+                if let Err(error) = result {
+                    crate::record_tray_event("WIDGET_TOGGLE_FAILED", &error, app);
                 }
             }
             "quit" => {

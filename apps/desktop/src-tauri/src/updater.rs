@@ -1,90 +1,259 @@
+//! Auto-update wiring.
+//!
+//! The check and the install are separate commands: a check never downloads
+//! anything, and an install reports real progress and then restarts the
+//! application. Signature verification is performed by
+//! `tauri-plugin-updater` against the public key in `tauri.conf.json`; this
+//! module deliberately contains no verification logic of its own, because a
+//! hand-written check that always succeeds is worse than none.
+//!
+//! Failures are never swallowed. A background check that fails emits
+//! `update-check-failed` and is recorded in `app_events`, so an unreachable
+//! endpoint is distinguishable from "you are up to date".
+
+use crate::state::AppState;
+use lnwdeck_storage::repositories::{AppEventLevel, AppEventRepository};
 use serde::Serialize;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use tauri_plugin_updater::UpdaterExt;
 
-/// Payload emitted to the frontend when a new update is available.
-#[derive(Clone, Serialize)]
-pub struct UpdateAvailablePayload {
-    pub version: String,
-    pub body: String,
+/// Result of an update check.
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdateCheck {
+    pub available: bool,
+    pub current_version: String,
+    /// Version offered by the endpoint, when one is available.
+    pub version: Option<String>,
+    pub notes: Option<String>,
+    pub published_at: Option<String>,
 }
 
-/// Spawn a background task that checks for updates after a short startup delay.
-/// If an update is available, it emits an `update-available` event to the
-/// frontend so the UI can show a notification banner.
+/// Payload emitted while an update downloads.
+#[derive(Debug, Clone, Serialize)]
+struct UpdateProgress {
+    downloaded: u64,
+    total: Option<u64>,
+}
+
+/// Payload emitted when a check fails.
+#[derive(Debug, Clone, Serialize)]
+struct UpdateCheckFailed {
+    code: String,
+}
+
+fn current_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+/// Records a background failure so it is visible on the System page.
+fn record_event(app: &tauri::AppHandle, level: AppEventLevel, code: &str, detail: &str) {
+    let state = app.state::<AppState>();
+    let Ok(guard) = state.ensure_storage() else {
+        return;
+    };
+    let Some(storage) = guard.as_ref() else {
+        return;
+    };
+    let _ = AppEventRepository::new(&storage.conn).record("updater", level, code, detail);
+}
+
+/// Reduces an updater error to a stable code. The message may contain a URL,
+/// so it is never propagated to storage or to the UI verbatim.
+fn error_code(error: &tauri_plugin_updater::Error) -> &'static str {
+    match error {
+        tauri_plugin_updater::Error::Network(_) => "UPDATE_ENDPOINT_UNREACHABLE",
+        tauri_plugin_updater::Error::Io(_) => "UPDATE_IO_ERROR",
+        tauri_plugin_updater::Error::Serialization(_) | tauri_plugin_updater::Error::Semver(_) => {
+            "UPDATE_MANIFEST_INVALID"
+        }
+        tauri_plugin_updater::Error::SignatureUtf8(_)
+        | tauri_plugin_updater::Error::Minisign(_)
+        | tauri_plugin_updater::Error::Base64(_) => "UPDATE_SIGNATURE_INVALID",
+        _ => "UPDATE_FAILED",
+    }
+}
+
+/// Builds an updater, honouring `LNWDECK_UPDATE_ENDPOINT` when set.
+///
+/// The override exists so a release can be verified end to end against a local
+/// endpoint before it is published; the signature requirement is unchanged.
+fn updater(app: &tauri::AppHandle) -> Result<tauri_plugin_updater::Updater, String> {
+    let mut builder = app.updater_builder();
+    if let Ok(endpoint) = std::env::var("LNWDECK_UPDATE_ENDPOINT") {
+        let parsed = endpoint
+            .parse()
+            .map_err(|_| format!("invalid LNWDECK_UPDATE_ENDPOINT: {endpoint}"))?;
+        builder = builder
+            .endpoints(vec![parsed])
+            .map_err(|error| format!("update endpoint rejected: {}", error_code(&error)))?;
+    }
+    builder
+        .build()
+        .map_err(|error| format!("updater unavailable: {}", error_code(&error)))
+}
+
+/// Background check shortly after startup.
+///
+/// Runs only when the user has left automatic checks enabled.
 pub fn spawn_update_check(app: tauri::AppHandle) {
     std::thread::spawn(move || {
-        // Wait 10 seconds after startup before checking
         std::thread::sleep(std::time::Duration::from_secs(10));
+
+        if !auto_check_enabled(&app) {
+            return;
+        }
 
         let handle = app.clone();
         tauri::async_runtime::block_on(async move {
-            let updater = match handle.updater() {
-                Ok(updater) => updater,
-                Err(_e) => return,
-            };
-            match updater.check().await {
-                Ok(Some(update)) => {
-                    let version = update.version.clone();
-                    let body = update.body.clone().unwrap_or_default();
-                    let _ =
-                        handle.emit("update-available", UpdateAvailablePayload { version, body });
+            match check(&handle).await {
+                Ok(result) => {
+                    if result.available {
+                        let _ = handle.emit("update-available", result);
+                    }
                 }
-                Ok(None) => {
-                    // Already on the latest version — nothing to do
-                }
-                Err(_e) => {
-                    // Network error or endpoint unreachable — silently skip
-                    // Never surface update errors to the user on startup
+                Err(code) => {
+                    record_event(
+                        &handle,
+                        AppEventLevel::Warning,
+                        &code,
+                        "the automatic update check did not complete",
+                    );
+                    let _ = handle.emit("update-check-failed", UpdateCheckFailed { code });
                 }
             }
         });
     });
 }
 
-/// Tauri command: manually check for updates and install if available.
-/// Returns a human-readable status message.
+/// Whether automatic update checks are enabled in settings.
+fn auto_check_enabled(app: &tauri::AppHandle) -> bool {
+    let state = app.state::<AppState>();
+    let Ok(guard) = state.ensure_storage() else {
+        // Without storage the documented default applies.
+        return true;
+    };
+    let Some(storage) = guard.as_ref() else {
+        return true;
+    };
+    lnwdeck_application::settings::SettingsService::load(&storage.conn)
+        .map(|settings| settings.auto_update_check)
+        .unwrap_or(true)
+}
+
+/// Performs a check without downloading anything.
+async fn check(app: &tauri::AppHandle) -> Result<UpdateCheck, String> {
+    let updater = updater(app)?;
+    match updater.check().await {
+        Ok(Some(update)) => Ok(UpdateCheck {
+            available: true,
+            current_version: current_version(),
+            version: Some(update.version.clone()),
+            notes: update.body.clone(),
+            published_at: update.date.map(|date| date.to_string()),
+        }),
+        Ok(None) => Ok(UpdateCheck {
+            available: false,
+            current_version: current_version(),
+            version: None,
+            notes: None,
+            published_at: None,
+        }),
+        Err(error) => Err(error_code(&error).to_string()),
+    }
+}
+
+/// Checks for an update. Never downloads or installs.
 #[tauri::command]
-pub async fn check_for_update(app: tauri::AppHandle) -> Result<String, String> {
-    let updater = app
-        .updater()
-        .map_err(|e| format!("Update check failed: {e}"))?;
+pub async fn check_for_update(app: tauri::AppHandle) -> Result<UpdateCheck, String> {
+    check(&app).await
+}
+
+/// Downloads and installs the available update, then restarts the app.
+///
+/// Progress is emitted as `update-progress`. The signature is verified by the
+/// updater plugin before the installer runs; a bad signature fails here and is
+/// reported, never ignored.
+#[tauri::command]
+pub async fn install_update(app: tauri::AppHandle) -> Result<String, String> {
+    let updater = updater(&app)?;
     let update = updater
         .check()
         .await
-        .map_err(|e| format!("Update check failed: {e}"))?;
+        .map_err(|error| error_code(&error).to_string())?
+        .ok_or_else(|| "no update is available".to_string())?;
 
-    match update {
-        Some(update) => {
-            let version = update.version.clone();
+    let version = update.version.clone();
+    let progress_app = app.clone();
+    let mut downloaded: u64 = 0;
 
-            // Download and install
-            let mut downloaded: u64 = 0;
-            update
-                .download_and_install(
-                    |chunk_length, content_length| {
-                        downloaded += chunk_length as u64;
-                        if let Some(total) = content_length {
-                            let _ = app.emit(
-                                "update-progress",
-                                serde_json::json!({
-                                    "downloaded": downloaded,
-                                    "total": total,
-                                }),
-                            );
-                        }
+    let result = update
+        .download_and_install(
+            move |chunk_length, content_length| {
+                downloaded += chunk_length as u64;
+                let _ = progress_app.emit(
+                    "update-progress",
+                    UpdateProgress {
+                        downloaded,
+                        total: content_length,
                     },
-                    || {
-                        // Download finished callback
-                    },
-                )
-                .await
-                .map_err(|e| format!("Update install failed: {e}"))?;
+                );
+            },
+            || {},
+        )
+        .await;
 
-            Ok(format!(
-                "Update v{version} downloaded. Restart the app to apply."
-            ))
+    match result {
+        Ok(()) => {
+            record_event(
+                &app,
+                AppEventLevel::Info,
+                "UPDATE_INSTALLED",
+                &format!("installed version {version}"),
+            );
+            // The installer has run; restart into the new build.
+            app.restart();
         }
-        None => Ok("You are already on the latest version.".to_string()),
+        Err(error) => {
+            let code = error_code(&error).to_string();
+            record_event(
+                &app,
+                AppEventLevel::Error,
+                &code,
+                &format!("installing version {version} failed"),
+            );
+            Err(code)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn current_version_matches_the_crate_version() {
+        assert_eq!(current_version(), env!("CARGO_PKG_VERSION"));
+        assert!(
+            current_version().split('.').count() >= 3,
+            "the version must be a semantic version: {}",
+            current_version()
+        );
+    }
+
+    #[test]
+    fn error_codes_are_stable_and_carry_no_url() {
+        let network = tauri_plugin_updater::Error::Network(
+            "https://example.com/latest.json refused".to_string(),
+        );
+        let code = error_code(&network);
+        assert_eq!(code, "UPDATE_ENDPOINT_UNREACHABLE");
+        assert!(!code.contains("http"), "codes must not leak the endpoint");
+
+        let signature =
+            tauri_plugin_updater::Error::SignatureUtf8("not valid utf8 signature".to_string());
+        assert_eq!(error_code(&signature), "UPDATE_SIGNATURE_INVALID");
+
+        let manifest = tauri_plugin_updater::Error::InvalidUpdaterFormat;
+        assert_eq!(error_code(&manifest), "UPDATE_FAILED");
     }
 }

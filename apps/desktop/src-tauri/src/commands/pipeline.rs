@@ -100,6 +100,26 @@ pub fn refresh_now(state: &AppState) -> Result<RefreshCycleOutcome, String> {
     ))
 }
 
+/// Re-evaluates alerts from current state. Used by the background loop after a
+/// refresh cycle; returns the failure reason instead of swallowing it.
+pub fn evaluate_alerts_now(state: &AppState) -> Result<(), String> {
+    let storage_guard = state.ensure_storage()?;
+    let storage = storage_guard.as_ref().ok_or("storage not initialized")?;
+    let hash_key = load_or_create_hash_key(&storage.conn)?;
+    let registry = ensure_registry(state, &hash_key)?;
+    let overrides = AppSettingsRepository::new(&storage.conn)
+        .get("pricing_overrides")
+        .ok()
+        .flatten()
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+        .unwrap_or_else(|| serde_json::json!([]));
+    let resolver = lnwdeck_pricing::catalog::PriceResolver::new_with_overrides(&overrides);
+    let display_name = |id: &str| registry.display_name(id).unwrap_or(id).to_string();
+    lnwdeck_application::alerts::EvaluateAlerts::execute(&storage.conn, &resolver, &display_name)
+        .map(|_| ())
+        .map_err(|e| format!("alert evaluation: {e}"))
+}
+
 #[tauri::command]
 pub fn refresh_all(
     app: tauri::AppHandle,

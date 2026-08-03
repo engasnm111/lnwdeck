@@ -1,7 +1,11 @@
+pub mod alerts;
 pub mod analytics;
+pub mod budgets;
+pub mod costs;
 pub mod ingest;
 pub mod overview;
 pub mod providers;
 pub mod quota;
 pub mod refresh;
-pub mod update;
+pub mod settings;
+pub mod usage_history;
