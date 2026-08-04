@@ -111,6 +111,7 @@ jobs:
           name: bundles-${{ matrix.target }}
           path: |
             target/${{ matrix.target }}/release/bundle/**/*.exe
+            target/${{ matrix.target }}/release/bundle/**/*.msi
             target/${{ matrix.target }}/release/bundle/**/*.sig
             lnwdeck_*_portable.zip
           if-no-files-found: error
