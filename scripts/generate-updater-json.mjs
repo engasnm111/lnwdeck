@@ -4,10 +4,10 @@
 // Usage:
 //   node scripts/generate-updater-json.mjs <tag> <assets-dir> [output-file]
 //
-// Scans the assets directory for signed NSIS installers (`*-setup.exe`
-// paired with `*.sig` files) and writes latest.json with the correct
-// updater platform keys and download URLs. Never fabricates signatures:
-// an installer without its `.sig` file is skipped.
+// Scans the assets directory recursively for signed NSIS installers
+// (`*-setup.exe` paired with `*.sig` files) and writes latest.json with the
+// correct updater platform keys and download URLs. Never fabricates a
+// signature: an installer without its `.sig` file fails the run.
 
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
@@ -29,28 +29,53 @@ export function parseTag(tag) {
   return value.slice(1);
 }
 
+/**
+ * Every file under `root`, recursively, as `{ name, path }`.
+ *
+ * The release workflow downloads build artifacts with their directory structure
+ * intact (`target/<triple>/release/bundle/nsis/...`), so a top-level listing
+ * finds nothing. This is what made the previous release fail.
+ */
+export function collectFiles(root) {
+  const found = [];
+  const stack = [root];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      const path = join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(path);
+      } else {
+        found.push({ name: entry.name, path });
+      }
+    }
+  }
+  return found;
+}
+
 export function buildUpdaterJson({ tag, repo, assetsDir }) {
   const version = parseTag(tag);
   if (!version) {
     throw new Error(`invalid tag: ${tag}`);
   }
   const platforms = {};
-  const files = readdirSync(assetsDir);
+  const files = collectFiles(assetsDir);
   for (const file of files) {
-    if (!file.endsWith("-setup.exe")) continue;
-    const platform = platformFor(file);
+    if (!file.name.endsWith("-setup.exe")) continue;
+    const platform = platformFor(file.name);
     if (!platform) continue;
-    const sigFile = `${file}.sig`;
-    if (!files.includes(sigFile)) {
-      throw new Error(`installer ${file} has no ${sigFile} signature`);
+    const sigName = `${file.name}.sig`;
+    const sigFile = files.find((candidate) => candidate.name === sigName);
+    if (!sigFile) {
+      throw new Error(`installer ${file.name} has no ${sigName} signature`);
     }
-    const signature = readFileSync(join(assetsDir, sigFile), "utf8").trim();
+    const signature = readFileSync(sigFile.path, "utf8").trim();
     if (!signature) {
-      throw new Error(`signature file ${sigFile} is empty`);
+      throw new Error(`signature file ${sigName} is empty`);
     }
     platforms[platform] = {
       signature,
-      url: `https://github.com/${repo}/releases/download/${tag}/${file}`,
+      url: `https://github.com/${repo}/releases/download/${tag}/${file.name}`,
     };
   }
   if (Object.keys(platforms).length === 0) {

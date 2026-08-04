@@ -135,12 +135,30 @@ jobs:
       - name: List downloaded artifacts
         run: ls -R dist-assets
 
+      # The download preserves the upload paths, so installers arrive several
+      # directories deep. Release assets must be plain files, so they are
+      # flattened first; a name collision fails the run rather than silently
+      # replacing one architecture's installer with another's.
+      - name: Flatten release assets
+        run: |
+          mkdir -p release-assets
+          find dist-assets -type f \( -name '*.exe' -o -name '*.sig' -o -name '*.zip' -o -name '*.msi' \) -print0 |
+            while IFS= read -r -d '' file; do
+              name=$(basename "$file")
+              if [ -e "release-assets/$name" ]; then
+                echo "::error::duplicate release asset: $name"
+                exit 1
+              fi
+              cp "$file" "release-assets/$name"
+            done
+          ls -l release-assets
+
       # Fails when an installer has no signature, so a release cannot be
       # published without a verifiable updater manifest.
       - name: Generate updater latest.json
         run: |
-          node scripts/generate-updater-json.mjs "${{ github.ref_name }}" dist-assets dist-assets/latest.json
-          cat dist-assets/latest.json
+          node scripts/generate-updater-json.mjs "${{ github.ref_name }}" release-assets release-assets/latest.json
+          cat release-assets/latest.json
 
       - name: Resolve release notes file
         id: notes
@@ -157,7 +175,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ github.ref_name }}" dist-assets/* \
+          gh release create "${{ github.ref_name }}" release-assets/* \
             --repo "${{ github.repository }}" \
             --title "lnwdeck ${{ github.ref_name }}" \
             --notes-file "${{ steps.notes.outputs.path }}" \

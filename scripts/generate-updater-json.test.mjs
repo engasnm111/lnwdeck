@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -83,5 +83,59 @@ test("buildUpdaterJson rejects an invalid tag", () => {
   assert.throws(
     () => buildUpdaterJson({ tag: "0.2.0", repo: "x/y", assetsDir: dir }),
     /invalid tag/,
+  );
+});
+
+test("collects installers from nested artifact directories", async () => {
+  const { buildUpdaterJson, collectFiles } = await import(
+    "./generate-updater-json.mjs"
+  );
+  const root = mkdtempSync(join(tmpdir(), "updater-nested-"));
+  // Mirrors what actions/download-artifact produces: the upload paths are
+  // preserved, so the installers sit several directories deep.
+  const nested = join(root, "target", "x86_64-pc-windows-msvc", "release", "bundle", "nsis");
+  mkdirSync(nested, { recursive: true });
+  writeFileSync(join(nested, "lnwdeck_0.2.1_x64-setup.exe"), "installer");
+  writeFileSync(join(nested, "lnwdeck_0.2.1_x64-setup.exe.sig"), "signature-x64");
+
+  const arm = join(root, "target", "aarch64-pc-windows-msvc", "release", "bundle", "nsis");
+  mkdirSync(arm, { recursive: true });
+  writeFileSync(join(arm, "lnwdeck_0.2.1_arm64-setup.exe"), "installer");
+  writeFileSync(join(arm, "lnwdeck_0.2.1_arm64-setup.exe.sig"), "signature-arm");
+
+  assert.equal(collectFiles(root).length, 4);
+
+  const json = buildUpdaterJson({
+    tag: "v0.2.1",
+    repo: "engasnm111/lnwdeck",
+    assetsDir: root,
+  });
+  assert.equal(json.version, "0.2.1");
+  assert.deepEqual(Object.keys(json.platforms).sort(), [
+    "windows-aarch64",
+    "windows-x86_64",
+  ]);
+  assert.equal(json.platforms["windows-x86_64"].signature, "signature-x64");
+  assert.equal(
+    json.platforms["windows-x86_64"].url,
+    "https://github.com/engasnm111/lnwdeck/releases/download/v0.2.1/lnwdeck_0.2.1_x64-setup.exe",
+  );
+});
+
+test("a nested installer without its signature fails the run", async () => {
+  const { buildUpdaterJson } = await import("./generate-updater-json.mjs");
+  const root = mkdtempSync(join(tmpdir(), "updater-unsigned-"));
+  const nested = join(root, "deep", "bundle", "nsis");
+  mkdirSync(nested, { recursive: true });
+  writeFileSync(join(nested, "lnwdeck_0.2.1_x64-setup.exe"), "installer");
+
+  assert.throws(
+    () =>
+      buildUpdaterJson({
+        tag: "v0.2.1",
+        repo: "engasnm111/lnwdeck",
+        assetsDir: root,
+      }),
+    /has no lnwdeck_0\.2\.1_x64-setup\.exe\.sig signature/,
   );
 });
