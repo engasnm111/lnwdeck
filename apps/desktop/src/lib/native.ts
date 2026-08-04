@@ -466,10 +466,16 @@ export async function deleteProviderKey(
   return invoke<SettingsViewData>("delete_provider_key", { providerId });
 }
 
+/** Widget layout: horizontal bars, or compact rings. */
+export type WidgetView = "bars" | "rings";
+
 export interface WidgetSettingsData {
   opacity: number;
   locked: boolean;
   visible: boolean;
+  /** Pinned provider ids. Empty means every reporting provider is shown. */
+  selected_providers: string[];
+  view: WidgetView;
 }
 
 export async function fetchWidgetSettings(): Promise<WidgetSettingsData> {
@@ -482,6 +488,21 @@ export async function setWidgetOpacity(opacity: number): Promise<number> {
 
 export async function setWidgetLocked(locked: boolean): Promise<boolean> {
   return invoke<boolean>("set_widget_locked", { locked });
+}
+
+/** Switches the widget layout and returns the stored layout. */
+export async function setWidgetView(view: WidgetView): Promise<WidgetView> {
+  return invoke<WidgetView>("set_widget_view", { view });
+}
+
+/**
+ * Pins the widget to a set of providers and returns the stored selection.
+ * An empty list restores every reporting provider.
+ */
+export async function setWidgetProviders(
+  providers: string[],
+): Promise<string[]> {
+  return invoke<string[]>("set_widget_providers", { providers });
 }
 
 export async function showWidgetWindow(): Promise<void> {

@@ -52,6 +52,10 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -115,8 +119,15 @@ jobs:
           path: dist-assets
           merge-multiple: true
 
+      - name: List downloaded artifacts
+        run: ls -R dist-assets
+
+      # Fails when an installer has no signature, so a release cannot be
+      # published without a verifiable updater manifest.
       - name: Generate updater latest.json
-        run: node scripts/generate-updater-json.mjs "${{ github.ref_name }}" dist-assets
+        run: |
+          node scripts/generate-updater-json.mjs "${{ github.ref_name }}" dist-assets dist-assets/latest.json
+          cat dist-assets/latest.json
 
       - name: Resolve release notes file
         id: notes

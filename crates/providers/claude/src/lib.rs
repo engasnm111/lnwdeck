@@ -11,6 +11,8 @@ use lnwdeck_provider_runtime::{
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
+pub mod usage_api;
+
 const ADAPTER_VERSION: &str = "0.2.0";
 /// Hard bounds for the passive local scan so a huge or corrupted history can
 /// never stall or exhaust the collector.
@@ -153,7 +155,7 @@ impl ClaudeAdapter {
         Ok(report.samples)
     }
 
-    fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
+    fn local_quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
         if !self.projects_dir.is_dir() {
             return Ok(None);
         }
@@ -195,6 +197,38 @@ impl ClaudeAdapter {
             windows,
             DEFAULT_FRESHNESS,
         )))
+    }
+
+    /// Quota for the Claude subscription.
+    ///
+    /// Anthropic publishes the utilization of each rate-limit window to the
+    /// same OAuth token Claude Code stores locally, so that is the
+    /// authoritative source. Without a stored token, or when the account has
+    /// no published window, the local session scan provides usage-only windows
+    /// instead, clearly marked as having no limit.
+    fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
+        match usage_api::fetch_windows(
+            &self.credentials_path,
+            &usage_api::default_endpoint(),
+            std::time::Duration::from_secs(10),
+        ) {
+            Ok(Some(windows)) => {
+                let mut report = QuotaReport::new(
+                    "anthropic_claude",
+                    "provider_api",
+                    windows,
+                    DEFAULT_FRESHNESS,
+                );
+                report.plan = Some("Subscription".to_string());
+                Ok(Some(report))
+            }
+            // No token stored: fall back to what the local files show.
+            Ok(None) => self.local_quota_estimate(),
+            // An expired credential or a rate limit is reported, not hidden
+            // behind a local estimate that would look like fresh quota.
+            Err(code) if code == "AUTH_EXPIRED" || code == "RATE_LIMITED" => Err(code),
+            Err(_) => self.local_quota_estimate(),
+        }
     }
 }
 
@@ -262,7 +296,9 @@ impl ProviderAdapter for ClaudeAdapter {
             vendor: "Anthropic",
             source_kind: SourceKind::LocalJsonl,
             usage_support: ChannelSupport::LocalEstimate,
-            quota_support: ChannelSupport::LocalEstimate,
+            // Anthropic publishes real per-window utilization to the local
+            // OAuth token; the local scan is only the fallback.
+            quota_support: ChannelSupport::Native,
             auth: AuthKind::LocalFiles,
             adapter_version: ADAPTER_VERSION,
         }

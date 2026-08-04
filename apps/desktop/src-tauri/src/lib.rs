@@ -198,6 +198,8 @@ pub fn run() {
             windows::get_widget_settings,
             windows::set_widget_opacity,
             windows::set_widget_locked,
+            windows::set_widget_providers,
+            windows::set_widget_view,
             windows::show_main_window,
             updater::check_for_update,
             updater::install_update,

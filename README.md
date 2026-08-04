@@ -20,8 +20,11 @@ no account, no server and no sync.
   entry is listed as unpriced instead of being charged at another rate.
 - **Budgets and alerts** you configure, evaluated against recorded usage, quota
   thresholds and collector failures.
-- **Floating widget** with remaining-quota bars, reset countdowns and honest
-  stale, error and not-configured states.
+- **Floating widget**: a small always-on-top window with its own entry point (no
+  sidebar, no dashboard bundle). One row per quota window with an icon, the
+  window name, the remaining percentage, a colour-coded bar and the next reset,
+  or a compact ring layout. Bar colour follows severity: above 50% normal,
+  20-50% warning, below 20% critical.
 - **Diagnostics** for the database, migrations, per-provider collector runs and
   background failures, with a sanitized JSON export.
 
@@ -33,9 +36,9 @@ whose source is missing reports that instead of an empty success.
 
 | Provider | Usage history | Remaining quota | Source | Needs |
 |---|---|---|---|---|
+| Claude | Local estimate | Published percentage per window | `api.anthropic.com/api/oauth/usage` with the token Claude Code stored | Claude Code sign-in |
+| Codex | Local estimate | Published percentage per window | `chatgpt.com/backend-api/wham/usage` with the token Codex CLI stored | Codex CLI sign-in |
 | OpenCode | Local estimate | Local estimate (usage windows) | `opencode.db` | Local files |
-| Claude | Local estimate | Local estimate (usage windows) | `~/.claude/projects` session JSONL | Local files |
-| Codex | Local estimate | Local estimate (usage windows) | `~/.codex/sessions` session JSONL | Local files |
 | Gemini | Local estimate | Local estimate (usage windows) | `~/.gemini` records | Local files |
 | Cursor | Local estimate | Local estimate (usage windows) | `state.vscdb` | Local files |
 | Copilot | Local estimate | Local estimate (usage windows) | CLI and editor logs | Local files |
@@ -44,10 +47,16 @@ whose source is missing reports that instead of an empty success.
 | OpenRouter | Not supported | Supported (credits and rate limit) | `GET /api/v1/key` | API key |
 | Grok (xAI) | Not supported | Supported when xAI publishes rate limits | `GET /v1/api-key` headers | API key |
 
+"Published percentage per window" means the vendor reports how much of each
+rate-limit window is used; lnwdeck shows that percentage and its reset time and
+invents no token counts around it. Those two requests reuse the OAuth token the
+vendor's own CLI already stored for you, so there is nothing to configure; when
+no token is present the provider falls back to local usage windows.
+
 "Local estimate" means the numbers are real measurements taken from local files,
-but the provider does not publish a plan limit, so no remaining percentage is
-shown. API-key providers stay inert until you store a key in Settings; nothing is
-sent anywhere before that.
+but the provider publishes no plan limit, so no remaining percentage is shown -
+the widget says "Unavailable" rather than guessing. API-key providers stay inert
+until you store a key in Settings; nothing is sent anywhere before that.
 
 ## Screenshots
 
@@ -57,9 +66,28 @@ machine they were taken on.
 
 | View | Image |
 |---|---|
-| Overview | `assets/screenshots/overview_dashboard.png` |
-| Providers | `assets/screenshots/providers_page.png` |
-| System diagnostics | `assets/screenshots/system_diagnostics.png` |
+| Overview | ![Overview](assets/screenshots/overview_dashboard.png) |
+| Providers | ![Providers](assets/screenshots/providers_page.png) |
+| Costs | ![Costs](assets/screenshots/costs_page.png) |
+| System diagnostics | ![System](assets/screenshots/system_diagnostics.png) |
+| Floating widget | ![Widget](assets/screenshots/floating_widget.png) |
+
+Recapture them with `pwsh ./scripts/capture_app_screenshots.ps1 -ShowWidget`
+after a release build; the script photographs the real windows and never mocks
+data.
+
+## Floating widget
+
+- Always on top, frameless, remembered position, size, opacity, layout and
+  provider selection.
+- Drag by the header; Lock pins it in place. Refresh, Dashboard, layout switch,
+  provider picker and Close are in the header. Escape closes it.
+- Every bar and ring exposes an ARIA progressbar with the percentage and the
+  reset time, and every control is reachable by keyboard.
+- States it renders explicitly: loading, no data, no provider selected, stale,
+  rate limited, not authenticated, unavailable and error. A window with no
+  published limit shows "Unavailable" and a hatched track; a window with no reset
+  time shows "Reset time unavailable".
 
 ## Quickstart
 
@@ -114,7 +142,9 @@ against the built artifacts and asserts that a tampered installer is rejected.
   carry them, and the rejection is recorded.
 - Provider API keys are stored in the Windows Credential Manager, never in the
   database, the logs or an export.
-- Network requests happen only for providers where you stored a key.
+- Network requests happen only for the two provider APIs above (reusing the token
+  their own CLI stored) and for providers where you stored a key. Nothing else
+  leaves the machine.
 - Data is stored in a local SQLite database. It is not encrypted at rest; see
   the limitations below.
 

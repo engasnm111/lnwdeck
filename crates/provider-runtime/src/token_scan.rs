@@ -103,6 +103,9 @@ const TIMESTAMP_KEYS: &[&str] = &[
     "requestTime",
 ];
 
+/// Only explicit token fields are accepted. Bare `input` and `output` keys were
+/// tried and removed: they match unrelated numbers in editor and CLI logs, which
+/// inflated recorded usage by orders of magnitude.
 const INPUT_KEYS: &[&str] = &[
     "input_tokens",
     "inputTokens",
@@ -111,7 +114,6 @@ const INPUT_KEYS: &[&str] = &[
     "promptTokenCount",
     "tokens_input",
     "inputTokenCount",
-    "input",
 ];
 
 const OUTPUT_KEYS: &[&str] = &[
@@ -122,7 +124,6 @@ const OUTPUT_KEYS: &[&str] = &[
     "candidatesTokenCount",
     "tokens_output",
     "outputTokenCount",
-    "output",
 ];
 
 const MODEL_KEYS: &[&str] = &["model", "modelId", "model_id", "modelName", "model_name"];
@@ -705,5 +706,39 @@ mod window_tests {
             Confidence::Low,
         );
         assert_eq!(events[0].model, "unknown");
+    }
+}
+
+#[cfg(test)]
+mod precision_tests {
+    use super::*;
+
+    #[test]
+    fn generic_input_and_output_numbers_are_not_treated_as_tokens() {
+        let mut samples = Vec::new();
+        // A log line from an editor: `input` and `output` here are device ids
+        // and byte counts, not token counts.
+        extract_from_text(
+            r#"{"timestamp":"2027-01-15T10:00:00Z","audio":{"input":2,"output":7}}
+{"timestamp":"2027-01-15T10:05:00Z","transfer":{"input":8206900000,"output":22000000}}"#,
+            &mut samples,
+        );
+        assert!(
+            samples.is_empty(),
+            "only explicit token fields may be counted: {samples:?}"
+        );
+    }
+
+    #[test]
+    fn explicit_token_fields_are_still_recognized() {
+        let mut samples = Vec::new();
+        extract_from_text(
+            r#"{"timestamp":"2027-01-15T10:00:00Z","usage":{"input_tokens":10,"output_tokens":5}}
+{"timestamp":"2027-01-15T10:01:00Z","usage":{"promptTokenCount":3,"candidatesTokenCount":4}}"#,
+            &mut samples,
+        );
+        assert_eq!(samples.len(), 2);
+        assert_eq!(samples[0].input_tokens, 10);
+        assert_eq!(samples[1].output_tokens, 4);
     }
 }

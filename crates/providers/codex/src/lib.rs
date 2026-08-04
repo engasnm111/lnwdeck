@@ -11,6 +11,8 @@ use lnwdeck_provider_runtime::{
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
+pub mod usage_api;
+
 const ADAPTER_VERSION: &str = "0.2.0";
 const MAX_FILES: usize = 400;
 const MAX_TOTAL_BYTES: u64 = 32 * 1024 * 1024;
@@ -145,7 +147,7 @@ impl CodexAdapter {
         Ok(report.samples)
     }
 
-    fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
+    fn local_quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
         if !self.sessions_dir.is_dir() {
             return Ok(None);
         }
@@ -187,6 +189,30 @@ impl CodexAdapter {
             windows,
             DEFAULT_FRESHNESS,
         )))
+    }
+
+    /// Quota for the Codex subscription.
+    ///
+    /// OpenAI publishes the used percentage of each rate-limit window to the
+    /// OAuth token the Codex CLI stores locally. Without a stored token, or
+    /// when no window is published, the local session scan provides usage-only
+    /// windows instead.
+    fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
+        match usage_api::fetch_windows(
+            &self.auth_path,
+            &usage_api::default_endpoint(),
+            std::time::Duration::from_secs(10),
+        ) {
+            Ok(Some(windows)) => {
+                let mut report =
+                    QuotaReport::new("openai_codex", "provider_api", windows, DEFAULT_FRESHNESS);
+                report.plan = Some("Subscription".to_string());
+                Ok(Some(report))
+            }
+            Ok(None) => self.local_quota_estimate(),
+            Err(code) if code == "AUTH_EXPIRED" || code == "RATE_LIMITED" => Err(code),
+            Err(_) => self.local_quota_estimate(),
+        }
     }
 }
 
@@ -258,7 +284,8 @@ impl ProviderAdapter for CodexAdapter {
             vendor: "OpenAI",
             source_kind: SourceKind::LocalJsonl,
             usage_support: ChannelSupport::LocalEstimate,
-            quota_support: ChannelSupport::LocalEstimate,
+            // OpenAI publishes real per-window usage to the local OAuth token.
+            quota_support: ChannelSupport::Native,
             auth: AuthKind::LocalFiles,
             adapter_version: ADAPTER_VERSION,
         }

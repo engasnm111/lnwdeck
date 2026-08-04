@@ -10,9 +10,14 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CARGO_TERM_COLOR: always
+  # Keep CI failures deterministic: a warning is an error.
+  RUSTFLAGS: -D warnings
+
 jobs:
   check:
-    name: Check (fmt + clippy + typecheck)
+    name: Check (fmt, clippy, typecheck)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,11 +31,16 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Install Rust toolchain
-        run: rustup show
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: check
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Run checks
         run: pnpm check
@@ -50,18 +60,41 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Install Rust toolchain
-        run: rustup show
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: test
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
-      - name: Run tests
-        run: pnpm test
+      # Run the suites one at a time so a failure names the suite that broke.
+      - name: Rust tests
+        run: pnpm run test:rs
 
-  compile-x86_64:
-    name: Compile (x86_64-pc-windows-msvc)
+      - name: Frontend tests
+        run: pnpm run test:ts
+
+      - name: Release script tests
+        run: pnpm run release:test
+
+      - name: End-to-end pipeline test
+        run: pnpm run test:e2e
+
+      - name: Release version consistency
+        run: node scripts/check-release-version.mjs "v$(node -p "require('./installer/package-config.json').version")"
+
+  compile:
+    name: Compile (${{ matrix.target }})
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-pc-windows-msvc
+          - aarch64-pc-windows-msvc
+          - i686-pc-windows-msvc
     steps:
       - uses: actions/checkout@v4
 
@@ -74,59 +107,21 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Install Rust toolchain
-        run: rustup show
+      # The target's standard library must be installed, otherwise
+      # `cargo check --target` fails to find `core`.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: compile-${{ matrix.target }}
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: cargo check (x86_64)
-        run: cargo check --target x86_64-pc-windows-msvc
+      - name: Build frontend
+        run: pnpm --filter @lnwdeck/desktop run build
 
-  compile-aarch64:
-    name: Compile (aarch64-pc-windows-msvc)
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: latest
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install Rust toolchain
-        run: rustup show
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: cargo check (aarch64)
-        run: cargo check --target aarch64-pc-windows-msvc
-
-  compile-i686:
-    name: Compile (i686-pc-windows-msvc)
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: latest
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install Rust toolchain
-        run: rustup show
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: cargo check (i686)
-        run: cargo check --target i686-pc-windows-msvc
+      - name: cargo check
+        run: cargo check --workspace --all-targets --target ${{ matrix.target }}

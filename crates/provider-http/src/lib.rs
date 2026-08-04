@@ -49,6 +49,9 @@ pub struct JsonRequest<'a> {
     pub timeout: Duration,
     /// Header names to return with the response, lowercase.
     pub capture_headers: &'a [&'a str],
+    /// Extra request headers, for provider APIs that require an opt-in header.
+    /// Never used for credentials: those go through `bearer_token`.
+    pub extra_headers: &'a [(&'a str, &'a str)],
 }
 
 impl<'a> JsonRequest<'a> {
@@ -58,6 +61,7 @@ impl<'a> JsonRequest<'a> {
             bearer_token: None,
             timeout: Duration::from_secs(10),
             capture_headers: &[],
+            extra_headers: &[],
         }
     }
 
@@ -68,6 +72,11 @@ impl<'a> JsonRequest<'a> {
 
     pub fn capture(mut self, headers: &'a [&'a str]) -> Self {
         self.capture_headers = headers;
+        self
+    }
+
+    pub fn with_headers(mut self, headers: &'a [(&'a str, &'a str)]) -> Self {
+        self.extra_headers = headers;
         self
     }
 }
@@ -98,6 +107,9 @@ pub fn get_json(request: JsonRequest<'_>) -> Result<HttpResponse, String> {
         .new_agent();
 
     let mut call = agent.get(request.url).header("accept", "application/json");
+    for (name, value) in request.extra_headers {
+        call = call.header(*name, *value);
+    }
     if let Some(token) = request.bearer_token {
         if token.trim().is_empty() {
             return Err("NOT_CONFIGURED".to_string());
@@ -145,6 +157,14 @@ mod tests {
         assert_eq!(code_for_status(404), "SOURCE_SCHEMA_MISMATCH");
         assert_eq!(code_for_status(503), "PROVIDER_UNAVAILABLE");
         assert_eq!(code_for_status(418), "PROVIDER_ERROR");
+    }
+
+    #[test]
+    fn extra_headers_are_carried_on_the_request() {
+        let headers = [("anthropic-beta", "oauth-2025-04-20")];
+        let request = JsonRequest::new("https://example.invalid/api").with_headers(&headers);
+        assert_eq!(request.extra_headers.len(), 1);
+        assert_eq!(request.extra_headers[0].0, "anthropic-beta");
     }
 
     #[test]

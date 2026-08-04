@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   fetchQuotaDashboard,
@@ -6,124 +6,311 @@ import {
   hideWidgetWindow,
   refreshAll,
   setWidgetLocked,
-  setWidgetOpacity,
+  setWidgetProviders,
+  setWidgetView,
   showMainWindow,
   type ProviderQuotaCard,
   type QuotaDashboardData,
+  type QuotaStatus,
   type QuotaWindowData,
   type WidgetSettingsData,
+  type WidgetView,
 } from "../../lib/native";
-import { formatCompact, formatCountdown, formatRefreshedAgo } from "./widgetTime";
+import {
+  formatCompact,
+  formatRefreshedAgo,
+  formatRemaining,
+  formatResetLabel,
+  formatResetShort,
+  quotaLevel,
+  windowSubtitle,
+  type QuotaLevel,
+} from "./widgetTime";
+import {
+  BarsIcon,
+  CalendarIcon,
+  ClockIcon,
+  DotIcon,
+  SparkIcon,
+} from "./WidgetIcons";
 
-const STATUS_LABELS: Record<ProviderQuotaCard["status"], string> = {
-  fresh: "OK",
-  stale: "stale",
-  unavailable: "unavailable",
-  auth_expired: "auth expired",
-  rate_limited: "rate limited",
-  error: "error",
-};
-
-/** Credit amounts are carried in micro-credits by the OpenRouter adapter. */
+/** Credits are carried in micro-credits by the OpenRouter adapter. */
 const MICRO_CREDITS = 1_000_000;
+/** How often the dashboard is re-read. */
+const POLL_INTERVAL_MS = 30_000;
+/** How often the countdowns tick without refetching. */
+const TICK_INTERVAL_MS = 1_000;
 
-function formatAmount(value: number, kind: QuotaWindowData["kind"]): string {
-  if (kind === "credits") {
-    return (value / MICRO_CREDITS).toFixed(2);
-  }
-  return formatCompact(value);
+interface StatusChip {
+  label: string;
+  tone: "ok" | "stale" | "error" | "muted";
+  /** Why the provider is in this state, when there is more to say. */
+  detail: string | null;
 }
 
-function barTone(remainingPercent: number): "success" | "warning" | "danger" {
-  if (remainingPercent <= 5) {
-    return "danger";
+/**
+ * Maps a provider status to a chip.
+ *
+ * Each state named in the widget requirements has its own wording, so
+ * "not authenticated" is never shown as a generic error and a stale reading is
+ * never shown as fresh.
+ */
+export function statusChip(
+  status: QuotaStatus,
+  errorCode: string | null,
+): StatusChip {
+  switch (status) {
+    case "fresh":
+      return { label: "Live", tone: "ok", detail: null };
+    case "stale":
+      return {
+        label: "Stale",
+        tone: "stale",
+        detail: "This reading is older than the provider freshness window.",
+      };
+    case "rate_limited":
+      return {
+        label: "Rate limited",
+        tone: "error",
+        detail: "The provider refused further requests for now.",
+      };
+    case "auth_expired":
+      return {
+        label: "Not authenticated",
+        tone: "error",
+        detail: "The stored credential was rejected.",
+      };
+    case "unavailable":
+      return {
+        label: "Unavailable",
+        tone: "muted",
+        detail:
+          errorCode === "NOT_CONFIGURED"
+            ? "Add an API key in Settings to read this provider."
+            : "No source was available for this provider.",
+      };
+    default:
+      return {
+        label: "Error",
+        tone: "error",
+        detail: "The last collection failed.",
+      };
   }
-  if (remainingPercent <= 20) {
-    return "warning";
-  }
-  return "success";
 }
 
-function WindowRow({ window, now }: { window: QuotaWindowData; now: number }) {
-  if (window.is_unlimited) {
-    return (
-      <div className="widget-window">
-        <span className="widget-window-metric">Local / Unlimited</span>
-      </div>
-    );
+/** Row icon chosen from the window scope and kind. */
+function WindowIcon({ window }: { window: QuotaWindowData }) {
+  if (window.kind === "credits") {
+    return <SparkIcon />;
   }
+  switch (window.scope) {
+    case "rolling":
+    case "session":
+      return <ClockIcon />;
+    case "weekly":
+    case "daily":
+      return <BarsIcon />;
+    case "monthly":
+      return <CalendarIcon />;
+    default:
+      return <DotIcon />;
+  }
+}
 
-  const countdown = formatCountdown(window.reset_at, now);
+/** Amount formatting that keeps credits readable. */
+function formatUsed(window: QuotaWindowData): string {
+  if (window.kind === "credits") {
+    return `${(window.used / MICRO_CREDITS).toFixed(2)} credits`;
+  }
+  return `${formatCompact(window.used)} ${window.kind}`;
+}
 
-  // Without a real limit there is no bar to draw: the recorded usage is shown
-  // and marked as an estimate.
-  if (window.remaining_percent === null) {
-    return (
-      <div className="widget-window">
-        <span className="widget-window-metric">
-          {window.label}: used {formatAmount(window.used, window.kind)} {window.kind}
-          <span className="widget-estimate"> estimate</span>
-          {countdown ? ` - resets ${countdown}` : ""}
+/** A window with its derived presentation values. */
+function windowView(window: QuotaWindowData, now: number) {
+  const percent =
+    window.remaining_percent === null
+      ? null
+      : Math.max(0, Math.min(100, window.remaining_percent));
+  const level: QuotaLevel | null = percent === null ? null : quotaLevel(percent);
+  return {
+    percent,
+    level,
+    resetShort: formatResetShort(window.reset_at, now),
+    resetLong: formatResetLabel(window.reset_at, now),
+    subtitle: window.is_unlimited
+      ? "Local runtime, no quota"
+      : windowSubtitle(window.scope, window.kind, window.label),
+  };
+}
+
+/** One quota window as a labelled row with a full-width bar. */
+function BarRow({
+  window,
+  providerName,
+  now,
+}: {
+  window: QuotaWindowData;
+  providerName: string;
+  now: number;
+}) {
+  const view = windowView(window, now);
+  const barLabel = `${providerName} ${window.label} remaining`;
+
+  return (
+    <div className="w-row">
+      <div className="w-row-main">
+        <span className={`w-row-icon w-row-icon-${view.level ?? "unknown"}`}>
+          <WindowIcon window={window} />
+        </span>
+        <span className="w-row-text">
+          <span className="w-row-title">{window.label}</span>
+          <span className="w-row-subtitle">{view.subtitle}</span>
+        </span>
+        <span className="w-row-value">
+          {view.percent === null ? (
+            <span className="w-percent w-percent-unknown">
+              {formatRemaining(null)}
+            </span>
+          ) : (
+            <span className={`w-percent w-percent-${view.level}`}>
+              {Math.round(view.percent)}%
+            </span>
+          )}
+          <span className="w-row-reset">{view.resetLong}</span>
         </span>
       </div>
-    );
-  }
 
-  const remainingPercent = window.remaining_percent;
-  return (
-    <div className="widget-window">
-      <div
-        className="widget-bar"
-        role="progressbar"
-        aria-label={`${window.label} remaining`}
-        aria-valuenow={Math.round(remainingPercent)}
-        aria-valuemin={0}
-        aria-valuemax={100}
-      >
+      {view.percent === null ? (
         <div
-          className={`widget-bar-fill widget-bar-fill-${barTone(remainingPercent)}`}
-          style={{ width: `${remainingPercent}%` }}
+          className="w-bar w-bar-unknown"
+          role="img"
+          aria-label={`${barLabel}: no limit reported, ${formatUsed(window)} used, ${view.resetLong.toLowerCase()}`}
         />
-      </div>
-      <span className="widget-window-metric">
-        {window.label}: {Math.round(remainingPercent)}% left
-        {countdown ? ` - resets ${countdown}` : ""}
-      </span>
+      ) : (
+        <div
+          className="w-bar"
+          role="progressbar"
+          aria-label={barLabel}
+          aria-valuenow={Math.round(view.percent)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuetext={`${formatRemaining(view.percent)}, ${view.resetLong.toLowerCase()}`}
+        >
+          <div
+            className={`w-bar-fill w-bar-fill-${view.level}`}
+            style={{ width: `${view.percent}%` }}
+          />
+        </div>
+      )}
+
+      {view.percent === null && !window.is_unlimited && (
+        <span className="w-row-note">{formatUsed(window)} used, no limit reported</span>
+      )}
     </div>
   );
 }
 
-function ProviderRow({
+/** One quota window as a compact ring gauge. */
+function RingGauge({
+  window,
+  providerName,
+  now,
+}: {
+  window: QuotaWindowData;
+  providerName: string;
+  now: number;
+}) {
+  const view = windowView(window, now);
+  const radius = 26;
+  const circumference = 2 * Math.PI * radius;
+  const filled =
+    view.percent === null ? 0 : (view.percent / 100) * circumference;
+  const barLabel = `${providerName} ${window.label} remaining`;
+
+  return (
+    <div className="w-ring">
+      <svg
+        className="w-ring-svg"
+        viewBox="0 0 64 64"
+        role={view.percent === null ? "img" : "progressbar"}
+        aria-label={
+          view.percent === null
+            ? `${barLabel}: no limit reported`
+            : barLabel
+        }
+        aria-valuenow={view.percent === null ? undefined : Math.round(view.percent)}
+        aria-valuemin={view.percent === null ? undefined : 0}
+        aria-valuemax={view.percent === null ? undefined : 100}
+        aria-valuetext={
+          view.percent === null
+            ? undefined
+            : `${formatRemaining(view.percent)}, ${view.resetLong.toLowerCase()}`
+        }
+      >
+        <circle className="w-ring-track" cx="32" cy="32" r={radius} />
+        {view.percent !== null && (
+          <circle
+            className={`w-ring-fill w-ring-fill-${view.level}`}
+            cx="32"
+            cy="32"
+            r={radius}
+            strokeDasharray={`${filled} ${circumference - filled}`}
+            strokeDashoffset={circumference * 0.25}
+          />
+        )}
+      </svg>
+      <span className="w-ring-value">
+        {view.percent === null ? "--" : `${Math.round(view.percent)}%`}
+      </span>
+      <span className="w-ring-label">{window.label}</span>
+      <span className="w-ring-reset">{view.resetShort}</span>
+    </div>
+  );
+}
+
+function ProviderCard({
   provider,
+  view,
   now,
 }: {
   provider: ProviderQuotaCard;
+  view: WidgetView;
   now: number;
 }) {
-  const isError = provider.status !== "fresh" && provider.status !== "stale";
+  const chip = statusChip(provider.status, provider.error_code);
   return (
-    <li className={`widget-provider widget-provider-${provider.status}`}>
-      <div className="widget-provider-head">
-        <span className="widget-provider-name">{provider.display_name}</span>
-        {isError ? (
-          <span className="widget-status widget-status-error">
-            {STATUS_LABELS[provider.status]}
-            {provider.error_code ? ` (${provider.error_code})` : ""}
-          </span>
-        ) : provider.status === "stale" ? (
-          <span className="widget-status widget-status-stale">stale</span>
-        ) : (
-          <span className="widget-status widget-status-ok">OK</span>
-        )}
+    <li className="w-card">
+      <div className="w-card-head">
+        <span className="w-card-name">{provider.display_name}</span>
+        <span className={`w-chip w-chip-${chip.tone}`}>{chip.label}</span>
       </div>
+
       {provider.windows.length === 0 ? (
-        <div className="widget-window">
-          <span className="widget-window-metric">no quota data</span>
+        <p className="w-card-note">{chip.detail ?? "No quota was reported."}</p>
+      ) : view === "rings" ? (
+        <div className="w-rings">
+          {provider.windows.map((window) => (
+            <RingGauge
+              key={window.window_key}
+              window={window}
+              providerName={provider.display_name}
+              now={now}
+            />
+          ))}
         </div>
       ) : (
         provider.windows.map((window) => (
-          <WindowRow key={window.window_key} window={window} now={now} />
+          <BarRow
+            key={window.window_key}
+            window={window}
+            providerName={provider.display_name}
+            now={now}
+          />
         ))
+      )}
+
+      {provider.error_code && (
+        <p className="w-card-code">{provider.error_code}</p>
       )}
     </li>
   );
@@ -132,55 +319,70 @@ function ProviderRow({
 /**
  * Floating quota widget.
  *
- * Opacity, lock mode and visibility come from the backend and are written back
- * through commands, so the widget and the dashboard cannot disagree about them.
- * A window without a real limit never renders a progress bar.
+ * A dedicated always-on-top window with its own HTML entry: it does not load the
+ * dashboard shell. Only providers that actually reported data appear, a bar or a
+ * ring is drawn only where the provider published a real limit, and appearance,
+ * lock state, layout and the provider selection are held by the backend so the
+ * window and the dashboard cannot disagree.
  */
 export function FloatingWidget() {
   const [dashboard, setDashboard] = useState<QuotaDashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [now, setNow] = useState(Date.now());
+  const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(() => Date.now());
   const [settings, setSettings] = useState<WidgetSettingsData>({
     opacity: 1,
     locked: false,
     visible: true,
+    selected_providers: [],
+    view: "bars",
   });
   const [refreshing, setRefreshing] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const unlistenRef = useRef<UnlistenFn[]>([]);
 
   const load = useCallback(async () => {
-    setError(null);
     try {
-      setDashboard(await fetchQuotaDashboard());
+      const result = await fetchQuotaDashboard();
+      setDashboard(result);
+      setError(null);
     } catch (loadError) {
       setError(
         loadError instanceof Error ? loadError.message : "quota unavailable",
       );
+    } finally {
+      setLoading(false);
     }
+  }, []);
+
+  const applySettings = useCallback((payload: WidgetSettingsData) => {
+    setSettings({
+      ...payload,
+      selected_providers: payload.selected_providers ?? [],
+      view: payload.view === "rings" ? "rings" : "bars",
+    });
   }, []);
 
   const loadSettings = useCallback(async () => {
     try {
       const result = await fetchWidgetSettings();
-      // Only a well-formed payload replaces the current appearance; a missing
-      // or malformed one leaves the widget readable instead of blank.
       if (result && typeof result.opacity === "number") {
-        setSettings(result);
+        applySettings(result);
       }
     } catch {
       // Outside a Tauri runtime the documented defaults apply.
     }
-  }, []);
+  }, [applySettings]);
 
   useEffect(() => {
     void load();
     void loadSettings();
 
-    const dataTick = setInterval(() => {
+    const poll = setInterval(() => {
       setNow(Date.now());
       void load();
-    }, 30_000);
-    const countdownTick = setInterval(() => setNow(Date.now()), 1_000);
+    }, POLL_INTERVAL_MS);
+    const tick = setInterval(() => setNow(Date.now()), TICK_INTERVAL_MS);
 
     const subscribe = async () => {
       try {
@@ -190,7 +392,7 @@ export function FloatingWidget() {
         unlistenRef.current.push(
           await listen<WidgetSettingsData>(
             "widget-settings-changed",
-            (event) => setSettings(event.payload),
+            (event) => applySettings(event.payload),
           ),
         );
       } catch {
@@ -200,34 +402,14 @@ export function FloatingWidget() {
     void subscribe();
 
     return () => {
-      clearInterval(dataTick);
-      clearInterval(countdownTick);
+      clearInterval(poll);
+      clearInterval(tick);
       for (const unlisten of unlistenRef.current) {
         unlisten();
       }
       unlistenRef.current = [];
     };
-  }, [load, loadSettings]);
-
-  const changeOpacity = useCallback(async (delta: number) => {
-    try {
-      const stored = await setWidgetOpacity(
-        Math.round((settings.opacity + delta) * 100) / 100,
-      );
-      setSettings((current) => ({ ...current, opacity: stored }));
-    } catch {
-      // A refused value leaves the stored opacity untouched.
-    }
-  }, [settings.opacity]);
-
-  const toggleLock = useCallback(async () => {
-    try {
-      const stored = await setWidgetLocked(!settings.locked);
-      setSettings((current) => ({ ...current, locked: stored }));
-    } catch {
-      // Keep the previous state when the command fails.
-    }
-  }, [settings.locked]);
+  }, [load, loadSettings, applySettings]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -235,112 +417,248 @@ export function FloatingWidget() {
     try {
       await refreshAll();
       await load();
+      setNow(Date.now());
     } catch (refreshError) {
       setError(
-        refreshError instanceof Error
-          ? refreshError.message
-          : "refresh failed",
+        refreshError instanceof Error ? refreshError.message : "refresh failed",
       );
     } finally {
       setRefreshing(false);
     }
   }, [load]);
 
-  const hasAnyProvider = (dashboard?.providers.length ?? 0) > 0;
+  const toggleLock = useCallback(async () => {
+    try {
+      const stored = await setWidgetLocked(!settings.locked);
+      setSettings((current) => ({ ...current, locked: stored }));
+    } catch {
+      // A failed write leaves the previous state visible.
+    }
+  }, [settings.locked]);
+
+  const toggleView = useCallback(async () => {
+    const next: WidgetView = settings.view === "bars" ? "rings" : "bars";
+    try {
+      const stored = await setWidgetView(next);
+      setSettings((current) => ({
+        ...current,
+        view: stored === "rings" ? "rings" : "bars",
+      }));
+    } catch {
+      // Keep the current layout when the write is refused.
+    }
+  }, [settings.view]);
+
+  const toggleProvider = useCallback(
+    async (providerId: string) => {
+      const current = settings.selected_providers;
+      const next = current.includes(providerId)
+        ? current.filter((id) => id !== providerId)
+        : [...current, providerId];
+      try {
+        const stored = await setWidgetProviders(next);
+        setSettings((state) => ({ ...state, selected_providers: stored }));
+      } catch {
+        // Keep the current selection when the write is refused.
+      }
+    },
+    [settings.selected_providers],
+  );
+
+  // Escape hides the widget, matching the close button.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        void hideWidgetWindow();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  const allProviders = dashboard?.providers ?? [];
+  const visibleProviders = useMemo(() => {
+    if (settings.selected_providers.length === 0) {
+      return allProviders;
+    }
+    return allProviders.filter((provider) =>
+      settings.selected_providers.includes(provider.provider_id),
+    );
+  }, [allProviders, settings.selected_providers]);
+
+  const dragProps = settings.locked ? {} : { "data-tauri-drag-region": "" };
 
   return (
     <div
-      className="widget-root"
-      data-tauri-drag-region={settings.locked ? undefined : ""}
+      className="w-root"
+      data-locked={settings.locked ? "true" : "false"}
+      data-view={settings.view}
       style={{ opacity: settings.opacity }}
     >
-      <header className="widget-header" data-tauri-drag-region="">
-        <span className="widget-title" data-tauri-drag-region="">
+      <header className="w-header" {...dragProps}>
+        <span className="w-brand" {...dragProps}>
           lnwdeck
         </span>
-        <span className="widget-refreshed">
-          {dashboard ? formatRefreshedAgo(dashboard.generated_at, now) : ""}
-        </span>
+        <div className="w-header-actions">
+          <button
+            type="button"
+            className="w-btn"
+            onClick={() => void handleRefresh()}
+            disabled={refreshing}
+            aria-label="Refresh quota"
+            title="Refresh quota"
+          >
+            {refreshing ? "..." : "Sync"}
+          </button>
+          <button
+            type="button"
+            className="w-btn"
+            onClick={() => void showMainWindow()}
+            aria-label="Open dashboard"
+            title="Open the dashboard window"
+          >
+            Open
+          </button>
+          <button
+            type="button"
+            className="w-btn"
+            onClick={() => void toggleView()}
+            aria-label={
+              settings.view === "bars"
+                ? "Switch to ring layout"
+                : "Switch to bar layout"
+            }
+            title="Switch layout"
+          >
+            {settings.view === "bars" ? "Rings" : "Bars"}
+          </button>
+          <button
+            type="button"
+            className={`w-btn ${settings.locked ? "w-btn-active" : ""}`.trim()}
+            onClick={() => void toggleLock()}
+            aria-label={settings.locked ? "Unlock widget" : "Lock widget"}
+            aria-pressed={settings.locked}
+            title={
+              settings.locked
+                ? "Unlock so the widget can be dragged"
+                : "Lock the widget in place"
+            }
+          >
+            {settings.locked ? "Lock on" : "Lock off"}
+          </button>
+          <button
+            type="button"
+            className={`w-btn ${pickerOpen ? "w-btn-active" : ""}`.trim()}
+            onClick={() => setPickerOpen((open) => !open)}
+            aria-label="Choose providers"
+            aria-expanded={pickerOpen}
+            title="Choose which providers the widget shows"
+          >
+            Filter
+          </button>
+          <button
+            type="button"
+            className="w-btn w-btn-danger"
+            onClick={() => void hideWidgetWindow()}
+            aria-label="Close widget"
+            title="Close the widget"
+          >
+            Close
+          </button>
+        </div>
       </header>
 
-      <div className="widget-controls">
-        <button
-          type="button"
-          className="widget-button"
-          onClick={() => void toggleLock()}
-          aria-label={settings.locked ? "Unlock widget" : "Lock widget"}
-        >
-          {settings.locked ? "unlock" : "lock"}
-        </button>
-        <button
-          type="button"
-          className="widget-button"
-          onClick={() => void changeOpacity(-0.1)}
-          aria-label="Decrease opacity"
-        >
-          dim
-        </button>
-        <button
-          type="button"
-          className="widget-button"
-          onClick={() => void changeOpacity(0.1)}
-          aria-label="Increase opacity"
-        >
-          brighten
-        </button>
-        <span className="widget-controls-spacer" />
-        <button
-          type="button"
-          className="widget-button"
-          onClick={() => void handleRefresh()}
-          disabled={refreshing}
-          aria-label="Refresh quota"
-        >
-          {refreshing ? "..." : "refresh"}
-        </button>
-        <button
-          type="button"
-          className="widget-button"
-          onClick={() => void showMainWindow()}
-          aria-label="Open dashboard"
-        >
-          dashboard
-        </button>
-        <button
-          type="button"
-          className="widget-button"
-          onClick={() => void hideWidgetWindow()}
-          aria-label="Hide widget"
-        >
-          hide
-        </button>
-      </div>
+      {pickerOpen && (
+        <div className="w-picker">
+          <span className="w-picker-title" id="w-picker-title">
+            Providers shown
+          </span>
+          {allProviders.length === 0 ? (
+            <p className="w-message-detail">
+              No provider has reported data yet.
+            </p>
+          ) : (
+            <div
+              className="w-picker-list"
+              role="group"
+              aria-labelledby="w-picker-title"
+            >
+              {allProviders.map((provider) => {
+                const pinned =
+                  settings.selected_providers.length === 0 ||
+                  settings.selected_providers.includes(provider.provider_id);
+                return (
+                  <button
+                    key={provider.provider_id}
+                    type="button"
+                    className="w-tag"
+                    aria-pressed={pinned}
+                    onClick={() => void toggleProvider(provider.provider_id)}
+                  >
+                    {provider.display_name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
-      <main className="widget-body">
+      <main className="w-body">
         {error ? (
-          <p className="widget-empty" role="alert">
-            {error}
-          </p>
-        ) : !dashboard ? (
-          <p className="widget-empty" role="status">
-            loading
-          </p>
-        ) : !hasAnyProvider ? (
-          <p className="widget-empty" role="status">
-            no quota data yet
-          </p>
+          <div className="w-message w-message-error" role="alert">
+            <span className="w-message-title">Quota unavailable</span>
+            <span className="w-message-detail">{error}</span>
+          </div>
+        ) : loading ? (
+          <div className="w-message" role="status" aria-live="polite">
+            <span className="w-message-title">Loading</span>
+            <span className="w-message-detail">Reading stored quota</span>
+          </div>
+        ) : allProviders.length === 0 ? (
+          <div className="w-message" role="status">
+            <span className="w-message-title">No quota data yet</span>
+            <span className="w-message-detail">
+              Refresh, or open the dashboard to see which collectors found a
+              source.
+            </span>
+          </div>
+        ) : visibleProviders.length === 0 ? (
+          <div className="w-message" role="status">
+            <span className="w-message-title">No provider selected</span>
+            <span className="w-message-detail">
+              Every reporting provider is hidden by the current selection.
+            </span>
+          </div>
         ) : (
-          <ul className="widget-providers">
-            {dashboard.providers.map((provider) => (
-              <ProviderRow
+          <ul className="w-cards" aria-label="Provider quota">
+            {visibleProviders.map((provider) => (
+              <ProviderCard
                 key={provider.provider_id}
                 provider={provider}
+                view={settings.view}
                 now={now}
               />
             ))}
           </ul>
         )}
       </main>
+
+      <footer className="w-footer">
+        <span className="w-footer-updated">
+          Updated {dashboard ? formatRefreshedAgo(dashboard.generated_at, now) : "never"}
+        </span>
+        <span className="w-footer-spacer" />
+        {allProviders.length > 0 && (
+          <span className="w-footer-count">
+            {visibleProviders.length} of {allProviders.length} providers
+          </span>
+        )}
+        <span className="w-footer-interval">
+          <span className="w-dot" aria-hidden="true" />
+          {POLL_INTERVAL_MS / 1000}s
+        </span>
+      </footer>
     </div>
   );
 }

@@ -6,6 +6,15 @@ All notable changes to lnwdeck will be documented in this file.
 
 ### Highlights
 
+- **Published provider quota.** Claude and Codex report the utilization and reset
+  time of each rate-limit window to the OAuth token their own CLI already stored
+  on this machine; lnwdeck reads those endpoints and shows the real percentage.
+  No token count is invented around a percentage, and without a stored token the
+  provider falls back to local usage windows.
+- **Redesigned floating widget.** One row per window with an icon, the window
+  name and description, the remaining percentage, a colour-coded bar and the next
+  reset, plus a compact ring layout. Severity colours: above 50% normal, 20-50%
+  warning, below 20% critical. Layout and provider selection are remembered.
 - **Adapter descriptors.** Each adapter declares its source, its per-channel
   support and its authentication requirement. An unimplemented channel is
   recorded as `NOT_SUPPORTED` instead of as a successful empty collection, and an
@@ -25,9 +34,10 @@ All notable changes to lnwdeck will be documented in this file.
 - **Redesigned interface.** Windows 11 style surfaces, dark, light and
   follow-system themes, keyboard-navigable sidebar, visible focus rings, and
   usage history and quota presented as two clearly separate channels.
-- **Floating widget.** Remaining-quota bars only where a limit exists, reset
-  countdowns, stale and error badges, and opacity, lock, size and position held
-  by the backend so the window and the dashboard cannot disagree.
+- **Floating widget.** Bars and rings only where the provider published a real
+  limit or percentage, reset labels that state when a reset time is unknown,
+  stale and error chips, and opacity, lock, layout, size, position and provider
+  selection held by the backend so the window and the dashboard cannot disagree.
 - **Auto-update.** Check and install are separate commands, progress is real, a
   failed check is recorded and shown, and signature verification is performed by
   `tauri-plugin-updater` against the key in `tauri.conf.json`.
@@ -60,8 +70,8 @@ All notable changes to lnwdeck will be documented in this file.
 | Provider | Usage history | Remaining quota | Source | Needs |
 |---|---|---|---|---|
 | OpenCode | Local estimate | Local estimate | `opencode.db` | Local files |
-| Claude | Local estimate | Local estimate | Session JSONL | Local files |
-| Codex | Local estimate | Local estimate | Session JSONL | Local files |
+| Claude | Local estimate | Published percentage per window | `api.anthropic.com/api/oauth/usage` | Claude Code sign-in |
+| Codex | Local estimate | Published percentage per window | `chatgpt.com/backend-api/wham/usage` | Codex CLI sign-in |
 | Gemini | Local estimate | Local estimate | `~/.gemini` records | Local files |
 | Cursor | Local estimate | Local estimate | `state.vscdb` | Local files |
 | Copilot | Local estimate | Local estimate | CLI and editor logs | Local files |

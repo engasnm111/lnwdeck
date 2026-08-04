@@ -14,10 +14,10 @@ use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewWindowBuild
 
 const WIDGET_LABEL: &str = "widget";
 const MAIN_LABEL: &str = "main";
-const DEFAULT_WIDGET_WIDTH: f64 = 340.0;
-const DEFAULT_WIDGET_HEIGHT: f64 = 260.0;
-const MIN_WIDGET_WIDTH: f64 = 240.0;
-const MIN_WIDGET_HEIGHT: f64 = 140.0;
+const DEFAULT_WIDGET_WIDTH: f64 = 400.0;
+const DEFAULT_WIDGET_HEIGHT: f64 = 420.0;
+const MIN_WIDGET_WIDTH: f64 = 300.0;
+const MIN_WIDGET_HEIGHT: f64 = 180.0;
 
 /// Widget appearance settings handed to the webview.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -25,6 +25,11 @@ pub struct WidgetSettings {
     pub opacity: f64,
     pub locked: bool,
     pub visible: bool,
+    /// Provider ids the user pinned. Empty means every provider that reported
+    /// data, so a fresh install shows everything rather than nothing.
+    pub selected_providers: Vec<String>,
+    /// Layout: "bars" or "rings".
+    pub view: String,
 }
 
 /// Clamps a widget top-left position so the whole widget stays on screen.
@@ -80,6 +85,8 @@ pub fn widget_settings(app: &tauri::AppHandle) -> WidgetSettings {
         opacity: 1.0,
         locked: false,
         visible: false,
+        selected_providers: Vec::new(),
+        view: "bars".to_string(),
     };
     let Ok(guard) = state.ensure_storage() else {
         return defaults;
@@ -92,6 +99,10 @@ pub fn widget_settings(app: &tauri::AppHandle) -> WidgetSettings {
             opacity: settings.widget_opacity,
             locked: settings.widget_locked,
             visible: settings.widget_visible,
+            selected_providers: SettingsService::widget_providers(&storage.conn)
+                .unwrap_or_default(),
+            view: SettingsService::widget_view(&storage.conn)
+                .unwrap_or_else(|_| "bars".to_string()),
         },
         Err(_) => defaults,
     }
@@ -285,6 +296,37 @@ pub fn set_widget_locked(app: tauri::AppHandle, locked: bool) -> Result<bool, St
     Ok(stored)
 }
 
+/// Switches the widget layout. Returns the stored layout.
+#[tauri::command]
+pub fn set_widget_view(app: tauri::AppHandle, view: String) -> Result<String, String> {
+    let state = app.state::<AppState>();
+    let stored = {
+        let guard = state.ensure_storage()?;
+        let storage = guard.as_ref().ok_or("storage not initialized")?;
+        SettingsService::set_widget_view(&storage.conn, &view).map_err(|e| e.to_string())?
+    };
+    emit_widget_settings(&app);
+    Ok(stored)
+}
+
+/// Pins the widget to a set of providers. An empty list restores every
+/// provider. Returns the stored selection.
+#[tauri::command]
+pub fn set_widget_providers(
+    app: tauri::AppHandle,
+    providers: Vec<String>,
+) -> Result<Vec<String>, String> {
+    let state = app.state::<AppState>();
+    let stored = {
+        let guard = state.ensure_storage()?;
+        let storage = guard.as_ref().ok_or("storage not initialized")?;
+        SettingsService::set_widget_providers(&storage.conn, &providers)
+            .map_err(|e| e.to_string())?
+    };
+    emit_widget_settings(&app);
+    Ok(stored)
+}
+
 #[tauri::command]
 pub fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
     let window = app
@@ -355,8 +397,15 @@ mod tests {
             opacity: 1.0,
             locked: false,
             visible: false,
+            selected_providers: Vec::new(),
+            view: "bars".to_string(),
         };
         assert!(!defaults.visible, "the widget stays hidden until requested");
         assert_eq!(defaults.opacity, 1.0);
+        assert!(
+            defaults.selected_providers.is_empty(),
+            "no selection means every provider is shown"
+        );
+        assert_eq!(defaults.view, "bars");
     }
 }

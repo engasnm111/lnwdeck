@@ -10,5 +10,7 @@ lnwdeck-provider-runtime = { path = "../../provider-runtime" }
 chrono = { version = "0.4" }
 serde_json = "1"
 
+lnwdeck-provider-http = { path = "../../provider-http" }
+
 [dev-dependencies]
 tempfile = "3"

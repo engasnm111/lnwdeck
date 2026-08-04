@@ -133,18 +133,29 @@ fn quota_reports_never_fabricate_percentages() {
                         window.window_key
                     )
                 });
-                if window.limit.is_none() {
+                // A percentage is allowed without an absolute limit only when
+                // the provider published the percentage itself; in that case no
+                // token count is invented, so `used` stays zero.
+                if window.limit.is_none() && window.used_percent.is_some() {
+                    assert_eq!(
+                        window.used, 0,
+                        "{} window {} publishes a percentage, so it must not also carry an invented used count",
+                        adapter.id(),
+                        window.window_key
+                    );
+                }
+                if window.limit.is_none() && window.used > 0 {
                     assert_eq!(
                         window.used_percent,
                         None,
-                        "{} window {} has an unknown limit; a used percentage would be fabricated",
+                        "{} window {} counted usage without a limit; a percentage would be fabricated",
                         adapter.id(),
                         window.window_key
                     );
                     assert_eq!(
                         window.remaining_percent,
                         None,
-                        "{} window {} has an unknown limit; a remaining percentage would be fabricated",
+                        "{} window {} counted usage without a limit; a remaining percentage would be fabricated",
                         adapter.id(),
                         window.window_key
                     );
@@ -382,9 +393,28 @@ fn declared_support_covers_the_documented_provider_matrix() {
         by_id.insert(adapter.id(), adapter.descriptor());
     }
 
+    // Providers that publish per-window utilization to the credential their own
+    // CLI already stores locally.
+    for id in ["anthropic_claude", "openai_codex"] {
+        let descriptor = by_id.get(id).unwrap_or_else(|| panic!("{id} registered"));
+        assert_eq!(
+            descriptor.usage_support,
+            ChannelSupport::LocalEstimate,
+            "{id} reads its usage history from local session files"
+        );
+        assert_eq!(
+            descriptor.quota_support,
+            ChannelSupport::Native,
+            "{id} reads published quota from the provider API"
+        );
+        assert!(
+            !descriptor.needs_credentials(),
+            "{id} reuses the credential its own CLI stored, so the user enters nothing"
+        );
+    }
+
+    // Local-artifact collectors with no published limit.
     for id in [
-        "anthropic_claude",
-        "openai_codex",
         "opencode",
         "google_gemini",
         "cursor_ide",

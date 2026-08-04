@@ -16,6 +16,8 @@ pub const KEY_AUTO_UPDATE: &str = "auto_update_check";
 pub const KEY_WIDGET_OPACITY: &str = "widget_opacity";
 pub const KEY_WIDGET_LOCKED: &str = "widget_locked";
 pub const KEY_WIDGET_VISIBLE: &str = "widget_visible";
+pub const KEY_WIDGET_PROVIDERS: &str = "widget_providers";
+pub const KEY_WIDGET_VIEW: &str = "widget_view";
 pub const KEY_RETENTION_DAYS: &str = "retention_days";
 
 /// Refresh intervals the UI offers. Zero disables the background loop.
@@ -24,11 +26,16 @@ pub const ALLOWED_REFRESH_INTERVALS: &[u64] = &[0, 30, 60, 300, 900, 3600];
 pub const ALLOWED_THEMES: &[&str] = &["dark", "light", "system"];
 /// Retention windows the UI offers, in days.
 pub const ALLOWED_RETENTION_DAYS: &[u64] = &[7, 30, 90, 365, 0];
+/// Widget layouts: horizontal bars, or compact rings.
+pub const ALLOWED_WIDGET_VIEWS: &[&str] = &["bars", "rings"];
 
 /// Defaults used when a key has never been written.
 const DEFAULT_REFRESH_INTERVAL: u64 = 300;
 const DEFAULT_RETENTION_DAYS: u64 = 90;
 const DEFAULT_WIDGET_OPACITY: f64 = 1.0;
+/// Upper bound on pinned widget providers, matching the built-in adapter count
+/// with room to spare.
+const MAX_WIDGET_PROVIDERS: usize = 32;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AppSettings {
@@ -65,6 +72,9 @@ pub enum SettingsError {
     InvalidInterval(u64),
     InvalidOpacity(f64),
     InvalidRetention(u64),
+    InvalidProviderId,
+    InvalidWidgetView(String),
+    TooManyProviders(usize),
     Storage(String),
 }
 
@@ -80,6 +90,11 @@ impl std::fmt::Display for SettingsError {
             }
             Self::InvalidRetention(value) => {
                 write!(f, "unsupported retention window: {value} days")
+            }
+            Self::InvalidProviderId => write!(f, "a provider id must not be empty"),
+            Self::InvalidWidgetView(value) => write!(f, "unknown widget layout: {value}"),
+            Self::TooManyProviders(count) => {
+                write!(f, "too many pinned providers: {count}")
             }
             Self::Storage(error) => write!(f, "storage error: {error}"),
         }
@@ -199,6 +214,73 @@ impl SettingsService {
             .set(KEY_WIDGET_VISIBLE, &visible.to_string())
             .map_err(|e| SettingsError::Storage(e.to_string()))?;
         Ok(Self::load(conn)?.widget_visible)
+    }
+
+    /// Provider ids the widget is pinned to.
+    ///
+    /// An empty list means "every provider that reported data"; it is not a
+    /// filter that hides everything, because a widget showing nothing would be
+    /// indistinguishable from a widget with no data.
+    pub fn widget_providers(conn: &Connection) -> Result<Vec<String>, SettingsError> {
+        let raw = AppSettingsRepository::new(conn)
+            .get(KEY_WIDGET_PROVIDERS)
+            .map_err(|e| SettingsError::Storage(e.to_string()))?;
+        let Some(raw) = raw else {
+            return Ok(Vec::new());
+        };
+        // A corrupt value is treated as "no selection" rather than as an error:
+        // the widget then shows every provider, which is the safe default.
+        Ok(serde_json::from_str::<Vec<String>>(&raw).unwrap_or_default())
+    }
+
+    /// Widget layout, defaulting to bars.
+    pub fn widget_view(conn: &Connection) -> Result<String, SettingsError> {
+        let stored = AppSettingsRepository::new(conn)
+            .get(KEY_WIDGET_VIEW)
+            .map_err(|e| SettingsError::Storage(e.to_string()))?;
+        Ok(stored
+            .filter(|value| ALLOWED_WIDGET_VIEWS.contains(&value.as_str()))
+            .unwrap_or_else(|| "bars".to_string()))
+    }
+
+    /// Stores the widget layout and returns what was stored.
+    pub fn set_widget_view(conn: &Connection, view: &str) -> Result<String, SettingsError> {
+        if !ALLOWED_WIDGET_VIEWS.contains(&view) {
+            return Err(SettingsError::InvalidWidgetView(view.to_string()));
+        }
+        AppSettingsRepository::new(conn)
+            .set(KEY_WIDGET_VIEW, view)
+            .map_err(|e| SettingsError::Storage(e.to_string()))?;
+        Self::widget_view(conn)
+    }
+
+    /// Stores the provider selection and returns what was stored.
+    ///
+    /// Ids are trimmed and deduplicated; an entry that is empty after trimming
+    /// is rejected so a blank checkbox cannot silently hide a provider.
+    pub fn set_widget_providers(
+        conn: &Connection,
+        providers: &[String],
+    ) -> Result<Vec<String>, SettingsError> {
+        if providers.len() > MAX_WIDGET_PROVIDERS {
+            return Err(SettingsError::TooManyProviders(providers.len()));
+        }
+        let mut cleaned: Vec<String> = Vec::with_capacity(providers.len());
+        for provider in providers {
+            let trimmed = provider.trim();
+            if trimmed.is_empty() {
+                return Err(SettingsError::InvalidProviderId);
+            }
+            if !cleaned.iter().any(|existing| existing == trimmed) {
+                cleaned.push(trimmed.to_string());
+            }
+        }
+        let encoded =
+            serde_json::to_string(&cleaned).map_err(|e| SettingsError::Storage(e.to_string()))?;
+        AppSettingsRepository::new(conn)
+            .set(KEY_WIDGET_PROVIDERS, &encoded)
+            .map_err(|e| SettingsError::Storage(e.to_string()))?;
+        Self::widget_providers(conn)
     }
 }
 
@@ -350,6 +432,136 @@ mod tests {
                 .widget_opacity,
             0.4,
             "a refused opacity leaves the stored value alone"
+        );
+    }
+
+    #[test]
+    fn no_provider_selection_means_every_provider() {
+        let storage = open_db();
+        assert!(
+            SettingsService::widget_providers(&storage.conn)
+                .expect("read")
+                .is_empty(),
+            "an empty selection is the documented default"
+        );
+    }
+
+    #[test]
+    fn provider_selection_roundtrips_and_is_deduplicated() {
+        let storage = open_db();
+        let stored = SettingsService::set_widget_providers(
+            &storage.conn,
+            &[
+                "anthropic_claude".to_string(),
+                " openai_codex ".to_string(),
+                "anthropic_claude".to_string(),
+            ],
+        )
+        .expect("store");
+        assert_eq!(
+            stored,
+            vec!["anthropic_claude".to_string(), "openai_codex".to_string()],
+            "ids are trimmed and duplicates collapse"
+        );
+        assert_eq!(
+            SettingsService::widget_providers(&storage.conn).expect("read"),
+            stored,
+            "a reload returns the stored selection"
+        );
+    }
+
+    #[test]
+    fn an_empty_provider_id_is_refused_and_changes_nothing() {
+        let storage = open_db();
+        SettingsService::set_widget_providers(&storage.conn, &["opencode".to_string()])
+            .expect("store");
+
+        assert_eq!(
+            SettingsService::set_widget_providers(
+                &storage.conn,
+                &["opencode".to_string(), "   ".to_string()]
+            ),
+            Err(SettingsError::InvalidProviderId)
+        );
+        assert_eq!(
+            SettingsService::widget_providers(&storage.conn).expect("read"),
+            vec!["opencode".to_string()],
+            "a refused write leaves the previous selection in place"
+        );
+    }
+
+    #[test]
+    fn an_absurd_selection_size_is_refused() {
+        let storage = open_db();
+        let many: Vec<String> = (0..64).map(|index| format!("provider_{index}")).collect();
+        assert_eq!(
+            SettingsService::set_widget_providers(&storage.conn, &many),
+            Err(SettingsError::TooManyProviders(64))
+        );
+    }
+
+    #[test]
+    fn clearing_the_selection_restores_every_provider() {
+        let storage = open_db();
+        SettingsService::set_widget_providers(&storage.conn, &["opencode".to_string()])
+            .expect("store");
+        assert!(SettingsService::set_widget_providers(&storage.conn, &[])
+            .expect("clear")
+            .is_empty());
+        assert!(SettingsService::widget_providers(&storage.conn)
+            .expect("read")
+            .is_empty());
+    }
+
+    #[test]
+    fn a_corrupt_selection_falls_back_to_every_provider() {
+        let storage = open_db();
+        AppSettingsRepository::new(&storage.conn)
+            .set(KEY_WIDGET_PROVIDERS, "not json")
+            .expect("write");
+        assert!(
+            SettingsService::widget_providers(&storage.conn)
+                .expect("read")
+                .is_empty(),
+            "a corrupt value must not hide every provider"
+        );
+    }
+
+    #[test]
+    fn widget_view_defaults_to_bars_and_rejects_anything_else() {
+        let storage = open_db();
+        assert_eq!(
+            SettingsService::widget_view(&storage.conn).expect("read"),
+            "bars"
+        );
+        assert_eq!(
+            SettingsService::set_widget_view(&storage.conn, "rings").expect("store"),
+            "rings"
+        );
+        assert_eq!(
+            SettingsService::widget_view(&storage.conn).expect("read"),
+            "rings"
+        );
+        assert_eq!(
+            SettingsService::set_widget_view(&storage.conn, "hexagons"),
+            Err(SettingsError::InvalidWidgetView("hexagons".to_string()))
+        );
+        assert_eq!(
+            SettingsService::widget_view(&storage.conn).expect("read"),
+            "rings",
+            "a refused layout leaves the stored one in place"
+        );
+    }
+
+    #[test]
+    fn a_corrupt_widget_view_falls_back_to_bars() {
+        let storage = open_db();
+        AppSettingsRepository::new(&storage.conn)
+            .set(KEY_WIDGET_VIEW, "spirals")
+            .expect("write");
+        assert_eq!(
+            SettingsService::widget_view(&storage.conn).expect("read"),
+            "bars"
         );
     }
 

@@ -102,6 +102,19 @@ impl CredentialStore {
         }
     }
 
+    /// Reads a credential stored by another application under its own target
+    /// name, for example the token the vendor's own CLI saved for this user.
+    ///
+    /// Used only to reuse a credential the user already granted to that CLI on
+    /// this machine; nothing is written and the value is never persisted or
+    /// logged by lnwdeck.
+    pub fn get_by_target(target: &str) -> Result<String, CredentialError> {
+        if target.trim().is_empty() {
+            return Err(CredentialError::Invalid);
+        }
+        platform::read(target)
+    }
+
     /// True when this build can store credentials at all.
     pub fn is_supported() -> bool {
         platform::IS_SUPPORTED

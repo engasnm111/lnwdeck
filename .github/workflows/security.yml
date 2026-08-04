@@ -8,9 +8,13 @@ on:
   schedule:
     - cron: "0 6 * * 1"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   privacy-scan:
-    name: Privacy Scan
+    name: Privacy scan
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,12 +26,26 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Scan for sensitive data
         run: node scripts/scan-artifacts-for-sensitive-data.mjs
 
+      - name: Fail if private key material is tracked
+        shell: pwsh
+        run: |
+          $tracked = git ls-files 'keys/*'
+          if ($tracked) {
+            Write-Output "::error::private key material is tracked: $tracked"
+            exit 1
+          }
+          Write-Output "no key material is tracked"
+
   dependency-audit:
-    name: Dependency Audit
+    name: Dependency audit
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,6 +57,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -47,13 +66,20 @@ jobs:
         run: pnpm audit --audit-level high
 
   cargo-audit:
-    name: Cargo Audit
-    runs-on: windows-latest
+    name: Cargo audit
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        run: rustup show
+      - uses: dtolnay/rust-toolchain@stable
+
+      # An audit only means something when the tool is installed and its exit
+      # status is respected; the previous version swallowed both.
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Generate a lockfile
+        run: cargo generate-lockfile
 
       - name: Check advisories
-        run: cargo audit || true
+        run: cargo audit --deny warnings

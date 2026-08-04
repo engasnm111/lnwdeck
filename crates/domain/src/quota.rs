@@ -127,6 +127,38 @@ impl QuotaWindow {
         }
     }
 
+    /// Window where the provider publishes a utilization percentage but no
+    /// absolute limit.
+    ///
+    /// Several providers (Claude, Codex) report only "this window is 63% used".
+    /// That percentage is real data, so it is carried through as a percentage
+    /// with no invented token counts: `limit` and `remaining` stay unknown.
+    pub fn from_percent(
+        window_key: impl Into<String>,
+        label: impl Into<String>,
+        scope: QuotaWindowScope,
+        kind: QuotaKind,
+        used_percent: f64,
+        reset_at: Option<DateTime<Utc>>,
+        confidence: Confidence,
+    ) -> Self {
+        let used = used_percent.clamp(0.0, 100.0);
+        Self {
+            window_key: window_key.into(),
+            label: label.into(),
+            scope,
+            kind,
+            used: 0,
+            limit: None,
+            remaining: None,
+            used_percent: Some(used),
+            remaining_percent: Some(100.0 - used),
+            reset_at,
+            is_unlimited: false,
+            confidence,
+        }
+    }
+
     /// Window that records real usage over a period while the provider's
     /// limit is unknown. Consumers must render the used amount only; there
     /// is no remaining value and no percentage to show.
@@ -190,6 +222,20 @@ impl QuotaWindow {
             self.remaining_percent,
         ) {
             (None, None, None, None) => Ok(()),
+            // Percent-only: the provider published a utilization percentage
+            // without an absolute limit.
+            (None, None, Some(used_percent), Some(remaining_percent)) => {
+                if self.is_unlimited {
+                    return Err("is_unlimited window must not carry a percentage".to_string());
+                }
+                if !(0.0..=100.0).contains(&used_percent) {
+                    return Err("used_percent out of range".to_string());
+                }
+                if (used_percent + remaining_percent - 100.0).abs() > f64::EPSILON * 100.0 {
+                    return Err("percentages do not sum to 100".to_string());
+                }
+                Ok(())
+            }
             (Some(limit), Some(remaining), Some(used_percent), Some(remaining_percent)) => {
                 if self.is_unlimited {
                     return Err("is_unlimited window must not carry a limit".to_string());
@@ -449,5 +495,69 @@ mod tests {
         assert!(QuotaStatus::AuthExpired.is_error());
         assert!(QuotaStatus::RateLimited.is_error());
         assert!(!QuotaStatus::Fresh.is_error());
+    }
+}
+
+#[cfg(test)]
+mod percent_only_tests {
+    use super::*;
+
+    #[test]
+    fn percent_only_window_carries_the_published_percentage() {
+        let window = QuotaWindow::from_percent(
+            "five_hour",
+            "Session",
+            QuotaWindowScope::Rolling,
+            QuotaKind::Requests,
+            63.0,
+            None,
+            Confidence::High,
+        );
+        assert_eq!(window.used_percent, Some(63.0));
+        assert_eq!(window.remaining_percent, Some(37.0));
+        assert_eq!(
+            window.limit, None,
+            "a percentage is not an absolute limit and must not invent one"
+        );
+        assert_eq!(window.remaining, None);
+        assert_eq!(window.used, 0, "no token count is invented");
+        assert!(!window.limit_known());
+        window.check_invariants().expect("consistent window");
+    }
+
+    #[test]
+    fn a_published_percentage_is_clamped_not_trusted_blindly() {
+        let over = QuotaWindow::from_percent(
+            "w",
+            "W",
+            QuotaWindowScope::Weekly,
+            QuotaKind::Requests,
+            140.0,
+            None,
+            Confidence::High,
+        );
+        assert_eq!(over.used_percent, Some(100.0));
+        assert_eq!(over.remaining_percent, Some(0.0));
+        over.check_invariants().expect("consistent");
+
+        let under = QuotaWindow::from_percent(
+            "w",
+            "W",
+            QuotaWindowScope::Weekly,
+            QuotaKind::Requests,
+            -5.0,
+            None,
+            Confidence::High,
+        );
+        assert_eq!(under.used_percent, Some(0.0));
+        assert_eq!(under.remaining_percent, Some(100.0));
+    }
+
+    #[test]
+    fn an_unlimited_window_may_not_carry_a_percentage() {
+        let mut broken = QuotaWindow::unlimited(QuotaWindowScope::Other, QuotaKind::Requests);
+        broken.used_percent = Some(10.0);
+        broken.remaining_percent = Some(90.0);
+        assert!(broken.check_invariants().is_err());
     }
 }
