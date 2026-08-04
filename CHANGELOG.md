@@ -2,72 +2,128 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
-## [0.2.0] — 2026-08-04
+## [0.2.0] - 2026-08-04
 
-### Added
+### Highlights
 
-- **Normalized quota reporting**: `QuotaReport` / `QuotaWindow` domain model with window scopes, kinds, reset timestamps, freshness, and confidence, replacing the primitive quota snapshot
-- **Quota storage**: `quota_reports` and `quota_windows` tables (migration 003) with upsert, latest-per-provider, history, stale-marking, and pruning repository methods
-- **Quota refresh channel**: usage and quota are collected and persisted independently; a quota failure never erases usage data and vice versa
-- **Quota dashboard**: `get_quota_dashboard` Tauri command and `quota-updated` event, with a read model that resolves provider display names server-side
-- **Floating widget on Windows**: dedicated widget window with per-provider remaining-quota bars, remaining percentage, reset countdown, stale/error/auth badges, refresh/dashboard/hide controls, lock (drag-region) mode, opacity control, and monitor-aware position persistence across restarts
-- **Per-provider refresh**: `refresh_provider` command and per-card refresh buttons that no longer trigger a full pipeline refresh
-- **Passive local quota/usage estimates** for OpenCode (local SQLite), Claude Code (local session JSONL), and Codex CLI (local session JSONL), clearly marked as estimates with unknown limits
-- **Ollama local/unlimited status**: reachability probe reports `Local / Unlimited` when the local API is up and no fabricated quota otherwise
-- **Provider contract suite**: shared invariants enforced for all ten built-in adapters (stable unique ids, sanitized detection, privacy-safe reports, no fabricated percentages)
-- **Release tooling**: `scripts/check-release-version.mjs` and `scripts/generate-updater-json.mjs` with unit tests
-
-### Changed
-
-- Provider identifiers normalized: OpenCode now uses the canonical `opencode` id across detection, events, and quota
-- Quota summary on the Providers page now comes from real quota reports instead of event counts
-- Kiro is displayed as its own provider ("Kiro") instead of being mislabeled as Kimi
-- Pricing never defaults unknown providers to OpenAI rates; Kiro is never priced with Kimi rates
-- `refresh_all` returns a typed `{ usage, quota }` cycle instead of a run-row array
-- Latest collector runs are reported per provider and collector mode (usage and quota)
+- **Adapter descriptors.** Each adapter declares its source, its per-channel
+  support and its authentication requirement. An unimplemented channel is
+  recorded as `NOT_SUPPORTED` instead of as a successful empty collection, and an
+  adapter whose source is missing reports that.
+- **Seven local collectors and two credential-backed APIs.** Gemini, Cursor,
+  Copilot and Kiro join OpenCode, Claude and Codex as real read-only local
+  collectors. OpenRouter reports credits and rate limits, and xAI reports its
+  published rate limits, both only after you store a key in Settings.
+- **Honest quota data.** `limit`, `remaining` and both percentages are optional
+  end to end. A window without a provider-published limit shows recorded usage;
+  it never shows a bar or a percentage.
+- **Costs, Models, Budgets, Alerts and Settings are real.** Costs come from the
+  pricing catalog and mark unpriced models; budgets are user-configured and
+  measured against recorded usage; alerts are evaluated from quota thresholds,
+  collector failures and budget state; Settings persists to the database, the
+  Windows Credential Manager and the Run key.
+- **Redesigned interface.** Windows 11 style surfaces, dark, light and
+  follow-system themes, keyboard-navigable sidebar, visible focus rings, and
+  usage history and quota presented as two clearly separate channels.
+- **Floating widget.** Remaining-quota bars only where a limit exists, reset
+  countdowns, stale and error badges, and opacity, lock, size and position held
+  by the backend so the window and the dashboard cannot disagree.
+- **Auto-update.** Check and install are separate commands, progress is real, a
+  failed check is recorded and shown, and signature verification is performed by
+  `tauri-plugin-updater` against the key in `tauri.conf.json`.
 
 ### Fixed
 
-- Production UI no longer substitutes demo data when backend commands fail; pages render explicit loading/error/empty states
-- Floating widget routing: the widget now loads a dedicated `widget.html` entry instead of an incompatible hash route
-- `set_widget_opacity` applies the requested value instead of ignoring it
-- Widget window position is remembered across restarts and clamped back on screen when the monitor topology changes
-- Kiro and Kimi pricing confusion removed
-- Unknown providers are no longer charged with OpenAI rates
+- Six adapters (Gemini, Cursor, Copilot, Kiro, Grok, OpenRouter) reported
+  `Healthy` and returned an empty batch that the pipeline recorded as a
+  successful run.
+- Claude and Codex scanned their session files for quota but returned an empty
+  usage batch, so no usage event was ever ingested from them.
+- The webview had no Tauri capabilities, which silently disabled every
+  `listen()` call, including the update banner and the widget live refresh, and
+  the widget drag region.
+- A quota window with an unknown limit stored `remaining_percent = 100`.
+- The application shell showed a hardcoded "Fresh" badge and a timestamp taken
+  from when the window opened, and discarded refresh errors.
+- The Providers page used a private provider table whose ids did not match the
+  adapters, so five providers could never show their detection state, and
+  OpenCode was hardcoded as detected.
+- `set_widget_opacity` injected CSS that the next React render overwrote.
+- The update screen simulated its own states, and an unused update service
+  contained a signature check that accepted any non-empty string.
+- Background failures in the refresh loop, the update check and migration
+  bookkeeping were dropped; they are now recorded and shown on the System page.
+- The refresh loop ignored the interval the Settings page offered.
 
-### Security
+### Provider support
 
-- Quota reports are validated by the privacy guard before persistence; paths, credentials, and account identifiers cannot enter quota data
-- Local collectors are read-only, bounded (file count and total bytes), and aggregate only numeric token counts and timestamps
+| Provider | Usage history | Remaining quota | Source | Needs |
+|---|---|---|---|---|
+| OpenCode | Local estimate | Local estimate | `opencode.db` | Local files |
+| Claude | Local estimate | Local estimate | Session JSONL | Local files |
+| Codex | Local estimate | Local estimate | Session JSONL | Local files |
+| Gemini | Local estimate | Local estimate | `~/.gemini` records | Local files |
+| Cursor | Local estimate | Local estimate | `state.vscdb` | Local files |
+| Copilot | Local estimate | Local estimate | CLI and editor logs | Local files |
+| Kiro | Local estimate | Local estimate | Local session records | Local files |
+| Ollama | Not supported | Local / Unlimited when reachable | Local API probe | Nothing |
+| OpenRouter | Not supported | Supported | `GET /api/v1/key` | API key |
+| Grok | Not supported | Supported when rate limits are published | `GET /v1/api-key` | API key |
 
-### Provider Support
-
-| Provider | Usage History | Remaining Quota | Status |
-|---|---|---|---|
-| OpenCode | Supported (passive local scan) | Estimated (usage windows) | Stable |
-| Claude | Not supported | Estimated (local usage windows) | Experimental |
-| Codex | Not supported | Estimated (local usage windows) | Experimental |
-| Ollama | Not supported | Local / Unlimited when reachable | Stable |
-| Gemini, Cursor, Copilot, Grok, Kiro, OpenRouter | Not supported | Not supported | Not supported |
+"Local estimate" means real measurements from local files with no
+provider-published limit, so no remaining percentage is shown.
 
 ### Database
 
-- Migration 003 adds `quota_reports` and `quota_windows` tables. Existing usage data and `quota_snapshots` rows are preserved; migrations run automatically at startup.
+- Migration 004 makes quota limits nullable and rewrites stored zero limits to
+  NULL, keeping the recorded usage.
+- Migration 005 adds `budgets`, `alerts` and `app_events`.
+- Migrations now run only when pending, inside a transaction, and record their
+  version in the same transaction.
+- Existing usage and quota data is preserved; the upgrade path is covered by a
+  test that migrates a pre-0.2.0 database.
 
-### Known Limitations
+### Security and privacy
 
-- OpenCode usage events are cumulative session snapshots; per-update delta accounting is not yet implemented
-- Quota estimates report usage windows with unknown limits; remaining-percentage is never fabricated
-- Costs, Budgets, and Alerts pages remain placeholders
-- The browser extension and native messaging host are not part of this release
-- Database encryption is not implemented; data is stored in local SQLite
-- Installers are update-signed but not Authenticode-signed
+- Provider API keys are stored in the Windows Credential Manager and never reach
+  the database, the logs or an export.
+- Network access happens only for providers where a key was stored.
+- Local scans are read-only and bounded by file count and byte budget; only
+  numeric token counts, timestamps and model identifiers are extracted.
+- Quota reports and usage batches are validated by the privacy guard before
+  persistence, and rejections are recorded.
 
-### Upgrade Notes
+### Verification
 
-- Existing local data is preserved and migrations run automatically on first launch
-- Restart the application after installing the update
-- Quota collectors require the provider's local CLI session data to exist (OpenCode `opencode.db`, Claude `~/.claude/projects`, Codex `~/.codex/sessions`, Ollama local API)
+Recorded in `docs/audits/2026-08-04-v0.2.0-audit.md` with command output: 365
+Rust tests, 94 frontend tests, 3 end-to-end pipeline tests, 13 release script
+tests, a clean `pnpm check`, a signed x64 build, and updater artifact
+verification that checks the real signature against the shipped public key and
+rejects a tampered installer.
+
+### Known limitations
+
+- The SQLite database is not encrypted.
+- Installers carry updater signatures but are not Authenticode-signed.
+- No Content-Security-Policy is configured for the webview.
+- Installing an older build and letting it update itself was not executed
+  locally; the verified chain stops after signature verification.
+- Only the x64 bundle was built locally; ARM64 and x86 come from the release
+  workflow.
+- OpenCode usage events are cumulative session snapshots; per-update delta
+  accounting is not implemented.
+- The browser extension and native messaging host are not part of this release.
+
+### Installation
+
+Requirements: Windows 10 22H2 or later, WebView2 Runtime.
+
+| Architecture | Artifact |
+|---|---|
+| x64 | `lnwdeck_0.2.0_x64-setup.exe` |
+| ARM64 | `lnwdeck_0.2.0_arm64-setup.exe` |
+| x86 | `lnwdeck_0.2.0_x86-setup.exe` |
+| Any (portable) | `lnwdeck_0.2.0_portable.zip` |
 
 ## [0.1.0] — 2026-08-04
 
