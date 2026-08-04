@@ -1,7 +1,7 @@
 param(
     [string]$BuildDir = "target\release",
-    [string]$OutputFile = "lnwdeck_0.2.0_portable.zip",
-    [string]$Version = "0.2.0"
+    [string]$OutputFile = "lnwdeck_0.2.1_portable.zip",
+    [string]$Version = "0.2.1"
 )
 
 $ErrorActionPreference = "Stop"

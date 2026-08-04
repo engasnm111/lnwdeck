@@ -29,7 +29,7 @@ const navItems = [
   { to: "/system", label: "System", icon: SystemIcon },
 ];
 
-const APP_VERSION = "0.2.0";
+const APP_VERSION = "0.2.1";
 
 /**
  * Application shell.

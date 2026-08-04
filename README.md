@@ -124,7 +124,7 @@ pnpm tauri:build
 pwsh ./scripts/package-portable.ps1
 
 # Updater manifest from the built, signed artifacts
-node scripts/generate-updater-json.mjs v0.2.0 <assets-dir>
+node scripts/generate-updater-json.mjs v0.2.1 <assets-dir>
 ```
 
 The bundler writes `*-setup.exe` next to a `*.sig` signature. The updater
@@ -167,7 +167,7 @@ against the built artifacts and asserts that a tampered installer is rejected.
 - `docs/03_PROVIDER_ADAPTER_SDK.md` - adapter descriptors and the contract suite
 - `docs/05_SECURITY_PRIVACY.md` - privacy rules and the guard
 - `docs/07_WINDOWS_BUILD_RELEASE.md` - build, sign and release
-- `docs/audits/2026-08-04-v0.2.0-audit.md` - source audit behind this release
+- `docs/audits/2026-08-04-audit.md` - source audit behind this release
 
 ## License
 

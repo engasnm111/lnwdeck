@@ -1,6 +1,6 @@
 [package]
 name = "lnwdeck-desktop"
-version = "0.2.0"
+version = "0.2.1"
 description = "lnwdeck desktop application"
 authors = ["lnwdeck contributors"]
 edition = "2021"

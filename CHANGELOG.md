@@ -2,7 +2,7 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
-## [0.2.0] - 2026-08-04
+## [0.2.1] - 2026-08-04
 
 ### Highlights
 
@@ -103,7 +103,7 @@ provider-published limit, so no remaining percentage is shown.
 
 ### Verification
 
-Recorded in `docs/audits/2026-08-04-v0.2.0-audit.md` with command output: 392
+Recorded in `docs/audits/2026-08-04-audit.md` with command output: 392
 Rust tests, 112 frontend tests, 3 end-to-end pipeline tests, 13 release script
 tests, a clean `pnpm check`, a signed x64 build, and updater artifact
 verification that checks the real signature against the shipped public key and
@@ -128,10 +128,10 @@ Requirements: Windows 10 22H2 or later, WebView2 Runtime.
 
 | Architecture | Artifact |
 |---|---|
-| x64 | `lnwdeck_0.2.0_x64-setup.exe` |
-| ARM64 | `lnwdeck_0.2.0_arm64-setup.exe` |
-| x86 | `lnwdeck_0.2.0_x86-setup.exe` |
-| Any (portable) | `lnwdeck_0.2.0_portable.zip` |
+| x64 | `lnwdeck_0.2.1_x64-setup.exe` |
+| ARM64 | `lnwdeck_0.2.1_arm64-setup.exe` |
+| x86 | `lnwdeck_0.2.1_x86-setup.exe` |
+| Any (portable) | `lnwdeck_0.2.1_portable.zip` |
 
 ## [0.1.0] — 2026-08-04
 
@@ -155,5 +155,5 @@ Requirements: Windows 10 22H2 or later, WebView2 Runtime.
 - **E2E privacy tests**: 7 scenarios covering provider config, logs, profiles, hooks, browser messages, exports, tray data
 - **Privacy scanner**: 10 forbidden patterns across all source artifacts
 
-[0.2.0]: https://github.com/engasnm111/lnwdeck/compare/v0.1.0...v0.2.0
+[0.2.1]: https://github.com/engasnm111/lnwdeck/compare/v0.1.0...v0.2.1
 [0.1.0]: https://github.com/engasnm111/lnwdeck/releases/tag/v0.1.0

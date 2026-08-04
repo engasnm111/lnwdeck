@@ -59,6 +59,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # A missing signing key would otherwise fail later with an opaque bundler
+      # error, or silently produce unsigned artifacts.
+      - name: Verify the signing key is configured
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+            Write-Output "::error::TAURI_SIGNING_PRIVATE_KEY is not set; updater artifacts cannot be signed"
+            exit 1
+          }
+          Write-Output "signing key is configured"
+
       - name: Build signed bundles (no publish)
         uses: tauri-apps/tauri-action@v1
         env:
