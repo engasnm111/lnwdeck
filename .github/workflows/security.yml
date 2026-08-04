@@ -81,5 +81,7 @@ jobs:
       - name: Generate a lockfile
         run: cargo generate-lockfile
 
+      # Exits non-zero on a vulnerability. Informational advisories are printed
+      # for review; audit.toml documents why they are not fatal here.
       - name: Check advisories
-        run: cargo audit --deny warnings
+        run: cargo audit

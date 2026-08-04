@@ -1,0 +1,16 @@
+# cargo-audit configuration.
+#
+# A vulnerability fails the build. Informational advisories (unmaintained,
+# unsound, notice) are reported but do not fail it, because the ones that appear
+# here come from Tauri's transitive Linux GTK3 bindings and a handful of
+# unmaintained proc-macro and Unicode crates: none of them are compiled into the
+# Windows binary this project ships, and none can be resolved from here.
+#
+# The CI job prints the full advisory list on every run, so the set stays visible
+# rather than silently tolerated.
+
+[advisories]
+ignore = []
+
+[output]
+format = "terminal"
