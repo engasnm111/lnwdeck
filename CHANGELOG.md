@@ -24,8 +24,9 @@ All notable changes to lnwdeck will be documented in this file.
   collectors. OpenRouter reports credits and rate limits, and xAI reports its
   published rate limits, both only after you store a key in Settings.
 - **Honest quota data.** `limit`, `remaining` and both percentages are optional
-  end to end. A window without a provider-published limit shows recorded usage;
-  it never shows a bar or a percentage.
+  end to end. A window is shown as a bar only when the provider published a limit
+  or a percentage; otherwise it shows the recorded usage and says the limit is
+  unavailable.
 - **Costs, Models, Budgets, Alerts and Settings are real.** Costs come from the
   pricing catalog and mark unpriced models; budgets are user-configured and
   measured against recorded usage; alerts are evaluated from quota thresholds,
@@ -34,10 +35,6 @@ All notable changes to lnwdeck will be documented in this file.
 - **Redesigned interface.** Windows 11 style surfaces, dark, light and
   follow-system themes, keyboard-navigable sidebar, visible focus rings, and
   usage history and quota presented as two clearly separate channels.
-- **Floating widget.** Bars and rings only where the provider published a real
-  limit or percentage, reset labels that state when a reset time is unknown,
-  stale and error chips, and opacity, lock, layout, size, position and provider
-  selection held by the backend so the window and the dashboard cannot disagree.
 - **Auto-update.** Check and install are separate commands, progress is real, a
   failed check is recorded and shown, and signature verification is performed by
   `tauri-plugin-updater` against the key in `tauri.conf.json`.
@@ -97,7 +94,8 @@ provider-published limit, so no remaining percentage is shown.
 
 - Provider API keys are stored in the Windows Credential Manager and never reach
   the database, the logs or an export.
-- Network access happens only for providers where a key was stored.
+- Network access happens only for the two published-quota endpoints above, using
+  the token the vendor's own CLI stored, and for providers where a key was stored.
 - Local scans are read-only and bounded by file count and byte budget; only
   numeric token counts, timestamps and model identifiers are extracted.
 - Quota reports and usage batches are validated by the privacy guard before
@@ -105,8 +103,8 @@ provider-published limit, so no remaining percentage is shown.
 
 ### Verification
 
-Recorded in `docs/audits/2026-08-04-v0.2.0-audit.md` with command output: 365
-Rust tests, 94 frontend tests, 3 end-to-end pipeline tests, 13 release script
+Recorded in `docs/audits/2026-08-04-v0.2.0-audit.md` with command output: 392
+Rust tests, 112 frontend tests, 3 end-to-end pipeline tests, 13 release script
 tests, a clean `pnpm check`, a signed x64 build, and updater artifact
 verification that checks the real signature against the shipped public key and
 rejects a tampered installer.
