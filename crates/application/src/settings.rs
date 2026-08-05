@@ -18,6 +18,7 @@ pub const KEY_WIDGET_LOCKED: &str = "widget_locked";
 pub const KEY_WIDGET_VISIBLE: &str = "widget_visible";
 pub const KEY_WIDGET_PROVIDERS: &str = "widget_providers";
 pub const KEY_WIDGET_VIEW: &str = "widget_view";
+pub const KEY_WIDGET_PET: &str = "widget_pet_id";
 pub const KEY_RETENTION_DAYS: &str = "retention_days";
 
 /// Refresh intervals the UI offers. Zero disables the background loop.
@@ -74,6 +75,7 @@ pub enum SettingsError {
     InvalidRetention(u64),
     InvalidProviderId,
     InvalidWidgetView(String),
+    InvalidPetId(String),
     TooManyProviders(usize),
     Storage(String),
 }
@@ -93,6 +95,7 @@ impl std::fmt::Display for SettingsError {
             }
             Self::InvalidProviderId => write!(f, "a provider id must not be empty"),
             Self::InvalidWidgetView(value) => write!(f, "unknown widget layout: {value}"),
+            Self::InvalidPetId(value) => write!(f, "unknown widget pet id: {value}"),
             Self::TooManyProviders(count) => {
                 write!(f, "too many pinned providers: {count}")
             }
@@ -254,6 +257,32 @@ impl SettingsService {
         Self::widget_view(conn)
     }
 
+    /// Community pet selected for the widget pet layout.
+    ///
+    /// Empty means the built-in robot. Stored ids are validated as lowercase
+    /// URL-safe slugs; whether the id is actually installed is checked by the
+    /// pet store command layer, which owns the pets directory.
+    pub fn widget_pet_id(conn: &Connection) -> Result<String, SettingsError> {
+        let stored = AppSettingsRepository::new(conn)
+            .get(KEY_WIDGET_PET)
+            .map_err(|e| SettingsError::Storage(e.to_string()))?;
+        Ok(stored
+            .filter(|value| is_pet_id_slug(value))
+            .unwrap_or_default())
+    }
+
+    /// Stores the selected community pet id and returns what was stored.
+    pub fn set_widget_pet_id(conn: &Connection, pet_id: &str) -> Result<String, SettingsError> {
+        let trimmed = pet_id.trim();
+        if !trimmed.is_empty() && !is_pet_id_slug(trimmed) {
+            return Err(SettingsError::InvalidPetId(trimmed.to_string()));
+        }
+        AppSettingsRepository::new(conn)
+            .set(KEY_WIDGET_PET, trimmed)
+            .map_err(|e| SettingsError::Storage(e.to_string()))?;
+        Self::widget_pet_id(conn)
+    }
+
     /// Stores the provider selection and returns what was stored.
     ///
     /// Ids are trimmed and deduplicated; an entry that is empty after trimming
@@ -282,6 +311,19 @@ impl SettingsService {
             .map_err(|e| SettingsError::Storage(e.to_string()))?;
         Self::widget_providers(conn)
     }
+}
+
+/// A lowercase URL-safe slug, mirroring the codex-pets.net pet id format.
+fn is_pet_id_slug(value: &str) -> bool {
+    if value.is_empty() || value.len() > 64 {
+        return false;
+    }
+    let bytes = value.as_bytes();
+    let alnum = |b: u8| b.is_ascii_lowercase() || b.is_ascii_digit();
+    if !alnum(bytes[0]) || !alnum(bytes[bytes.len() - 1]) {
+        return false;
+    }
+    bytes.iter().all(|b| alnum(*b) || *b == b'-')
 }
 
 #[cfg(test)]
@@ -569,6 +611,56 @@ mod tests {
             SettingsService::set_widget_view(&storage.conn, "rings").expect("store"),
             "rings",
             "pet is one option among the allowed layouts, not a replacement"
+        );
+    }
+
+    #[test]
+    fn widget_pet_id_defaults_empty_and_roundtrips_slugs() {
+        let storage = open_db();
+        assert_eq!(
+            SettingsService::widget_pet_id(&storage.conn).expect("read"),
+            "",
+            "no pet selected means the built-in robot"
+        );
+        assert_eq!(
+            SettingsService::set_widget_pet_id(&storage.conn, "sprout").expect("store"),
+            "sprout"
+        );
+        assert_eq!(
+            SettingsService::widget_pet_id(&storage.conn).expect("read"),
+            "sprout"
+        );
+        assert_eq!(
+            SettingsService::set_widget_pet_id(&storage.conn, "").expect("clear"),
+            "",
+            "clearing restores the built-in robot"
+        );
+    }
+
+    #[test]
+    fn an_invalid_widget_pet_id_is_refused_and_changes_nothing() {
+        let storage = open_db();
+        SettingsService::set_widget_pet_id(&storage.conn, "sprout").expect("store");
+        assert_eq!(
+            SettingsService::set_widget_pet_id(&storage.conn, "Bad Pet!").unwrap_err(),
+            SettingsError::InvalidPetId("Bad Pet!".to_string())
+        );
+        assert_eq!(
+            SettingsService::widget_pet_id(&storage.conn).expect("read"),
+            "sprout",
+            "a refused pet id leaves the stored one in place"
+        );
+    }
+
+    #[test]
+    fn a_corrupt_widget_pet_id_falls_back_to_the_builtin() {
+        let storage = open_db();
+        AppSettingsRepository::new(&storage.conn)
+            .set(KEY_WIDGET_PET, "not a pet id")
+            .expect("write");
+        assert_eq!(
+            SettingsService::widget_pet_id(&storage.conn).expect("read"),
+            ""
         );
     }
 

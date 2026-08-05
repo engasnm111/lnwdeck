@@ -13,6 +13,7 @@
 //!   providers publish their rate limits only in headers.
 
 use std::collections::HashMap;
+use std::io::Read as _;
 use std::time::Duration;
 
 /// Successful response: parsed JSON plus the requested headers.
@@ -186,6 +187,58 @@ pub fn get_text(request: JsonRequest<'_>) -> Result<(u16, String), String> {
     Ok((status, text))
 }
 
+/// Upper bound for a binary response body (pet packages: 12 MB).
+pub const MAX_BINARY_BYTES: usize = 12 * 1024 * 1024;
+
+/// Performs the request and returns the raw body bytes.
+///
+/// The request and error contract are identical to [`get_json`]: GET only,
+/// HTTPS only, explicit timeout, no redirects, and every failure is a
+/// sanitized code. The body is size-capped, so a hostile or broken endpoint
+/// cannot exhaust memory.
+pub fn get_bytes(request: JsonRequest<'_>) -> Result<(u16, Vec<u8>), String> {
+    if !request.url.starts_with("https://") {
+        return Err("INSECURE_ENDPOINT".to_string());
+    }
+    let agent = ureq::Agent::config_builder()
+        .timeout_global(Some(request.timeout))
+        .max_redirects(0)
+        .build()
+        .new_agent();
+
+    let mut call = agent
+        .get(request.url)
+        .header("accept", "application/octet-stream");
+    for (name, value) in request.extra_headers {
+        call = call.header(*name, *value);
+    }
+    if let Some(token) = request.bearer_token {
+        if token.trim().is_empty() {
+            return Err("NOT_CONFIGURED".to_string());
+        }
+        call = call.header("authorization", &format!("Bearer {token}"));
+    }
+
+    let mut response = match call.call() {
+        Ok(response) => response,
+        Err(ureq::Error::StatusCode(status)) => return Err(code_for_status(status).to_string()),
+        Err(ureq::Error::Timeout(_)) => return Err("PROVIDER_TIMEOUT".to_string()),
+        Err(_) => return Err("SOURCE_UNAVAILABLE".to_string()),
+    };
+
+    let status = response.status().as_u16();
+    // Read one byte past the cap to distinguish "too large" from "exact size".
+    let mut reader = response.body_mut().as_reader();
+    let mut bytes = Vec::new();
+    std::io::Read::take(&mut reader, MAX_BINARY_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| "PROVIDER_UNREADABLE_BODY".to_string())?;
+    if bytes.len() > MAX_BINARY_BYTES {
+        return Err("PROVIDER_RESPONSE_TOO_LARGE".to_string());
+    }
+    Ok((status, bytes))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -212,6 +265,19 @@ mod tests {
     fn plain_http_endpoints_are_refused() {
         let error = get_json(JsonRequest::new("http://example.com/api")).expect_err("must refuse");
         assert_eq!(error, "INSECURE_ENDPOINT");
+    }
+
+    #[test]
+    fn get_bytes_refuses_plain_http_endpoints() {
+        let error = get_bytes(JsonRequest::new("http://example.com/api")).expect_err("must refuse");
+        assert_eq!(error, "INSECURE_ENDPOINT");
+    }
+
+    #[test]
+    fn get_bytes_refuses_an_empty_token() {
+        let error = get_bytes(JsonRequest::new("https://example.invalid/api").bearer("  "))
+            .expect_err("must refuse");
+        assert_eq!(error, "NOT_CONFIGURED");
     }
 
     #[test]

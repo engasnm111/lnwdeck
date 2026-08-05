@@ -3,9 +3,15 @@ import { Badge, Button, Card, DataState, Field, Toggle } from "@lnwdeck/ui";
 import {
   deleteProviderKey,
   fetchSettings,
+  getWidgetPet,
+  importWidgetPet,
+  listWidgetPets,
+  removeWidgetPet,
   saveSettings,
   setProviderKey,
+  setWidgetPet,
   type AppSettingsData,
+  type PetManifest,
   type SettingsViewData,
 } from "../../lib/native";
 
@@ -44,6 +50,68 @@ export function SettingsPage() {
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
   const [keyError, setKeyError] = useState<string | null>(null);
+
+  const [pets, setPets] = useState<PetManifest[]>([]);
+  const [activePetId, setActivePetId] = useState("");
+  const [petImport, setPetImport] = useState("");
+  const [petImporting, setPetImporting] = useState(false);
+  const [petError, setPetError] = useState<string | null>(null);
+
+  const loadPets = useCallback(async () => {
+    try {
+      const [installed, active] = await Promise.all([
+        listWidgetPets(),
+        getWidgetPet(),
+      ]);
+      setPets(installed);
+      setActivePetId(active?.id ?? "");
+    } catch (error_) {
+      setPetError(error_ instanceof Error ? error_.message : String(error_));
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadPets();
+  }, [loadPets]);
+
+  const handleImportPet = useCallback(async () => {
+    if (!petImport.trim()) {
+      return;
+    }
+    setPetImporting(true);
+    setPetError(null);
+    try {
+      await importWidgetPet(petImport.trim());
+      setPetImport("");
+      await loadPets();
+    } catch (error_) {
+      setPetError(error_ instanceof Error ? error_.message : String(error_));
+    } finally {
+      setPetImporting(false);
+    }
+  }, [petImport, loadPets]);
+
+  const handleSelectPet = useCallback(async (petId: string) => {
+    setPetError(null);
+    try {
+      setActivePetId(await setWidgetPet(petId));
+    } catch (error_) {
+      setPetError(error_ instanceof Error ? error_.message : String(error_));
+    }
+  }, []);
+
+  const handleRemovePet = useCallback(
+    async (petId: string) => {
+      setPetError(null);
+      try {
+        await removeWidgetPet(petId);
+        await loadPets();
+      } catch (error_) {
+        setPetError(error_ instanceof Error ? error_.message : String(error_));
+      }
+    },
+    [loadPets],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -276,6 +344,78 @@ export function SettingsPage() {
                     }
                   />
                 </Field>
+              </div>
+            </Card>
+
+            <Card
+              title="Widget pet"
+              subtitle="Community pets from codex-pets.net, downloaded once and rendered locally"
+            >
+              <div className="stack-tight">
+                <div className="row">
+                  <input
+                    className="ui-input"
+                    type="text"
+                    placeholder="Pet id or https://codex-pets.net pet URL"
+                    aria-label="Codex Pets URL or pet id"
+                    value={petImport}
+                    disabled={petImporting}
+                    onChange={(event) => setPetImport(event.target.value)}
+                  />
+                  <Button
+                    size="small"
+                    onClick={() => void handleImportPet()}
+                    disabled={petImporting || petImport.trim() === ""}
+                  >
+                    {petImporting ? "Importing" : "Import"}
+                  </Button>
+                </div>
+                {pets.length === 0 ? (
+                  <p className="ui-inline-note">
+                    No community pets installed; the built-in robot is always
+                    available. Imports only reach codex-pets.net over HTTPS on
+                    your explicit action.
+                  </p>
+                ) : (
+                  <ul className="settings-pet-list">
+                    {pets.map((pet) => (
+                      <li key={pet.id} className="row-between">
+                        <div className="stack-tight">
+                          <span className="meta-value">{pet.displayName}</span>
+                          <Badge
+                            tone={
+                              activePetId === pet.id ? "success" : "neutral"
+                            }
+                          >
+                            {activePetId === pet.id ? "Active" : "Installed"}
+                          </Badge>
+                        </div>
+                        <div className="row">
+                          <Button
+                            size="small"
+                            variant={activePetId === pet.id ? "primary" : "secondary"}
+                            disabled={activePetId === pet.id}
+                            onClick={() => void handleSelectPet(pet.id)}
+                          >
+                            {activePetId === pet.id ? "Active" : "Use"}
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="danger"
+                            onClick={() => void handleRemovePet(pet.id)}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {petError && (
+                  <p className="ui-field-error" role="alert">
+                    {petError}
+                  </p>
+                )}
               </div>
             </Card>
 

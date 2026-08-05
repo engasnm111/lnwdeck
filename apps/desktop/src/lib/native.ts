@@ -469,6 +469,17 @@ export async function deleteProviderKey(
 /** Widget layout: horizontal bars, compact rings, or the animated pet. */
 export type WidgetView = "bars" | "rings" | "pet";
 
+/** A validated community pet from codex-pets.net, installed locally. */
+export interface PetManifest {
+  id: string;
+  displayName: string;
+  description: string;
+  spritesheetPath: string;
+  /** 1 or 2; v2 spritesheets carry the look-direction rows. */
+  spriteVersionNumber: number;
+  kind?: string;
+}
+
 export interface WidgetSettingsData {
   opacity: number;
   locked: boolean;
@@ -476,6 +487,8 @@ export interface WidgetSettingsData {
   /** Pinned provider ids. Empty means every reporting provider is shown. */
   selected_providers: string[];
   view: WidgetView;
+  /** Community pet id for the pet layout. Empty means the built-in robot. */
+  pet_id: string;
 }
 
 export async function fetchWidgetSettings(): Promise<WidgetSettingsData> {
@@ -503,6 +516,39 @@ export async function setWidgetProviders(
   providers: string[],
 ): Promise<string[]> {
   return invoke<string[]>("set_widget_providers", { providers });
+}
+
+/** Imports a community pet from a codex-pets.net URL or a bare pet id. */
+export async function importWidgetPet(input: string): Promise<PetManifest> {
+  return invoke<PetManifest>("import_widget_pet", { input });
+}
+
+/** Imports a community pet from a local `.codex-pet.zip` file path. */
+export async function importWidgetPetFile(path: string): Promise<PetManifest> {
+  return invoke<PetManifest>("import_widget_pet_file", { path });
+}
+
+/** Installed community pets, sorted by display name. */
+export async function listWidgetPets(): Promise<PetManifest[]> {
+  return invoke<PetManifest[]>("list_widget_pets");
+}
+
+/** The community pet selected for the widget, when one is selected. */
+export async function getWidgetPet(): Promise<PetManifest | null> {
+  return invoke<PetManifest | null>("get_widget_pet");
+}
+
+/**
+ * Selects the widget's community pet and returns the stored id.
+ * An empty id restores the built-in robot.
+ */
+export async function setWidgetPet(petId: string): Promise<string> {
+  return invoke<string>("set_widget_pet", { petId });
+}
+
+/** Removes an installed pet; the widget falls back to the built-in robot. */
+export async function removeWidgetPet(petId: string): Promise<void> {
+  return invoke<void>("remove_widget_pet", { petId });
 }
 
 export async function showWidgetWindow(): Promise<void> {

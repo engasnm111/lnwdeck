@@ -3,6 +3,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   fetchQuotaDashboard,
   fetchWidgetSettings,
+  getWidgetPet,
   hideWidgetWindow,
   refreshAll,
   setWidgetLocked,
@@ -26,7 +27,7 @@ import {
   windowSubtitle,
   type QuotaLevel,
 } from "./widgetTime";
-import { PetMascot } from "./PetMascot";
+import { PetMascot, type ImportedPet } from "./PetMascot";
 import { derivePetMood, type PetReaction } from "./petState";
 import {
   BarsIcon,
@@ -350,11 +351,13 @@ export function FloatingWidget() {
     visible: true,
     selected_providers: [],
     view: "bars",
+    pet_id: "",
   });
   const [refreshing, setRefreshing] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [reaction, setReaction] = useState<PetReaction>(null);
   const reactionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [activePet, setActivePet] = useState<ImportedPet | null>(null);
   const unlistenRef = useRef<UnlistenFn[]>([]);
 
   const load = useCallback(async () => {
@@ -375,6 +378,7 @@ export function FloatingWidget() {
     setSettings({
       ...payload,
       selected_providers: payload.selected_providers ?? [],
+      pet_id: payload.pet_id ?? "",
       view:
         payload.view === "rings" || payload.view === "pet" ? payload.view : "bars",
     });
@@ -452,6 +456,39 @@ export function FloatingWidget() {
       }
     };
   }, []);
+
+  // Loads the selected community pet's manifest. A missing or invalid pet
+  // silently falls back to the built-in robot.
+  useEffect(() => {
+    let cancelled = false;
+    if (!settings.pet_id) {
+      setActivePet(null);
+      return undefined;
+    }
+    void getWidgetPet()
+      .then((pet) => {
+        if (cancelled) {
+          return;
+        }
+        setActivePet(
+          pet
+            ? {
+                id: pet.id,
+                displayName: pet.displayName,
+                spriteVersionNumber: pet.spriteVersionNumber,
+              }
+            : null,
+        );
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setActivePet(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [settings.pet_id]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -659,7 +696,12 @@ export function FloatingWidget() {
       )}
 
       {settings.view === "pet" && (
-        <PetMascot mood={petMood} reaction={reaction} locked={settings.locked} />
+        <PetMascot
+          mood={petMood}
+          reaction={reaction}
+          locked={settings.locked}
+          imported={activePet}
+        />
       )}
 
       <main className="w-body">

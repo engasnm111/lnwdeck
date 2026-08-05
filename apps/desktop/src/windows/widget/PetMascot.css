@@ -426,7 +426,103 @@
     animation: none !important;
   }
 
+  .pet-atlas {
+    animation: none !important;
+  }
+
   .pet-react-celebrate .pet-sparkle {
     opacity: 1;
   }
+}
+
+/* Imported community pets: a 1536-wide spritesheet laid out as 8 columns of
+   192x208 frames. Each mood picks a row (jumping, idle, failed, waiting,
+   review) and cycles its frames with a CSS steps() animation, so the imported
+   pet animates without any JavaScript loop. Rows are addressed by percentage
+   of the atlas height: v1 has 9 rows, v2 has 11. */
+
+.pet-atlas {
+  flex: none;
+  width: 66px;
+  height: 72px;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  --pet-row-y: 0%;
+  --pet-frame-end: 0%;
+  --pet-steps: 1;
+  animation: pet-atlas-play 1.1s steps(var(--pet-steps), jump-none) infinite;
+}
+
+.pet-atlas[data-sprite-version="1"] {
+  background-size: 800% 900%;
+}
+
+.pet-atlas[data-sprite-version="2"] {
+  background-size: 800% 1100%;
+}
+
+@keyframes pet-atlas-play {
+  from {
+    background-position: 0% var(--pet-row-y);
+  }
+  to {
+    background-position: var(--pet-frame-end) var(--pet-row-y);
+  }
+}
+
+/* v1 rows: 0 idle, 1 running-right, 2 running-left, 3 waving, 4 jumping,
+   5 failed, 6 waiting, 7 running, 8 review */
+.pet-atlas.pet-mood-happy {
+  --pet-row-y: 50%;
+  --pet-frame-end: 57.142857%;
+  --pet-steps: 4;
+}
+
+.pet-atlas.pet-mood-worried {
+  --pet-row-y: 0%;
+  --pet-frame-end: 71.428571%;
+  --pet-steps: 5;
+}
+
+.pet-atlas.pet-mood-critical,
+.pet-atlas.pet-mood-error {
+  --pet-row-y: 62.5%;
+  --pet-frame-end: 100%;
+  --pet-steps: 7;
+}
+
+.pet-atlas.pet-mood-stale {
+  --pet-row-y: 100%;
+  --pet-frame-end: 71.428571%;
+  --pet-steps: 5;
+}
+
+.pet-atlas.pet-mood-sleeping {
+  --pet-row-y: 75%;
+  --pet-frame-end: 71.428571%;
+  --pet-steps: 5;
+}
+
+/* v2 rows: 0 idle, 1 running-right, 2 running-left, 3 waving, 4 jumping,
+   5 failed, 6 waiting, 7 running, 8 review, 9-10 look directions */
+.pet-atlas[data-sprite-version="2"].pet-mood-happy {
+  --pet-row-y: 40%;
+}
+
+.pet-atlas[data-sprite-version="2"].pet-mood-critical,
+.pet-atlas[data-sprite-version="2"].pet-mood-error {
+  --pet-row-y: 50%;
+}
+
+.pet-atlas[data-sprite-version="2"].pet-mood-sleeping {
+  --pet-row-y: 60%;
+}
+
+.pet-atlas[data-sprite-version="2"].pet-mood-stale {
+  --pet-row-y: 80%;
+}
+
+/* The refresh-success reaction loops the jumping row a little faster. */
+.pet-react-celebrate .pet-atlas {
+  animation-duration: 0.5s;
 }

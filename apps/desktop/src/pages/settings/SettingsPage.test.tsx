@@ -12,6 +12,11 @@ vi.mock("../../lib/native", async (importOriginal) => {
     saveSettings: vi.fn(),
     setProviderKey: vi.fn(),
     deleteProviderKey: vi.fn(),
+    listWidgetPets: vi.fn(),
+    getWidgetPet: vi.fn(),
+    importWidgetPet: vi.fn(),
+    setWidgetPet: vi.fn(),
+    removeWidgetPet: vi.fn(),
   };
 });
 
@@ -50,6 +55,13 @@ describe("SettingsPage", () => {
     vi.mocked(native.saveSettings).mockReset();
     vi.mocked(native.setProviderKey).mockReset();
     vi.mocked(native.deleteProviderKey).mockReset();
+    vi.mocked(native.listWidgetPets).mockReset();
+    vi.mocked(native.getWidgetPet).mockReset();
+    vi.mocked(native.importWidgetPet).mockReset();
+    vi.mocked(native.setWidgetPet).mockReset();
+    vi.mocked(native.removeWidgetPet).mockReset();
+    vi.mocked(native.listWidgetPets).mockResolvedValue([]);
+    vi.mocked(native.getWidgetPet).mockResolvedValue(null);
   });
 
   it("renders the stored state, not a default-checked form", async () => {
@@ -155,5 +167,96 @@ describe("SettingsPage", () => {
       ).toBeDisabled(),
     );
     expect(screen.getByLabelText("OpenRouter API key")).toBeDisabled();
+  });
+
+  it("imports a community pet from a codex-pets.net input", async () => {
+    vi.mocked(native.fetchSettings).mockResolvedValue(view());
+    vi.mocked(native.importWidgetPet).mockResolvedValue({
+      id: "sprout",
+      displayName: "Sprout",
+      description: "Fixture",
+      spritesheetPath: "spritesheet.webp",
+      spriteVersionNumber: 1,
+    });
+    vi.mocked(native.listWidgetPets).mockResolvedValue([
+      {
+        id: "sprout",
+        displayName: "Sprout",
+        description: "Fixture",
+        spritesheetPath: "spritesheet.webp",
+        spriteVersionNumber: 1,
+      },
+    ]);
+    render(<SettingsPage />);
+
+    const input = await screen.findByLabelText("Codex Pets URL or pet id");
+    await userEvent.type(input, "sprout");
+    await userEvent.click(screen.getByRole("button", { name: "Import" }));
+
+    await waitFor(() =>
+      expect(native.importWidgetPet).toHaveBeenCalledWith("sprout"),
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Sprout")).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: "Use" })).toBeInTheDocument();
+  });
+
+  it("selects and removes installed pets through the backend", async () => {
+    vi.mocked(native.fetchSettings).mockResolvedValue(view());
+    const installed = [
+      {
+        id: "sprout",
+        displayName: "Sprout",
+        description: "Fixture",
+        spritesheetPath: "spritesheet.webp",
+        spriteVersionNumber: 1,
+      },
+    ];
+    vi.mocked(native.listWidgetPets).mockResolvedValue(installed);
+    vi.mocked(native.getWidgetPet).mockResolvedValue(null);
+    vi.mocked(native.setWidgetPet).mockResolvedValue("sprout");
+    render(<SettingsPage />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Use" })).toBeInTheDocument(),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Use" }));
+    await waitFor(() =>
+      expect(native.setWidgetPet).toHaveBeenCalledWith("sprout"),
+    );
+    await waitFor(() =>
+      expect(screen.getAllByText("Active").length).toBeGreaterThan(0),
+    );
+
+    vi.mocked(native.listWidgetPets).mockResolvedValue([]);
+    const removeButtons = screen
+      .getAllByRole("button", { name: "Remove" })
+      .filter((button) => !button.hasAttribute("disabled"));
+    await userEvent.click(removeButtons[0]);
+    await waitFor(() =>
+      expect(native.removeWidgetPet).toHaveBeenCalledWith("sprout"),
+    );
+    await waitFor(() =>
+      expect(screen.getByText(/No community pets installed/)).toBeInTheDocument(),
+    );
+  });
+
+  it("reports a refused pet import without hiding the failure", async () => {
+    vi.mocked(native.fetchSettings).mockResolvedValue(view());
+    vi.mocked(native.importWidgetPet).mockRejectedValue(
+      new Error("Only https://codex-pets.net pet URLs are supported"),
+    );
+    render(<SettingsPage />);
+
+    const input = await screen.findByLabelText("Codex Pets URL or pet id");
+    await userEvent.type(input, "https://evil.example/pets/x");
+    await userEvent.click(screen.getByRole("button", { name: "Import" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Only https://codex-pets.net pet URLs are supported",
+      ),
+    );
   });
 });

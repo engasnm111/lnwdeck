@@ -26,6 +26,7 @@ lnwdeck-analytics = { path = "../../../crates/analytics" }
 lnwdeck-hook-manager = { path = "../../../crates/hook-manager" }
 lnwdeck-provider-runtime = { path = "../../../crates/provider-runtime" }
 lnwdeck-windows-integration = { path = "../../../crates/windows-integration" }
+lnwdeck-provider-http = { path = "../../../crates/provider-http" }
 lnwdeck-provider-claude = { path = "../../../crates/providers/claude" }
 lnwdeck-provider-codex = { path = "../../../crates/providers/codex" }
 lnwdeck-provider-copilot = { path = "../../../crates/providers/copilot" }
@@ -42,6 +43,9 @@ getrandom = "0.3"
 hex = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Validates .codex-pet.zip packages for the widget pet import. Already in the
+# workspace lockfile through Tauri's bundler, so no new transitive tree.
+zip = "4"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

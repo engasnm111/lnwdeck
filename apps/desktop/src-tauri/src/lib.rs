@@ -1,11 +1,12 @@
 mod commands;
+mod pets;
 mod state;
 mod tray;
 mod updater;
 mod windows;
 
+use crate::state::AppState;
 use lnwdeck_storage::repositories::{AppEventLevel, AppEventRepository};
-use state::AppState;
 use std::path::PathBuf;
 use std::time::Duration;
 use tauri::{Emitter, Manager};
@@ -201,9 +202,21 @@ pub fn run() {
             windows::set_widget_providers,
             windows::set_widget_view,
             windows::show_main_window,
+            commands::pets::import_widget_pet,
+            commands::pets::import_widget_pet_file,
+            commands::pets::list_widget_pets,
+            commands::pets::get_widget_pet,
+            commands::pets::set_widget_pet,
+            commands::pets::remove_widget_pet,
             updater::check_for_update,
             updater::install_update,
         ])
+        // Serves installed pet assets to the widget over petlocal:// so the
+        // webview never loads a remote asset.
+        .register_uri_scheme_protocol("petlocal", |ctx, request| {
+            let store = commands::pets::pet_store_dir(ctx.app_handle());
+            commands::pets::serve_pet_asset(&store, request.uri().path())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

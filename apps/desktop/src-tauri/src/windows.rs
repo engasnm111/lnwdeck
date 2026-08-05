@@ -30,6 +30,8 @@ pub struct WidgetSettings {
     pub selected_providers: Vec<String>,
     /// Layout: "bars", "rings" or "pet".
     pub view: String,
+    /// Community pet id for the pet layout. Empty means the built-in robot.
+    pub pet_id: String,
 }
 
 /// Clamps a widget top-left position so the whole widget stays on screen.
@@ -87,6 +89,7 @@ pub fn widget_settings(app: &tauri::AppHandle) -> WidgetSettings {
         visible: false,
         selected_providers: Vec::new(),
         view: "bars".to_string(),
+        pet_id: String::new(),
     };
     let Ok(guard) = state.ensure_storage() else {
         return defaults;
@@ -103,6 +106,7 @@ pub fn widget_settings(app: &tauri::AppHandle) -> WidgetSettings {
                 .unwrap_or_default(),
             view: SettingsService::widget_view(&storage.conn)
                 .unwrap_or_else(|_| "bars".to_string()),
+            pet_id: SettingsService::widget_pet_id(&storage.conn).unwrap_or_default(),
         },
         Err(_) => defaults,
     }
@@ -225,7 +229,7 @@ pub fn handle_close_request(window: &tauri::Window) {
     }
 }
 
-fn emit_widget_settings(app: &tauri::AppHandle) {
+pub(crate) fn emit_widget_settings(app: &tauri::AppHandle) {
     let settings = widget_settings(app);
     let _ = app.emit("widget-settings-changed", settings);
 }
@@ -399,6 +403,7 @@ mod tests {
             visible: false,
             selected_providers: Vec::new(),
             view: "bars".to_string(),
+            pet_id: String::new(),
         };
         assert!(!defaults.visible, "the widget stays hidden until requested");
         assert_eq!(defaults.opacity, 1.0);
@@ -407,5 +412,9 @@ mod tests {
             "no selection means every provider is shown"
         );
         assert_eq!(defaults.view, "bars");
+        assert!(
+            defaults.pet_id.is_empty(),
+            "no pet selected means the built-in robot"
+        );
     }
 }

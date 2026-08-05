@@ -167,7 +167,23 @@ vi.mock("@tauri-apps/api/core", () => ({
           allowed_retention_days: [7, 30, 90, 365, 0],
         };
       case "get_widget_settings":
-        return { opacity: 1, locked: false, visible: true };
+        return { opacity: 1, locked: false, visible: true, pet_id: "" };
+      case "list_widget_pets":
+        return [];
+      case "get_widget_pet":
+        return null;
+      case "import_widget_pet":
+        return {
+          id: "sprout",
+          displayName: "Sprout",
+          description: "Fixture pet",
+          spritesheetPath: "spritesheet.webp",
+          spriteVersionNumber: 1,
+        };
+      case "set_widget_pet":
+        return "sprout";
+      case "remove_widget_pet":
+        return null;
       case "get_app_events":
         return [];
       case "get_pipeline_diagnostics":

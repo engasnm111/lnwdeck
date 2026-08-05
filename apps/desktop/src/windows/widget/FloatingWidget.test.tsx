@@ -14,6 +14,7 @@ vi.mock("../../lib/native", async (importOriginal) => {
     setWidgetLocked: vi.fn(),
     setWidgetProviders: vi.fn(),
     setWidgetView: vi.fn(),
+    getWidgetPet: vi.fn(),
     hideWidgetWindow: vi.fn().mockResolvedValue(undefined),
     showMainWindow: vi.fn().mockResolvedValue(undefined),
     refreshAll: vi.fn().mockResolvedValue({ usage: [], quota: [] }),
@@ -93,11 +94,14 @@ describe("FloatingWidget", () => {
       visible: true,
       selected_providers: [],
       view: "bars",
+      pet_id: "",
     });
     vi.mocked(native.fetchQuotaDashboard).mockReset();
     vi.mocked(native.setWidgetLocked).mockReset();
     vi.mocked(native.setWidgetProviders).mockReset();
     vi.mocked(native.setWidgetView).mockReset();
+    vi.mocked(native.getWidgetPet).mockReset();
+    vi.mocked(native.getWidgetPet).mockResolvedValue(null);
     vi.mocked(native.refreshAll).mockClear();
     vi.mocked(native.hideWidgetWindow).mockClear();
     vi.mocked(native.showMainWindow).mockClear();
@@ -379,6 +383,7 @@ describe("FloatingWidget", () => {
       visible: true,
       selected_providers: ["anthropic_claude"],
       view: "bars",
+      pet_id: "",
     });
     vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
       dashboard([
@@ -452,6 +457,7 @@ describe("FloatingWidget", () => {
       visible: true,
       selected_providers: [],
       view: "bars",
+      pet_id: "",
     });
     vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
       dashboard([provider()]),
@@ -523,6 +529,7 @@ describe("FloatingWidget", () => {
       visible: true,
       selected_providers: [],
       view: "pet",
+      pet_id: "",
     });
     vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
       dashboard([provider()]),
@@ -552,6 +559,7 @@ describe("FloatingWidget pet view", () => {
     visible: true,
     selected_providers: [],
     view: "pet",
+    pet_id: "",
     ...overrides,
   });
 
@@ -673,6 +681,56 @@ describe("FloatingWidget pet view", () => {
     expect(screen.getByText("Shown")).toBeInTheDocument();
     expect(screen.queryByText("Failed")).not.toBeInTheDocument();
     expect(screen.getByText(/1 of 1 provider/)).toBeInTheDocument();
+  });
+
+  it("renders a locally imported pet instead of the built-in robot", async () => {
+    vi.mocked(native.fetchWidgetSettings).mockResolvedValue(
+      petSettings({ pet_id: "sprout" }),
+    );
+    vi.mocked(native.getWidgetPet).mockResolvedValue({
+      id: "sprout",
+      displayName: "Sprout",
+      description: "A test pet",
+      spritesheetPath: "spritesheet.webp",
+      spriteVersionNumber: 2,
+    });
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([provider()]),
+    );
+    const { container } = render(<FloatingWidget />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Quota mood: Happy")).toBeInTheDocument(),
+    );
+    await waitFor(() =>
+      expect(container.querySelector(".pet-atlas")).not.toBeNull(),
+    );
+    const atlas = container.querySelector(".pet-atlas");
+    expect(atlas).toHaveAttribute("data-sprite-version", "2");
+    expect(atlas).toHaveAttribute("aria-hidden", "true");
+    expect((atlas as HTMLElement).style.backgroundImage).toContain(
+      "petlocal://pets/sprout/spritesheet.webp",
+    );
+    expect(container.querySelector(".pet-svg")).toBeNull();
+  });
+
+  it("falls back to the built-in robot when the selected pet is missing", async () => {
+    vi.mocked(native.fetchWidgetSettings).mockResolvedValue(
+      petSettings({ pet_id: "ghost" }),
+    );
+    vi.mocked(native.getWidgetPet).mockResolvedValue(null);
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([provider()]),
+    );
+    const { container } = render(<FloatingWidget />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Quota mood: Happy")).toBeInTheDocument(),
+    );
+    await waitFor(() =>
+      expect(container.querySelector(".pet-svg")).not.toBeNull(),
+    );
+    expect(container.querySelector(".pet-atlas")).toBeNull();
   });
 
   it("keeps the pet stage out of the quota rows and draggable only when unlocked", async () => {
