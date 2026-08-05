@@ -1,12 +1,23 @@
 param(
     [string]$BuildDir = "target\release",
-    [string]$OutputFile = "lnwdeck_0.2.1_portable.zip",
-    [string]$Version = "0.2.1"
+    [string]$OutputFile = "",
+    [string]$Version = ""
 )
 
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = Resolve-Path "$ScriptDir\.."
+
+# The archive name must never be hardcoded: derive the version from the
+# canonical installer/package-config.json so a version bump cannot ship a
+# mislabelled ZIP.
+if (-not $Version) {
+    $PackageConfig = Get-Content "$RepoRoot\installer\package-config.json" -Raw | ConvertFrom-Json
+    $Version = $PackageConfig.version
+}
+if (-not $OutputFile) {
+    $OutputFile = "lnwdeck_${Version}_portable.zip"
+}
 
 Write-Host "=== lnwdeck Portable Packaging v$Version ==="
 

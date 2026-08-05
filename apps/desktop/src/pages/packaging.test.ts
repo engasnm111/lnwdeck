@@ -47,10 +47,14 @@ describe("packaging configuration", () => {
       path.join(REPO_ROOT, "scripts/package-portable.ps1"),
       "utf-8",
     );
-    // The portable script names the archive, so a stale default would ship a
-    // mislabelled ZIP.
-    expect(packagePortable).toContain(`lnwdeck_${cargoVersion}_portable.zip`);
-    expect(packagePortable).toContain(`$Version = "${cargoVersion}"`);
+    // The portable script names the archive, so a hardcoded default would
+    // ship a mislabelled ZIP on the next version bump. It must derive the
+    // version from the canonical installer/package-config.json instead.
+    expect(packagePortable).toContain("installer/package-config.json");
+    expect(packagePortable).toContain(
+      '$OutputFile = "lnwdeck_${Version}_portable.zip"',
+    );
+    expect(packagePortable).not.toMatch(/\$Version = "\d+\.\d+\.\d+"/);
   });
 
   it("configures the three Windows architectures the release builds", () => {
