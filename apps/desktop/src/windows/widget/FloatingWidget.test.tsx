@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { FloatingWidget, statusChip } from "./FloatingWidget";
+import { FloatingWidget, hasFetchedQuota, statusChip } from "./FloatingWidget";
 import * as native from "../../lib/native";
 
 vi.mock("../../lib/native", async (importOriginal) => {
@@ -243,7 +243,7 @@ describe("FloatingWidget", () => {
     expect(screen.getByText("72%")).toBeInTheDocument();
   });
 
-  it("distinguishes rate limited, not authenticated, unavailable and error", async () => {
+  it("hides providers whose quota could not be fetched", async () => {
     vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
       dashboard([
         provider({
@@ -279,16 +279,49 @@ describe("FloatingWidget", () => {
     render(<FloatingWidget />);
 
     await waitFor(() =>
-      expect(screen.getByText("Rate limited")).toBeInTheDocument(),
+      expect(screen.getByText("No quota data available")).toBeInTheDocument(),
     );
-    expect(screen.getByText("Not authenticated")).toBeInTheDocument();
-    expect(screen.getByText("Unavailable")).toBeInTheDocument();
-    expect(screen.getByText("Error")).toBeInTheDocument();
-    expect(
-      screen.getByText("Add an API key in Settings to read this provider."),
-    ).toBeInTheDocument();
-    expect(screen.getByText("SOURCE_SCHEMA_MISMATCH")).toBeInTheDocument();
+    expect(screen.queryByText("Rate")).not.toBeInTheDocument();
+    expect(screen.queryByText("Auth")).not.toBeInTheDocument();
+    expect(screen.queryByText("Unconfigured")).not.toBeInTheDocument();
+    expect(screen.queryByText("Broken")).not.toBeInTheDocument();
+    expect(screen.queryByText("SOURCE_SCHEMA_MISMATCH")).not.toBeInTheDocument();
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.queryByText(/of \d+ providers/)).not.toBeInTheDocument();
+  });
+
+  it("shows only the providers that fetched quota data", async () => {
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([
+        provider({
+          provider_id: "p1",
+          display_name: "Claude",
+          windows: [windowWith(72)],
+        }),
+        provider({
+          provider_id: "p2",
+          display_name: "Codex",
+          status: "auth_expired",
+          error_code: "AUTH_EXPIRED",
+          windows: [],
+        }),
+        provider({
+          provider_id: "p3",
+          display_name: "Broken",
+          status: "error",
+          error_code: "SOURCE_SCHEMA_MISMATCH",
+          windows: [],
+        }),
+      ]),
+    );
+    render(<FloatingWidget />);
+
+    await waitFor(() => expect(screen.getByText("Claude")).toBeInTheDocument());
+    expect(screen.queryByText("Codex")).not.toBeInTheDocument();
+    expect(screen.queryByText("Broken")).not.toBeInTheDocument();
+    expect(screen.getByText(/1 of 1 provider/)).toBeInTheDocument();
+    const bars = screen.getAllByRole("progressbar");
+    expect(bars).toHaveLength(1);
   });
 
   it("renders a local unlimited provider without a percentage", async () => {
@@ -615,6 +648,33 @@ describe("FloatingWidget pet view", () => {
     expect(screen.getByText(/1 of 2 provider/)).toBeInTheDocument();
   });
 
+  it("keeps a failed provider from appearing or making the pet sad", async () => {
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([
+        provider({
+          provider_id: "shown",
+          display_name: "Shown",
+          windows: [windowWith(72)],
+        }),
+        provider({
+          provider_id: "failed",
+          display_name: "Failed",
+          status: "auth_expired",
+          error_code: "AUTH_EXPIRED",
+          windows: [],
+        }),
+      ]),
+    );
+    render(<FloatingWidget />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Quota mood: Happy")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Shown")).toBeInTheDocument();
+    expect(screen.queryByText("Failed")).not.toBeInTheDocument();
+    expect(screen.getByText(/1 of 1 provider/)).toBeInTheDocument();
+  });
+
   it("keeps the pet stage out of the quota rows and draggable only when unlocked", async () => {
     vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
       dashboard([provider()]),
@@ -768,5 +828,16 @@ describe("statusChip", () => {
   it("uses a non-alarming tone for a provider that is merely unconfigured", () => {
     expect(statusChip("unavailable", "NOT_CONFIGURED").tone).toBe("muted");
     expect(statusChip("auth_expired", "AUTH_EXPIRED").tone).toBe("error");
+  });
+});
+
+describe("hasFetchedQuota", () => {
+  it("keeps fresh and stale readings and hides failed collections", () => {
+    expect(hasFetchedQuota("fresh")).toBe(true);
+    expect(hasFetchedQuota("stale")).toBe(true);
+    expect(hasFetchedQuota("unavailable")).toBe(false);
+    expect(hasFetchedQuota("auth_expired")).toBe(false);
+    expect(hasFetchedQuota("rate_limited")).toBe(false);
+    expect(hasFetchedQuota("error")).toBe(false);
   });
 });

@@ -102,6 +102,16 @@ export function statusChip(
   }
 }
 
+/**
+ * A provider counts as fetched when its quota channel produced a reading.
+ * Fresh and stale readings are real data; a failed collection (not
+ * configured, not authenticated, rate limited, or an error) hides the
+ * provider until it recovers. Mirrors the domain's `QuotaStatus::is_usable`.
+ */
+export function hasFetchedQuota(status: QuotaStatus): boolean {
+  return status === "fresh" || status === "stale";
+}
+
 /** Row icon chosen from the window scope and kind. */
 function WindowIcon({ window }: { window: QuotaWindowData }) {
   if (window.kind === "credits") {
@@ -511,17 +521,23 @@ export function FloatingWidget() {
   }, []);
 
   const allProviders = dashboard?.providers ?? [];
+  // Providers whose quota collection actually produced data. Failed
+  // collections are not shown in the widget; the dashboard explains them.
+  const fetchedProviders = useMemo(
+    () => allProviders.filter((provider) => hasFetchedQuota(provider.status)),
+    [allProviders],
+  );
   const visibleProviders = useMemo(() => {
     if (settings.selected_providers.length === 0) {
-      return allProviders;
+      return fetchedProviders;
     }
-    return allProviders.filter((provider) =>
+    return fetchedProviders.filter((provider) =>
       settings.selected_providers.includes(provider.provider_id),
     );
-  }, [allProviders, settings.selected_providers]);
+  }, [fetchedProviders, settings.selected_providers]);
 
   // The pet mood derives only from what the widget currently shows, after the
-  // provider selection above has been applied.
+  // fetch filter and provider selection above have been applied.
   const petMood = useMemo(() => derivePetMood(visibleProviders), [visibleProviders]);
 
   const dragProps = settings.locked ? {} : { "data-tauri-drag-region": "" };
@@ -665,6 +681,14 @@ export function FloatingWidget() {
               source.
             </span>
           </div>
+        ) : fetchedProviders.length === 0 ? (
+          <div className="w-message" role="status">
+            <span className="w-message-title">No quota data available</span>
+            <span className="w-message-detail">
+              Every provider failed to fetch quota. Open the dashboard to see
+              why.
+            </span>
+          </div>
         ) : visibleProviders.length === 0 ? (
           <div className="w-message" role="status">
             <span className="w-message-title">No provider selected</span>
@@ -691,9 +715,9 @@ export function FloatingWidget() {
           Updated {dashboard ? formatRefreshedAgo(dashboard.generated_at, now) : "never"}
         </span>
         <span className="w-footer-spacer" />
-        {allProviders.length > 0 && (
+        {fetchedProviders.length > 0 && (
           <span className="w-footer-count">
-            {visibleProviders.length} of {allProviders.length} providers
+            {visibleProviders.length} of {fetchedProviders.length} providers
           </span>
         )}
         <span className="w-footer-interval">

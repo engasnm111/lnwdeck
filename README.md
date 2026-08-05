@@ -93,12 +93,15 @@ data.
   accessible information.
 - Every bar and ring exposes an ARIA progressbar with the percentage and the
   reset time, and every control is reachable by keyboard.
-- States it renders explicitly: loading, no data, no provider selected, stale,
-  rate limited, not authenticated, unavailable and error. A window with no
-  published limit shows "Unavailable" and a hatched track; a window with no reset
-  time shows "Reset time unavailable". Pet mode never estimates a missing
-  percentage: providers without published limits stay unavailable, exactly as
-  in bars and rings.
+- Only providers whose quota collection produced data are shown. A provider
+  that failed to fetch (not configured, not authenticated, rate limited, or a
+  collector error) is hidden until it recovers; open the dashboard for the
+  reason. Stale readings stay visible and are labelled. The widget states are
+  rendered explicitly: loading, no data, no provider selected, stale, and
+  fetch error. A window with no published limit shows "Unavailable" and a
+  hatched track; a window with no reset time shows "Reset time unavailable".
+  Pet mode never estimates a missing percentage: providers without published
+  limits stay unavailable, exactly as in bars and rings.
 
 ## Quickstart
 
