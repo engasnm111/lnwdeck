@@ -2,6 +2,33 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [0.4.0] - 2026-08-05
+
+### Highlights
+
+- **Animated pet layout for the floating widget.** A third layout, chosen from
+  the header next to bars and rings, shows a small robot pet above the same
+  quota rows as bars mode. The pet's mood is derived purely from the visible
+  quota data: happy above 50% remaining, worried at 20-50%, critical below 20%,
+  puzzled when a reading is stale, sad on auth, rate-limit or collection
+  errors, and sleeping when no visible provider published a real percentage.
+  A successful manual refresh triggers a brief celebration that returns to the
+  derived mood on its own. The pet never estimates a missing percentage and
+  the decorative artwork is hidden from assistive technology; the quota rows
+  carry all accessible information.
+- **Three-way layout picker.** The widget header now offers Bars, Rings and
+  Pet explicitly instead of a two-state toggle, and an invalid stored layout
+  still falls back to bars.
+- **Widget shows only fetched quota.** A provider whose quota collection
+  failed (not configured, not authenticated, rate limited, or a collector
+  error) is hidden from the widget until it recovers; the dashboard explains
+  the reason. Stale readings remain visible and labelled.
+
+### Notes
+
+- The pet stays inside the widget and does not roam across the desktop; it has
+  no click interactions or sounds in this release.
+
 ## [0.3.0] - 2026-08-05
 
 ### Highlights
