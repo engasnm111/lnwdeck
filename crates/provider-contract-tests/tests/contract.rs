@@ -413,14 +413,21 @@ fn declared_support_covers_the_documented_provider_matrix() {
         );
     }
 
+    // API-backed adapters that reuse a credential their own tool already
+    // stores locally, so the user enters nothing.
+    let cursor = by_id
+        .get("cursor_ide")
+        .unwrap_or_else(|| panic!("cursor_ide registered"));
+    assert_eq!(
+        cursor.usage_support,
+        ChannelSupport::Native,
+        "Cursor publishes per-request usage through its account API"
+    );
+    assert_eq!(cursor.quota_support, ChannelSupport::Native);
+    assert!(!cursor.needs_credentials());
+
     // Local-artifact collectors with no published limit.
-    for id in [
-        "opencode",
-        "google_gemini",
-        "cursor_ide",
-        "github_copilot",
-        "kiro_ai",
-    ] {
+    for id in ["opencode", "google_gemini", "github_copilot", "kiro_ai"] {
         let descriptor = by_id.get(id).unwrap_or_else(|| panic!("{id} registered"));
         assert_eq!(
             descriptor.usage_support,

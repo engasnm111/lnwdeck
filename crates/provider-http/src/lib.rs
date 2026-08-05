@@ -145,6 +145,47 @@ pub fn get_json(request: JsonRequest<'_>) -> Result<HttpResponse, String> {
     })
 }
 
+/// Performs the request and returns the raw body text.
+///
+/// Several provider APIs (Cursor's usage export) return CSV instead of JSON.
+/// The request and error-contract are identical to [`get_json`]: GET only,
+/// explicit timeout, no redirects, and every failure is a sanitized code.
+pub fn get_text(request: JsonRequest<'_>) -> Result<(u16, String), String> {
+    if !request.url.starts_with("https://") {
+        return Err("INSECURE_ENDPOINT".to_string());
+    }
+    let agent = ureq::Agent::config_builder()
+        .timeout_global(Some(request.timeout))
+        .max_redirects(0)
+        .build()
+        .new_agent();
+
+    let mut call = agent.get(request.url).header("accept", "application/json");
+    for (name, value) in request.extra_headers {
+        call = call.header(*name, *value);
+    }
+    if let Some(token) = request.bearer_token {
+        if token.trim().is_empty() {
+            return Err("NOT_CONFIGURED".to_string());
+        }
+        call = call.header("authorization", &format!("Bearer {token}"));
+    }
+
+    let mut response = match call.call() {
+        Ok(response) => response,
+        Err(ureq::Error::StatusCode(status)) => return Err(code_for_status(status).to_string()),
+        Err(ureq::Error::Timeout(_)) => return Err("PROVIDER_TIMEOUT".to_string()),
+        Err(_) => return Err("SOURCE_UNAVAILABLE".to_string()),
+    };
+
+    let status = response.status().as_u16();
+    let text = response
+        .body_mut()
+        .read_to_string()
+        .map_err(|_| "PROVIDER_UNREADABLE_BODY".to_string())?;
+    Ok((status, text))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
