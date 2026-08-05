@@ -75,9 +75,20 @@ mod platform {
     pub const IS_SUPPORTED: bool = true;
 
     fn open(access: u32) -> Result<RegKey, StartupError> {
-        RegKey::predef(HKEY_CURRENT_USER)
-            .open_subkey_with_flags(RUN_KEY, access)
-            .map_err(|error| StartupError::Registry(error.raw_os_error().unwrap_or(-1)))
+        let root = RegKey::predef(HKEY_CURRENT_USER);
+        match root.open_subkey_with_flags(RUN_KEY, access) {
+            Ok(key) => Ok(key),
+            // Some fresh Windows profiles have no Run key at all; create it so
+            // enabling startup works and later reads succeed. The empty key is
+            // harmless and is exactly what the installer would leave behind.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                root.create_subkey(RUN_KEY)
+                    .map_err(|error| StartupError::Registry(error.raw_os_error().unwrap_or(-1)))?;
+                root.open_subkey_with_flags(RUN_KEY, access)
+                    .map_err(|error| StartupError::Registry(error.raw_os_error().unwrap_or(-1)))
+            }
+            Err(error) => Err(StartupError::Registry(error.raw_os_error().unwrap_or(-1))),
+        }
     }
 
     pub fn is_enabled() -> Result<bool, StartupError> {
