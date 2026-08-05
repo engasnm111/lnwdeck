@@ -1,58 +1,62 @@
 /*
- * Design tokens.
+ * Design tokens — Graphite & Indigo.
  *
  * Dark is the default; light is applied when the user picks it or when the
  * system prefers light and the user chose "system". The theme is set as
  * data-theme on the document element by the shell, so the value always
  * reflects a real stored setting.
+ *
+ * Variable names are the public contract of this file: components and pages
+ * reference them, so a redesign changes values, never names.
  */
 
 :root {
   color-scheme: dark;
 
-  /* Surfaces: layered like Windows 11 cards on a mica background. */
-  --bg-app: #14161a;
+  /* Surfaces: deep graphite-blue layers, like a quiet command deck. */
+  --bg-app: #0d1015;
   --bg-app-gradient: radial-gradient(
-      1200px 600px at 15% -10%,
-      rgba(96, 130, 255, 0.14),
-      transparent 60%
+      1100px 620px at 12% -8%,
+      rgba(108, 132, 255, 0.16),
+      transparent 55%
     ),
-    radial-gradient(900px 500px at 100% 0%, rgba(147, 96, 255, 0.1), transparent 55%);
-  --bg-sidebar: rgba(28, 31, 38, 0.86);
-  --bg-panel: rgba(33, 37, 45, 0.92);
-  --bg-panel-elevated: rgba(41, 46, 56, 0.95);
-  --bg-hover: rgba(255, 255, 255, 0.06);
-  --bg-active: rgba(255, 255, 255, 0.1);
-  --bg-input: rgba(20, 22, 27, 0.9);
+    radial-gradient(900px 540px at 100% 0%, rgba(150, 110, 255, 0.1), transparent 55%),
+    linear-gradient(180deg, #10131a 0%, #0d1015 100%);
+  --bg-sidebar: rgba(19, 23, 31, 0.86);
+  --bg-panel: rgba(26, 30, 39, 0.9);
+  --bg-panel-elevated: rgba(32, 37, 48, 0.95);
+  --bg-hover: rgba(255, 255, 255, 0.055);
+  --bg-active: rgba(255, 255, 255, 0.095);
+  --bg-input: rgba(13, 16, 21, 0.85);
 
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --border-focus: #7d94ff;
+  --border-subtle: rgba(255, 255, 255, 0.075);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  --border-focus: #8ba0ff;
 
-  --text-primary: #f2f4f8;
-  --text-secondary: #b6bdc9;
-  --text-muted: #8b94a3;
-  --text-inverse: #14161a;
+  --text-primary: #f3f5f9;
+  --text-secondary: #b8bfcc;
+  --text-muted: #8992a3;
+  --text-inverse: #0d1015;
 
-  --accent-primary: #6b8afd;
-  --accent-primary-hover: #849dff;
-  --accent-subtle: rgba(107, 138, 253, 0.16);
+  --accent-primary: #7d96ff;
+  --accent-primary-hover: #95aaff;
+  --accent-subtle: rgba(125, 150, 255, 0.15);
 
-  --success: #4ac98b;
-  --success-subtle: rgba(74, 201, 139, 0.16);
-  --warning: #e7b355;
-  --warning-subtle: rgba(231, 179, 85, 0.18);
-  --danger: #ef6f7b;
-  --danger-subtle: rgba(239, 111, 123, 0.18);
-  --info: #62a8f5;
-  --info-subtle: rgba(98, 168, 245, 0.16);
-  --neutral-subtle: rgba(255, 255, 255, 0.08);
+  --success: #4fd19a;
+  --success-subtle: rgba(79, 209, 154, 0.14);
+  --warning: #edb95f;
+  --warning-subtle: rgba(237, 185, 95, 0.15);
+  --danger: #f47b88;
+  --danger-subtle: rgba(244, 123, 136, 0.15);
+  --info: #6fb1f8;
+  --info-subtle: rgba(111, 177, 248, 0.14);
+  --neutral-subtle: rgba(255, 255, 255, 0.07);
 
-  --chart-1: #6b8afd;
-  --chart-2: #4ac98b;
-  --chart-3: #e7b355;
-  --chart-4: #c98bf5;
-  --chart-5: #62a8f5;
+  --chart-1: #7d96ff;
+  --chart-2: #4fd19a;
+  --chart-3: #edb95f;
+  --chart-4: #c99bff;
+  --chart-5: #6fb1f8;
 
   /* 4px spacing scale. */
   --space-1: 0.25rem;
@@ -63,36 +67,51 @@
   --space-6: 2rem;
   --space-7: 3rem;
 
-  --radius-sm: 4px;
-  --radius-control: 6px;
-  --radius-card: 8px;
+  /* Radii: controls 6, cards 12, dialog 14. */
+  --radius-sm: 5px;
+  --radius-control: 7px;
+  --radius-card: 12px;
   --radius-pill: 999px;
 
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.28), 0 8px 24px rgba(0, 0, 0, 0.22);
-  --shadow-popup: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.24);
+  --shadow-popup: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --shadow-lifted: 0 2px 4px rgba(0, 0, 0, 0.28), 0 14px 36px rgba(0, 0, 0, 0.32);
 
+  /* Type: Segoe UI Variable first, a monospace for data. */
   --font-family: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui,
     -apple-system, sans-serif;
   --font-family-display: "Segoe UI Variable Display", "Segoe UI", Inter,
     system-ui, sans-serif;
   --font-mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
 
+  /* Type scale used by the shell and shared components. */
+  --font-size-xs: 0.6875rem;
+  --font-size-sm: 0.75rem;
+  --font-size-md: 0.8125rem;
+  --font-size-base: 0.875rem;
+  --font-size-lg: 1rem;
+  --font-size-xl: 1.375rem;
+  --font-size-2xl: 1.75rem;
+
   --duration-fast: 120ms;
   --duration-normal: 200ms;
+  --duration-slow: 320ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 }
 
 [data-theme="light"] {
   color-scheme: light;
 
-  --bg-app: #f3f4f7;
+  --bg-app: #f4f5f9;
   --bg-app-gradient: radial-gradient(
-      1200px 600px at 15% -10%,
-      rgba(107, 138, 253, 0.12),
-      transparent 60%
+      1100px 620px at 12% -8%,
+      rgba(125, 150, 255, 0.12),
+      transparent 55%
     ),
-    radial-gradient(900px 500px at 100% 0%, rgba(147, 96, 255, 0.08), transparent 55%);
-  --bg-sidebar: rgba(255, 255, 255, 0.86);
-  --bg-panel: rgba(255, 255, 255, 0.94);
+    radial-gradient(900px 540px at 100% 0%, rgba(150, 110, 255, 0.08), transparent 55%),
+    linear-gradient(180deg, #f7f8fb 0%, #f4f5f9 100%);
+  --bg-sidebar: rgba(255, 255, 255, 0.84);
+  --bg-panel: rgba(255, 255, 255, 0.92);
   --bg-panel-elevated: #ffffff;
   --bg-hover: rgba(15, 22, 36, 0.05);
   --bg-active: rgba(15, 22, 36, 0.09);
@@ -100,29 +119,30 @@
 
   --border-subtle: rgba(15, 22, 36, 0.1);
   --border-strong: rgba(15, 22, 36, 0.2);
-  --border-focus: #3f5fd8;
+  --border-focus: #4a68e0;
 
-  --text-primary: #171a20;
-  --text-secondary: #464e5c;
-  --text-muted: #626b7a;
+  --text-primary: #161a24;
+  --text-secondary: #464f61;
+  --text-muted: #626d80;
   --text-inverse: #ffffff;
 
-  --accent-primary: #3f5fd8;
-  --accent-primary-hover: #2f4bbd;
-  --accent-subtle: rgba(63, 95, 216, 0.12);
+  --accent-primary: #4a68e0;
+  --accent-primary-hover: #3a56cc;
+  --accent-subtle: rgba(74, 104, 224, 0.11);
 
   --success: #1f8b57;
-  --success-subtle: rgba(31, 139, 87, 0.12);
+  --success-subtle: rgba(31, 139, 87, 0.11);
   --warning: #9a6a10;
-  --warning-subtle: rgba(154, 106, 16, 0.14);
+  --warning-subtle: rgba(154, 106, 16, 0.13);
   --danger: #c33742;
-  --danger-subtle: rgba(195, 55, 66, 0.12);
+  --danger-subtle: rgba(195, 55, 66, 0.11);
   --info: #1f6fbf;
-  --info-subtle: rgba(31, 111, 191, 0.12);
-  --neutral-subtle: rgba(15, 22, 36, 0.07);
+  --info-subtle: rgba(31, 111, 191, 0.11);
+  --neutral-subtle: rgba(15, 22, 36, 0.06);
 
-  --shadow-card: 0 1px 2px rgba(15, 22, 36, 0.08), 0 8px 20px rgba(15, 22, 36, 0.08);
-  --shadow-popup: 0 8px 28px rgba(15, 22, 36, 0.2);
+  --shadow-card: 0 1px 2px rgba(15, 22, 36, 0.06), 0 6px 18px rgba(15, 22, 36, 0.07);
+  --shadow-popup: 0 12px 36px rgba(15, 22, 36, 0.18);
+  --shadow-lifted: 0 2px 4px rgba(15, 22, 36, 0.07), 0 14px 32px rgba(15, 22, 36, 0.11);
 }
 
 /* Users who chose "system" follow the OS preference. */
@@ -130,9 +150,16 @@
   [data-theme="system"] {
     color-scheme: light;
 
-    --bg-app: #f3f4f7;
-    --bg-sidebar: rgba(255, 255, 255, 0.86);
-    --bg-panel: rgba(255, 255, 255, 0.94);
+    --bg-app: #f4f5f9;
+    --bg-app-gradient: radial-gradient(
+        1100px 620px at 12% -8%,
+        rgba(125, 150, 255, 0.12),
+        transparent 55%
+      ),
+      radial-gradient(900px 540px at 100% 0%, rgba(150, 110, 255, 0.08), transparent 55%),
+      linear-gradient(180deg, #f7f8fb 0%, #f4f5f9 100%);
+    --bg-sidebar: rgba(255, 255, 255, 0.84);
+    --bg-panel: rgba(255, 255, 255, 0.92);
     --bg-panel-elevated: #ffffff;
     --bg-hover: rgba(15, 22, 36, 0.05);
     --bg-active: rgba(15, 22, 36, 0.09);
@@ -140,30 +167,30 @@
 
     --border-subtle: rgba(15, 22, 36, 0.1);
     --border-strong: rgba(15, 22, 36, 0.2);
-    --border-focus: #3f5fd8;
+    --border-focus: #4a68e0;
 
-    --text-primary: #171a20;
-    --text-secondary: #464e5c;
-    --text-muted: #626b7a;
+    --text-primary: #161a24;
+    --text-secondary: #464f61;
+    --text-muted: #626d80;
     --text-inverse: #ffffff;
 
-    --accent-primary: #3f5fd8;
-    --accent-primary-hover: #2f4bbd;
-    --accent-subtle: rgba(63, 95, 216, 0.12);
+    --accent-primary: #4a68e0;
+    --accent-primary-hover: #3a56cc;
+    --accent-subtle: rgba(74, 104, 224, 0.11);
 
     --success: #1f8b57;
-    --success-subtle: rgba(31, 139, 87, 0.12);
+    --success-subtle: rgba(31, 139, 87, 0.11);
     --warning: #9a6a10;
-    --warning-subtle: rgba(154, 106, 16, 0.14);
+    --warning-subtle: rgba(154, 106, 16, 0.13);
     --danger: #c33742;
-    --danger-subtle: rgba(195, 55, 66, 0.12);
+    --danger-subtle: rgba(195, 55, 66, 0.11);
     --info: #1f6fbf;
-    --info-subtle: rgba(31, 111, 191, 0.12);
-    --neutral-subtle: rgba(15, 22, 36, 0.07);
+    --info-subtle: rgba(31, 111, 191, 0.11);
+    --neutral-subtle: rgba(15, 22, 36, 0.06);
 
-    --shadow-card: 0 1px 2px rgba(15, 22, 36, 0.08),
-      0 8px 20px rgba(15, 22, 36, 0.08);
-    --shadow-popup: 0 8px 28px rgba(15, 22, 36, 0.2);
+    --shadow-card: 0 1px 2px rgba(15, 22, 36, 0.06), 0 6px 18px rgba(15, 22, 36, 0.07);
+    --shadow-popup: 0 12px 36px rgba(15, 22, 36, 0.18);
+    --shadow-lifted: 0 2px 4px rgba(15, 22, 36, 0.07), 0 14px 32px rgba(15, 22, 36, 0.11);
   }
 }
 
@@ -172,5 +199,6 @@
   :root {
     --duration-fast: 0ms;
     --duration-normal: 0ms;
+    --duration-slow: 0ms;
   }
 }

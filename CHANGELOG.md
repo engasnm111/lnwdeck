@@ -16,6 +16,15 @@ All notable changes to lnwdeck will be documented in this file.
   derived mood on its own. The pet never estimates a missing percentage and
   the decorative artwork is hidden from assistive technology; the quota rows
   carry all accessible information.
+- **Redesigned UI — Graphite & Indigo.** A full visual refresh of the design
+  system behind every window: a deeper graphite-blue dark palette with a
+  refined indigo accent, a clearer type scale, softer radii and layered
+  elevation, consistent focus rings and hover states on every control, a
+  polished sidebar with a brand mark and smoother active indicators, and a
+  topbar that matches the panel language of the widget. All tokens keep their
+  names, so pages and shared components inherit the new language without
+  structural changes, and every motion still respects
+  `prefers-reduced-motion`.
 - **Three-way layout picker.** The widget header now offers Bars, Rings and
   Pet explicitly instead of a two-state toggle, and an invalid stored layout
   still falls back to bars.
@@ -23,6 +32,14 @@ All notable changes to lnwdeck will be documented in this file.
   failed (not configured, not authenticated, rate limited, or a collector
   error) is hidden from the widget until it recovers; the dashboard explains
   the reason. Stale readings remain visible and labelled.
+- **Community pets from codex-pets.net.** The widget pet can be replaced by a
+  community pet imported from a codex-pets.net URL or a local
+  `.codex-pet.zip`. Imports only happen on an explicit action, over HTTPS,
+  only against codex-pets.net; every package is validated (pet.json manifest,
+  WebP spritesheet, size limits, no symlinks) before it is stored locally and
+  served to the widget through the local `petlocal://` protocol — no remote
+  asset ever reaches the webview. The pet animates with the same CSS
+  frame-cycling as the built-in robot and honors reduced motion.
 
 ### Notes
 

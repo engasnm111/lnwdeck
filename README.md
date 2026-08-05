@@ -91,6 +91,12 @@ data.
   (happy, worried, critical, stale, error, sleeping) and celebrates a
   successful manual refresh. The pet is decorative; the quota rows carry the
   accessible information.
+- Community pets from [codex-pets.net](https://codex-pets.net) can replace the
+  built-in robot: import one in Settings from a pet URL or a `.codex-pet.zip`
+  file. The package is downloaded only on that explicit action, over HTTPS,
+  only from codex-pets.net, validated (manifest, WebP spritesheet, size
+  limits, no symlinks) and then stored locally — the widget animates it from
+  the local store and never loads a remote asset.
 - Every bar and ring exposes an ARIA progressbar with the percentage and the
   reset time, and every control is reachable by keyboard.
 - Only providers whose quota collection produced data are shown. A provider

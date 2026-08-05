@@ -29,8 +29,6 @@ const navItems = [
   { to: "/system", label: "System", icon: SystemIcon },
 ];
 
-const APP_VERSION = "0.2.1";
-
 /**
  * Application shell.
  *
@@ -43,6 +41,7 @@ export function AppShell() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
   const [openAlerts, setOpenAlerts] = useState<number | null>(null);
   const [theme, setTheme] = useState<string>("system");
   const [now, setNow] = useState(() => Date.now());
@@ -72,6 +71,7 @@ export function AppShell() {
       const { fetchPipelineDiagnostics } = await import("../lib/native");
       const diagnostics = await fetchPipelineDiagnostics();
       setLastSync(diagnostics.totals.last_successful_sync);
+      setAppVersion(diagnostics.app_version);
     } catch {
       setLastSync(null);
     }
@@ -117,6 +117,7 @@ export function AppShell() {
           <div className="app-sidebar-brand">
             {!collapsed && (
               <Link to="/" className="app-sidebar-brand-name">
+                <span className="app-sidebar-brand-mark" aria-hidden="true" />
                 lnwdeck
               </Link>
             )}
@@ -162,7 +163,7 @@ export function AppShell() {
           </ul>
         </div>
         <div className="app-sidebar-footer">
-          {!collapsed && <span>v{APP_VERSION}</span>}
+          {!collapsed && appVersion && <span>v{appVersion}</span>}
           <Badge tone="neutral" title="All data stays on this machine">
             Local
           </Badge>
