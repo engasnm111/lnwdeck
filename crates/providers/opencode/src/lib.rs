@@ -1,4 +1,5 @@
-use chrono::{DateTime, Utc};
+use chrono::Datelike;
+use chrono::{DateTime, Duration, Utc};
 use lnwdeck_domain::{
     Confidence, QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope, UsageBatch, UsageEvent,
     DEFAULT_FRESHNESS,
@@ -8,7 +9,8 @@ use lnwdeck_provider_runtime::{
     CollectionOutcome, CollectionResult, DetectionResult, Permission, ProviderAdapter, SourceKind,
 };
 use lnwdeck_security::IdentifierHasher;
-use rusqlite::{Connection, OpenFlags};
+use rusqlite::{Connection, OpenFlags, OptionalExtension};
+use std::num::NonZeroU64;
 use std::path::PathBuf;
 
 /// OpenCode CLI local-session collector.
@@ -23,6 +25,18 @@ pub struct OpenCodeAdapter {
 }
 
 const ADAPTER_VERSION: &str = "0.2.0";
+
+/// OpenCode Go's published USD caps (https://opencode.ai/docs/go): $12 per
+/// 5 hours, $30 per week, $60 per month. The caps are not stored in the local
+/// database, so they are hardcoded exactly like TokenTracker does. The
+/// estimate proves Go turns were billed, never that the account still holds
+/// an active Go subscription.
+const GO_SESSION_LIMIT_MICRO: u64 = 12_000_000;
+const GO_WEEK_LIMIT_MICRO: u64 = 30_000_000;
+const GO_MONTH_LIMIT_MICRO: u64 = 60_000_000;
+const MICRO_DOLLARS: f64 = 1_000_000.0;
+const GO_SESSION_MS: i64 = 5 * 3600 * 1000;
+const GO_WEEK_MS: i64 = 7 * 24 * 3600 * 1000;
 
 /// OpenCode may store the model as a JSON descriptor like
 /// `{"id":"glm-5.2","providerID":"opencode-go"}`. Reduce it to the model id
@@ -276,16 +290,30 @@ impl OpenCodeAdapter {
         }
     }
 
-    /// Local usage-based quota estimate. OpenCode Go subscription quota is
-    /// not derivable from local session history alone, so these windows are
-    /// token-usage estimates with unknown limits (`limit = 0`), explicitly
-    /// marked `estimated`; the UI must never render a fake remaining bar.
+    /// Local quota estimate with two tiers, mirroring TokenTracker's sources:
+    ///
+    /// 1. When the `message` table carries opencode-go assistant turns, their
+    ///    billed USD cost is compared against Go's published dollar caps
+    ///    ($12 / 5h, $30 / week, $60 / month) and reported as credit windows
+    ///    with real limits, remaining and percentages.
+    /// 2. Otherwise the session table's token history produces usage-only
+    ///    windows: real consumption with an unknown limit, so the UI never
+    ///    renders a fake remaining bar.
     fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
         if !self.db_path.is_file() {
             return Ok(None);
         }
         let conn = self.open_read_only()?;
-        let now_ms = Utc::now().timestamp_millis();
+        let now = Utc::now();
+        if let Some(windows) = opencode_go_windows(&conn, now)? {
+            return Ok(Some(QuotaReport::new(
+                "opencode",
+                "local_estimate",
+                windows,
+                DEFAULT_FRESHNESS,
+            )));
+        }
+        let now_ms = now.timestamp_millis();
         let buckets = [
             (
                 "5h",
@@ -320,8 +348,9 @@ impl OpenCodeAdapter {
                     |row| row.get(0),
                 )
                 .map_err(|_| "SOURCE_SCHEMA_MISMATCH".to_string())?;
-            // OpenCode does not publish plan limits, so the window records
-            // real usage with an unknown limit instead of a fake percentage.
+            // Without opencode-go rows the plan limit is unknown, so the
+            // window records real usage with an unknown limit instead of a
+            // fake percentage.
             windows.push(QuotaWindow::usage_only(
                 key,
                 label,
@@ -335,6 +364,146 @@ impl OpenCodeAdapter {
         let report = QuotaReport::new("opencode", "local_estimate", windows, DEFAULT_FRESHNESS);
         Ok(Some(report))
     }
+}
+
+/// Monday 00:00 UTC of the week containing `now`.
+fn week_start_utc(now: DateTime<Utc>) -> DateTime<Utc> {
+    let days = now.weekday().num_days_from_monday() as i64;
+    (now - Duration::days(days))
+        .date_naive()
+        .and_hms_opt(0, 0, 0)
+        .expect("midnight exists")
+        .and_utc()
+}
+
+/// First day 00:00 UTC of the month containing `now`.
+fn month_start_utc(now: DateTime<Utc>) -> DateTime<Utc> {
+    now.date_naive()
+        .with_day(1)
+        .expect("first of month exists")
+        .and_hms_opt(0, 0, 0)
+        .expect("midnight exists")
+        .and_utc()
+}
+
+/// Aggregates opencode-go assistant turns from the `message` table and
+/// compares their billed USD cost against Go's published dollar caps.
+///
+/// Returns `Ok(None)` when the local store predates the `message` table or
+/// holds no opencode-go rows, so the caller falls back to usage-only token
+/// windows. A query failure against an existing table is reported instead,
+/// so a corrupt store is never silently counted as zero usage. Only the
+/// numeric `cost` and the `time.created` timestamp are extracted; paths,
+/// prompts and responses inside the JSON payload never leave the database.
+fn opencode_go_windows(
+    conn: &Connection,
+    now: DateTime<Utc>,
+) -> Result<Option<Vec<QuotaWindow>>, String> {
+    let has_message_table: bool = conn
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM sqlite_master
+                WHERE type = 'table' AND name = 'message'
+             )",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|_| "SOURCE_SCHEMA_MISMATCH".to_string())?;
+    if !has_message_table {
+        return Ok(None);
+    }
+
+    let session_start_ms = now.timestamp_millis() - GO_SESSION_MS;
+    let week_start_ms = week_start_utc(now).timestamp_millis();
+    let week_end_ms = week_start_ms + GO_WEEK_MS;
+    let month_start_ms = month_start_utc(now).timestamp_millis();
+    let month_end_ms = month_start_utc(now + Duration::days(32)).timestamp_millis();
+
+    let row: Option<(f64, Option<i64>, f64, f64, i64)> = conn
+        .query_row(
+            "SELECT
+                COALESCE(SUM(CASE WHEN created_ms >= ?1 THEN cost ELSE 0 END), 0),
+                MIN(CASE WHEN created_ms >= ?1 THEN created_ms END),
+                COALESCE(SUM(CASE WHEN created_ms >= ?2 AND created_ms < ?3 THEN cost ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN created_ms >= ?4 AND created_ms < ?5 THEN cost ELSE 0 END), 0),
+                COUNT(*)
+             FROM (
+                SELECT
+                    CAST(COALESCE(json_extract(data, '$.time.created'), time_created) AS INTEGER) AS created_ms,
+                    CAST(json_extract(data, '$.cost') AS REAL) AS cost
+                FROM message
+                WHERE json_valid(data)
+                  AND json_extract(data, '$.providerID') = 'opencode-go'
+                  AND json_extract(data, '$.role') = 'assistant'
+                  AND json_type(data, '$.cost') IN ('integer', 'real')
+             )",
+            rusqlite::params![
+                session_start_ms,
+                week_start_ms,
+                week_end_ms,
+                month_start_ms,
+                month_end_ms
+            ],
+            |row| {
+                Ok((
+                    row.get::<_, f64>(0)?,
+                    row.get::<_, Option<i64>>(1)?,
+                    row.get::<_, f64>(2)?,
+                    row.get::<_, f64>(3)?,
+                    row.get::<_, i64>(4)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|_| "SOURCE_SCHEMA_MISMATCH".to_string())?;
+    let Some((session_used, session_oldest, week_used, month_used, row_count)) = row else {
+        return Ok(None);
+    };
+    if row_count <= 0 {
+        return Ok(None);
+    }
+
+    let to_micro = |dollars: f64| (dollars.max(0.0) * MICRO_DOLLARS).round() as u64;
+    let session_limit = NonZeroU64::new(GO_SESSION_LIMIT_MICRO).expect("non-zero cap");
+    let week_limit = NonZeroU64::new(GO_WEEK_LIMIT_MICRO).expect("non-zero cap");
+    let month_limit = NonZeroU64::new(GO_MONTH_LIMIT_MICRO).expect("non-zero cap");
+
+    let session_reset =
+        session_oldest.and_then(|oldest| DateTime::from_timestamp_millis(oldest + GO_SESSION_MS));
+
+    let windows = vec![
+        QuotaWindow::with_limit(
+            "5h",
+            "5-hour",
+            QuotaWindowScope::Rolling,
+            QuotaKind::Credits,
+            to_micro(session_used),
+            session_limit,
+            session_reset,
+            Confidence::Medium,
+        ),
+        QuotaWindow::with_limit(
+            "7d",
+            "7-day",
+            QuotaWindowScope::Weekly,
+            QuotaKind::Credits,
+            to_micro(week_used),
+            week_limit,
+            DateTime::from_timestamp_millis(week_end_ms),
+            Confidence::Medium,
+        ),
+        QuotaWindow::with_limit(
+            "30d",
+            "30-day",
+            QuotaWindowScope::Monthly,
+            QuotaKind::Credits,
+            to_micro(month_used),
+            month_limit,
+            DateTime::from_timestamp_millis(month_end_ms),
+            Confidence::Medium,
+        ),
+    ];
+    Ok(Some(windows))
 }
 
 impl ProviderAdapter for OpenCodeAdapter {

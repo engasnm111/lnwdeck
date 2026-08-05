@@ -1,3 +1,4 @@
+use chrono::Datelike;
 use lnwdeck_provider_opencode::OpenCodeAdapter;
 use lnwdeck_provider_runtime::{AdapterHealthStatus, ProviderAdapter};
 use lnwdeck_security::PrivacyGuard;
@@ -335,6 +336,236 @@ fn quota_estimate_returns_usage_windows_without_fake_limits() {
         "an unknown limit must not produce a percentage"
     );
     assert_eq!(window.confidence, lnwdeck_domain::Confidence::Medium);
+}
+
+/// Fixture with a `message` table shaped like the real opencode.db
+/// (`id, session_id, time_created, time_updated, data` JSON). The JSON rows
+/// mirror the real opencode-go message payloads, including absolute paths in
+/// `path.cwd` so the quota estimate can be verified not to leak them.
+fn create_go_fixture_db(dir: &Path) -> PathBuf {
+    let db_path = dir.join("opencode.db");
+    let conn = Connection::open(&db_path).expect("open fixture db");
+    conn.execute_batch(
+        "CREATE TABLE session (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            model TEXT,
+            cost REAL NOT NULL DEFAULT 0,
+            tokens_input INTEGER NOT NULL DEFAULT 0,
+            tokens_output INTEGER NOT NULL DEFAULT 0,
+            tokens_reasoning INTEGER NOT NULL DEFAULT 0,
+            tokens_cache_read INTEGER NOT NULL DEFAULT 0,
+            tokens_cache_write INTEGER NOT NULL DEFAULT 0,
+            time_updated INTEGER NOT NULL
+        );
+        CREATE TABLE message (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            time_created INTEGER NOT NULL,
+            time_updated INTEGER NOT NULL,
+            data TEXT NOT NULL
+        );",
+    )
+    .expect("create tables");
+
+    let now_ms = chrono::Utc::now().timestamp_millis();
+    let go_data = |cost: f64| {
+        format!(
+            r#"{{"role":"assistant","cost":{cost},"modelID":"glm-5.2","providerID":"opencode-go","time":{{"created":{now_ms},"completed":{now_ms}}},"path":{{"cwd":"C:\\Users\\ABCz\\Desktop\\secret-project","root":"C:\\Users\\ABCz\\Desktop\\secret-project"}}}}"#
+        )
+    };
+    let insert = |id: &str, data: &str| {
+        conn.execute(
+            "INSERT INTO message (id, session_id, time_created, time_updated, data)
+             VALUES (?1, 'ses_go', ?2, ?2, ?3)",
+            rusqlite::params![id, now_ms, data],
+        )
+        .expect("insert message");
+    };
+
+    insert("msg_1", &go_data(4.0));
+    insert("msg_2", &go_data(3.0));
+    insert("msg_3", &go_data(2.0));
+    insert("msg_4", &go_data(1.0));
+    // A cost stored as a string is not a billable number.
+    insert(
+        "msg_5",
+        &format!(
+            r#"{{"role":"assistant","cost":"50.00","providerID":"opencode-go","time":{{"created":{now_ms}}}}}"#
+        ),
+    );
+    // User turns are not billed assistant output.
+    insert(
+        "msg_6",
+        &format!(
+            r#"{{"role":"user","cost":999.0,"providerID":"opencode-go","time":{{"created":{now_ms}}}}}"#
+        ),
+    );
+    // Other providers are not OpenCode Go turns.
+    insert(
+        "msg_7",
+        &format!(
+            r#"{{"role":"assistant","cost":88.0,"providerID":"deepseek","time":{{"created":{now_ms}}}}}"#
+        ),
+    );
+    conn.close().expect("close fixture db");
+    db_path
+}
+
+fn next_week_end_utc(now: chrono::DateTime<chrono::Utc>) -> chrono::DateTime<chrono::Utc> {
+    let days = now.weekday().num_days_from_monday() as i64;
+    let monday = (now - chrono::Duration::days(days)).date_naive();
+    monday.and_hms_opt(0, 0, 0).expect("midnight").and_utc() + chrono::Duration::days(7)
+}
+
+fn next_month_end_utc(now: chrono::DateTime<chrono::Utc>) -> chrono::DateTime<chrono::Utc> {
+    let first = now.date_naive().with_day(1).expect("first of month");
+    let start = first.and_hms_opt(0, 0, 0).expect("midnight").and_utc();
+    if start.month() == 12 {
+        start
+            .with_year(start.year() + 1)
+            .expect("next year")
+            .with_month(1)
+            .expect("january")
+    } else {
+        start.with_month(start.month() + 1).expect("next month")
+    }
+}
+
+#[test]
+fn quota_estimate_uses_opencode_go_dollar_caps_from_message_table() {
+    let dir = tempdir().expect("temp dir");
+    let db_path = create_go_fixture_db(dir.path());
+    let adapter = adapter_for(&db_path);
+
+    let report = adapter
+        .collect_quota()
+        .expect("quota call")
+        .expect("report");
+    assert_eq!(report.provider_id, "opencode");
+    assert_eq!(report.source, "local_estimate");
+    assert!(report.is_usable());
+    assert_eq!(report.windows.len(), 3);
+
+    let now = chrono::Utc::now();
+    let five_h = report
+        .windows
+        .iter()
+        .find(|w| w.window_key == "5h")
+        .expect("5h window");
+    assert_eq!(five_h.kind, lnwdeck_domain::QuotaKind::Credits);
+    assert_eq!(five_h.limit, Some(12_000_000), "$12 cap in micro-dollars");
+    assert_eq!(
+        five_h.used, 10_000_000,
+        "only opencode-go assistant rows with numeric cost are summed"
+    );
+    assert_eq!(five_h.remaining, Some(2_000_000));
+    assert!(
+        (five_h.used_percent.expect("percent") - 83.3333).abs() < 0.01,
+        "10 of 12 dollars used"
+    );
+    let expected_reset = now.timestamp_millis() + 5 * 3600 * 1000;
+    assert!(
+        (five_h.reset_at.expect("reset").timestamp_millis() - expected_reset).abs() < 5_000,
+        "5h window resets five hours after the oldest billed turn"
+    );
+    five_h.check_invariants().expect("consistent window");
+
+    let seven_d = report
+        .windows
+        .iter()
+        .find(|w| w.window_key == "7d")
+        .expect("7d window");
+    assert_eq!(seven_d.limit, Some(30_000_000), "$30 weekly cap");
+    assert_eq!(seven_d.used, 10_000_000);
+    assert_eq!(
+        seven_d.reset_at.expect("reset"),
+        next_week_end_utc(now),
+        "weekly window resets at the next Monday boundary (UTC)"
+    );
+    seven_d.check_invariants().expect("consistent window");
+
+    let thirty_d = report
+        .windows
+        .iter()
+        .find(|w| w.window_key == "30d")
+        .expect("30d window");
+    assert_eq!(thirty_d.limit, Some(60_000_000), "$60 monthly cap");
+    assert_eq!(thirty_d.used, 10_000_000);
+    assert_eq!(
+        thirty_d.reset_at.expect("reset"),
+        next_month_end_utc(now),
+        "monthly window resets at the next calendar month (UTC)"
+    );
+    thirty_d.check_invariants().expect("consistent window");
+}
+
+#[test]
+fn quota_estimate_falls_back_to_usage_only_windows_without_go_rows() {
+    let dir = tempdir().expect("temp dir");
+    let db_path = create_go_fixture_db(dir.path());
+    let conn = Connection::open(&db_path).expect("open");
+    conn.execute(
+        "DELETE FROM message WHERE json_extract(data, '$.providerID') = 'opencode-go'",
+        [],
+    )
+    .expect("remove go rows");
+    conn.execute(
+        "INSERT INTO session (id, project_id, model, cost, tokens_input, tokens_output,
+                              tokens_reasoning, tokens_cache_read, tokens_cache_write, time_updated)
+         VALUES ('sess_go', 'proj_go', 'glm-5.2', 0.1, 200, 100, 0, 0, 0, 1700000000000)",
+        [],
+    )
+    .expect("insert session");
+    conn.close().expect("close");
+
+    let adapter = adapter_for(&db_path);
+    let report = adapter
+        .collect_quota()
+        .expect("quota call")
+        .expect("report");
+    assert_eq!(report.windows.len(), 3);
+    for window in &report.windows {
+        assert_eq!(
+            window.limit, None,
+            "without opencode-go rows the limit stays unknown"
+        );
+        assert_eq!(window.remaining, None);
+        assert_eq!(window.used_percent, None);
+        window.check_invariants().expect("consistent window");
+    }
+}
+
+#[test]
+fn opencode_go_quota_report_leaks_no_paths_or_other_provider_costs() {
+    let dir = tempdir().expect("temp dir");
+    let db_path = create_go_fixture_db(dir.path());
+    let adapter = adapter_for(&db_path);
+
+    let report = adapter
+        .collect_quota()
+        .expect("quota call")
+        .expect("report");
+    let json = serde_json::to_string(&report).expect("serialize");
+    assert!(
+        !json.contains("secret-project"),
+        "absolute paths in message JSON must not reach the report"
+    );
+    assert!(!json.contains("C:\\\\"));
+    assert!(
+        !json.contains("deepseek"),
+        "other providers' rows must not leak"
+    );
+    assert!(
+        !json.contains("50.00"),
+        "string-typed costs are excluded, not serialized"
+    );
+    // The 999.0 user turn and 88.0 other-provider turn must not move the
+    // aggregated totals; the cap test asserts the exact 10_000_000 sum.
+    let value: serde_json::Value = serde_json::from_str(&json).expect("valid json");
+    for window in value["windows"].as_array().expect("windows") {
+        assert!(window["used"].as_u64().expect("used") <= 10_000_000);
+    }
 }
 
 #[test]
