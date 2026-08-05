@@ -21,10 +21,12 @@ no account, no server and no sync.
 - **Budgets and alerts** you configure, evaluated against recorded usage, quota
   thresholds and collector failures.
 - **Floating widget**: a small always-on-top window with its own entry point (no
-  sidebar, no dashboard bundle). One row per quota window with an icon, the
-  window name, the remaining percentage, a colour-coded bar and the next reset,
-  or a compact ring layout. Bar colour follows severity: above 50% normal,
-  20-50% warning, below 20% critical.
+  sidebar, no dashboard bundle). Three layouts share the same real quota data:
+  one row per quota window with an icon, the window name, the remaining
+  percentage, a colour-coded bar and the next reset; a compact ring layout; or
+  an animated robot pet whose mood is derived from the visible quotas. Bar
+  colour follows severity: above 50% normal, 20-50% warning, below 20%
+  critical.
 - **Diagnostics** for the database, migrations, per-provider collector runs and
   background failures, with a sanitized JSON export.
 
@@ -80,14 +82,23 @@ data.
 
 - Always on top, frameless, remembered position, size, opacity, layout and
   provider selection.
-- Drag by the header; Lock pins it in place. Refresh, Dashboard, layout switch,
-  provider picker and Close are in the header. Escape closes it.
+- Drag by the header, or by the pet stage in pet layout; Lock pins it in place.
+  Refresh, Dashboard, layout picker, provider picker and Close are in the
+  header. Escape closes it.
+- Three layouts chosen from the header: bars, rings, or the animated pet. All
+  three render the same quota dashboard data; the pet layout shows the same
+  rows below a small robot pet whose mood reacts to the visible quotas
+  (happy, worried, critical, stale, error, sleeping) and celebrates a
+  successful manual refresh. The pet is decorative; the quota rows carry the
+  accessible information.
 - Every bar and ring exposes an ARIA progressbar with the percentage and the
   reset time, and every control is reachable by keyboard.
 - States it renders explicitly: loading, no data, no provider selected, stale,
   rate limited, not authenticated, unavailable and error. A window with no
   published limit shows "Unavailable" and a hatched track; a window with no reset
-  time shows "Reset time unavailable".
+  time shows "Reset time unavailable". Pet mode never estimates a missing
+  percentage: providers without published limits stay unavailable, exactly as
+  in bars and rings.
 
 ## Quickstart
 

@@ -466,8 +466,8 @@ export async function deleteProviderKey(
   return invoke<SettingsViewData>("delete_provider_key", { providerId });
 }
 
-/** Widget layout: horizontal bars, or compact rings. */
-export type WidgetView = "bars" | "rings";
+/** Widget layout: horizontal bars, compact rings, or the animated pet. */
+export type WidgetView = "bars" | "rings" | "pet";
 
 export interface WidgetSettingsData {
   opacity: number;

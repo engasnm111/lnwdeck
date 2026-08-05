@@ -114,6 +114,18 @@ body {
   color: var(--danger);
 }
 
+/* Layout picker: keeps the header button look while offering every view. */
+.w-view-select {
+  max-width: 84px;
+  padding: 0 4px;
+  border-color: var(--border-subtle);
+}
+
+.w-view-select option {
+  color: var(--text-primary);
+  background: var(--bg-panel-elevated);
+}
+
 /* Body */
 
 .w-body {

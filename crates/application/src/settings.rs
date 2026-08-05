@@ -26,8 +26,8 @@ pub const ALLOWED_REFRESH_INTERVALS: &[u64] = &[0, 30, 60, 300, 900, 3600];
 pub const ALLOWED_THEMES: &[&str] = &["dark", "light", "system"];
 /// Retention windows the UI offers, in days.
 pub const ALLOWED_RETENTION_DAYS: &[u64] = &[7, 30, 90, 365, 0];
-/// Widget layouts: horizontal bars, or compact rings.
-pub const ALLOWED_WIDGET_VIEWS: &[&str] = &["bars", "rings"];
+/// Widget layouts: horizontal bars, compact rings, or the animated pet.
+pub const ALLOWED_WIDGET_VIEWS: &[&str] = &["bars", "rings", "pet"];
 
 /// Defaults used when a key has never been written.
 const DEFAULT_REFRESH_INTERVAL: u64 = 300;
@@ -550,6 +550,25 @@ mod tests {
             SettingsService::widget_view(&storage.conn).expect("read"),
             "rings",
             "a refused layout leaves the stored one in place"
+        );
+    }
+
+    #[test]
+    fn widget_view_accepts_the_pet_layout_and_roundtrips() {
+        let storage = open_db();
+        assert_eq!(
+            SettingsService::set_widget_view(&storage.conn, "pet").expect("store"),
+            "pet"
+        );
+        assert_eq!(
+            SettingsService::widget_view(&storage.conn).expect("read"),
+            "pet",
+            "a reload returns the stored pet layout"
+        );
+        assert_eq!(
+            SettingsService::set_widget_view(&storage.conn, "rings").expect("store"),
+            "rings",
+            "pet is one option among the allowed layouts, not a replacement"
         );
     }
 

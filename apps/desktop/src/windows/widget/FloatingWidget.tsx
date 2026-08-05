@@ -26,6 +26,8 @@ import {
   windowSubtitle,
   type QuotaLevel,
 } from "./widgetTime";
+import { PetMascot } from "./PetMascot";
+import { derivePetMood, type PetReaction } from "./petState";
 import {
   BarsIcon,
   CalendarIcon,
@@ -40,6 +42,8 @@ const MICRO_CREDITS = 1_000_000;
 const POLL_INTERVAL_MS = 30_000;
 /** How often the countdowns tick without refetching. */
 const TICK_INTERVAL_MS = 1_000;
+/** How long the refresh-success celebration is shown. */
+const CELEBRATE_MS = 2_500;
 
 interface StatusChip {
   label: string;
@@ -339,6 +343,8 @@ export function FloatingWidget() {
   });
   const [refreshing, setRefreshing] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [reaction, setReaction] = useState<PetReaction>(null);
+  const reactionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unlistenRef = useRef<UnlistenFn[]>([]);
 
   const load = useCallback(async () => {
@@ -359,7 +365,8 @@ export function FloatingWidget() {
     setSettings({
       ...payload,
       selected_providers: payload.selected_providers ?? [],
-      view: payload.view === "rings" ? "rings" : "bars",
+      view:
+        payload.view === "rings" || payload.view === "pet" ? payload.view : "bars",
     });
   }, []);
 
@@ -411,6 +418,31 @@ export function FloatingWidget() {
     };
   }, [load, loadSettings, applySettings]);
 
+  /**
+   * Starts the brief refresh-success celebration. A repeated refresh replaces
+   * the pending timer instead of stacking timers, so rapid clicks cannot race.
+   */
+  const celebrate = useCallback(() => {
+    if (reactionTimer.current !== null) {
+      clearTimeout(reactionTimer.current);
+    }
+    reactionTimer.current = setTimeout(() => {
+      reactionTimer.current = null;
+      setReaction(null);
+    }, CELEBRATE_MS);
+    setReaction("celebrate");
+  }, []);
+
+  // The celebration timer must not outlive the widget.
+  useEffect(() => {
+    return () => {
+      if (reactionTimer.current !== null) {
+        clearTimeout(reactionTimer.current);
+        reactionTimer.current = null;
+      }
+    };
+  }, []);
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     setError(null);
@@ -418,6 +450,7 @@ export function FloatingWidget() {
       await refreshAll();
       await load();
       setNow(Date.now());
+      celebrate();
     } catch (refreshError) {
       setError(
         refreshError instanceof Error ? refreshError.message : "refresh failed",
@@ -425,7 +458,7 @@ export function FloatingWidget() {
     } finally {
       setRefreshing(false);
     }
-  }, [load]);
+  }, [load, celebrate]);
 
   const toggleLock = useCallback(async () => {
     try {
@@ -436,18 +469,19 @@ export function FloatingWidget() {
     }
   }, [settings.locked]);
 
-  const toggleView = useCallback(async () => {
-    const next: WidgetView = settings.view === "bars" ? "rings" : "bars";
+  const selectView = useCallback(async (view: WidgetView) => {
+    if (view !== "bars" && view !== "rings" && view !== "pet") {
+      return;
+    }
     try {
-      const stored = await setWidgetView(next);
-      setSettings((current) => ({
-        ...current,
-        view: stored === "rings" ? "rings" : "bars",
-      }));
+      const stored = await setWidgetView(view);
+      const safe: WidgetView =
+        stored === "rings" || stored === "pet" ? stored : "bars";
+      setSettings((current) => ({ ...current, view: safe }));
     } catch {
       // Keep the current layout when the write is refused.
     }
-  }, [settings.view]);
+  }, []);
 
   const toggleProvider = useCallback(
     async (providerId: string) => {
@@ -486,6 +520,10 @@ export function FloatingWidget() {
     );
   }, [allProviders, settings.selected_providers]);
 
+  // The pet mood derives only from what the widget currently shows, after the
+  // provider selection above has been applied.
+  const petMood = useMemo(() => derivePetMood(visibleProviders), [visibleProviders]);
+
   const dragProps = settings.locked ? {} : { "data-tauri-drag-region": "" };
 
   return (
@@ -519,19 +557,19 @@ export function FloatingWidget() {
           >
             Open
           </button>
-          <button
-            type="button"
-            className="w-btn"
-            onClick={() => void toggleView()}
-            aria-label={
-              settings.view === "bars"
-                ? "Switch to ring layout"
-                : "Switch to bar layout"
+          <select
+            className="w-btn w-view-select"
+            value={settings.view}
+            onChange={(event) =>
+              void selectView(event.target.value as WidgetView)
             }
-            title="Switch layout"
+            aria-label="Widget layout"
+            title="Choose the widget layout"
           >
-            {settings.view === "bars" ? "Rings" : "Bars"}
-          </button>
+            <option value="bars">Bars</option>
+            <option value="rings">Rings</option>
+            <option value="pet">Pet</option>
+          </select>
           <button
             type="button"
             className={`w-btn ${settings.locked ? "w-btn-active" : ""}`.trim()}
@@ -604,6 +642,10 @@ export function FloatingWidget() {
         </div>
       )}
 
+      {settings.view === "pet" && (
+        <PetMascot mood={petMood} reaction={reaction} locked={settings.locked} />
+      )}
+
       <main className="w-body">
         {error ? (
           <div className="w-message w-message-error" role="alert">
@@ -636,7 +678,7 @@ export function FloatingWidget() {
               <ProviderCard
                 key={provider.provider_id}
                 provider={provider}
-                view={settings.view}
+                view={settings.view === "rings" ? "rings" : "bars"}
                 now={now}
               />
             ))}

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { FloatingWidget, statusChip } from "./FloatingWidget";
 import * as native from "../../lib/native";
@@ -13,6 +13,7 @@ vi.mock("../../lib/native", async (importOriginal) => {
     setWidgetOpacity: vi.fn(),
     setWidgetLocked: vi.fn(),
     setWidgetProviders: vi.fn(),
+    setWidgetView: vi.fn(),
     hideWidgetWindow: vi.fn().mockResolvedValue(undefined),
     showMainWindow: vi.fn().mockResolvedValue(undefined),
     refreshAll: vi.fn().mockResolvedValue({ usage: [], quota: [] }),
@@ -96,6 +97,7 @@ describe("FloatingWidget", () => {
     vi.mocked(native.fetchQuotaDashboard).mockReset();
     vi.mocked(native.setWidgetLocked).mockReset();
     vi.mocked(native.setWidgetProviders).mockReset();
+    vi.mocked(native.setWidgetView).mockReset();
     vi.mocked(native.refreshAll).mockClear();
     vi.mocked(native.hideWidgetWindow).mockClear();
     vi.mocked(native.showMainWindow).mockClear();
@@ -452,17 +454,291 @@ describe("FloatingWidget", () => {
     render(<FloatingWidget />);
     await waitFor(() => expect(screen.getByText("Claude")).toBeInTheDocument());
 
-    for (const name of [
-      "Refresh quota",
-      "Open dashboard",
-      "Switch to ring layout",
-      "Lock widget",
-      "Choose providers",
-      "Close widget",
-    ]) {
-      await userEvent.tab();
-      expect(screen.getByRole("button", { name })).toHaveFocus();
-    }
+    await userEvent.tab();
+    expect(
+      screen.getByRole("button", { name: "Refresh quota" }),
+    ).toHaveFocus();
+
+    await userEvent.tab();
+    expect(
+      screen.getByRole("button", { name: "Open dashboard" }),
+    ).toHaveFocus();
+
+    await userEvent.tab();
+    expect(
+      screen.getByRole("combobox", { name: "Widget layout" }),
+    ).toHaveFocus();
+
+    await userEvent.tab();
+    expect(screen.getByRole("button", { name: "Lock widget" })).toHaveFocus();
+
+    await userEvent.tab();
+    expect(
+      screen.getByRole("button", { name: "Choose providers" }),
+    ).toHaveFocus();
+
+    await userEvent.tab();
+    expect(
+      screen.getByRole("button", { name: "Close widget" }),
+    ).toHaveFocus();
+  });
+
+  it("cleans up timers and event listeners on unmount", async () => {
+    vi.mocked(native.fetchWidgetSettings).mockResolvedValue({
+      opacity: 1,
+      locked: false,
+      visible: true,
+      selected_providers: [],
+      view: "pet",
+    });
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([provider()]),
+    );
+    const { container, unmount } = render(<FloatingWidget />);
+    await waitFor(() => expect(screen.getByText("Claude")).toBeInTheDocument());
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+    await userEvent.click(screen.getByRole("button", { name: "Refresh quota" }));
+    await waitFor(() =>
+      expect(
+        container.querySelector(".pet-react-celebrate"),
+      ).not.toBeNull(),
+    );
+
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("FloatingWidget pet view", () => {
+  const petSettings = (
+    overrides: Partial<native.WidgetSettingsData> = {},
+  ): native.WidgetSettingsData => ({
+    opacity: 1,
+    locked: false,
+    visible: true,
+    selected_providers: [],
+    view: "pet",
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(NOW);
+    vi.mocked(native.fetchWidgetSettings).mockResolvedValue(petSettings());
+  });
+
+  it("shows every visible quota window in pet mode with full bar semantics", async () => {
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([
+        provider({
+          windows: [
+            windowWith(72, { window_key: "a" }),
+            windowWith(null, { window_key: "b", label: "7-day" }),
+          ],
+        }),
+        provider({
+          provider_id: "openai_codex",
+          display_name: "Codex",
+          windows: [windowWith(41)],
+        }),
+      ]),
+    );
+    const { container } = render(<FloatingWidget />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Quota mood: Worried")).toBeInTheDocument(),
+    );
+
+    // The mascot is decorative; the quota rows carry the information.
+    expect(container.querySelector(".pet-svg")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    expect(screen.getByText("Claude")).toBeInTheDocument();
+    expect(screen.getByText("Codex")).toBeInTheDocument();
+    expect(screen.getByText("72%")).toBeInTheDocument();
+    expect(screen.getByText("41%")).toBeInTheDocument();
+    // Every window carries its reset line; the exact countdown can shift by a
+    // minute when the fake clock crosses the tick boundary during waitFor.
+    expect(screen.getAllByText(/Resets (in|now|tomorrow)/)).toHaveLength(3);
+
+    const bars = screen.getAllByRole("progressbar");
+    expect(bars).toHaveLength(2);
+    expect(bars[0]).toHaveAttribute("aria-valuenow", "72");
+    expect(bars[1]).toHaveAttribute("aria-valuenow", "41");
+  });
+
+  it("renders Unavailable instead of a percentage for a null window in pet mode", async () => {
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([provider({ windows: [windowWith(null)] })]),
+    );
+    const { container } = render(<FloatingWidget />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Quota mood: Sleeping")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Unavailable")).toBeInTheDocument();
+    expect(screen.getByText(/no limit reported/)).toBeInTheDocument();
+    expect(container.querySelectorAll(".w-bar-unknown")).toHaveLength(1);
+    expect(container.querySelector(".w-bar-fill")).toBeNull();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.queryByText("0%")).not.toBeInTheDocument();
+    expect(screen.queryByText("100%")).not.toBeInTheDocument();
+  });
+
+  it("derives the pet mood only from the providers the widget shows", async () => {
+    vi.mocked(native.fetchWidgetSettings).mockResolvedValue(
+      petSettings({ selected_providers: ["shown"] }),
+    );
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([
+        provider({
+          provider_id: "shown",
+          display_name: "Shown",
+          windows: [windowWith(72)],
+        }),
+        provider({
+          provider_id: "hidden",
+          display_name: "Hidden",
+          windows: [windowWith(3)],
+        }),
+      ]),
+    );
+    render(<FloatingWidget />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Quota mood: Happy")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Shown")).toBeInTheDocument();
+    expect(screen.queryByText("Hidden")).not.toBeInTheDocument();
+    expect(screen.getByText(/1 of 2 provider/)).toBeInTheDocument();
+  });
+
+  it("keeps the pet stage out of the quota rows and draggable only when unlocked", async () => {
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([provider()]),
+    );
+    const { container } = render(<FloatingWidget />);
+    await waitFor(() => expect(screen.getByText("Claude")).toBeInTheDocument());
+
+    const stage = container.querySelector(".pet-stage");
+    expect(stage).not.toBeNull();
+    expect(stage).toHaveAttribute("data-tauri-drag-region", "");
+    expect(
+      container.querySelector(".pet-stage button, .pet-stage a, .pet-stage select"),
+    ).toBeNull();
+  });
+
+  it("stores the pet layout through the layout picker and renders it", async () => {
+    vi.mocked(native.setWidgetView).mockResolvedValue("pet");
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([provider()]),
+    );
+    render(<FloatingWidget />);
+    await waitFor(() => expect(screen.getByText("Claude")).toBeInTheDocument());
+
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "Widget layout" }),
+      "pet",
+    );
+    expect(native.setWidgetView).toHaveBeenCalledWith("pet");
+    await waitFor(() =>
+      expect(screen.getByText("Quota mood: Happy")).toBeInTheDocument(),
+    );
+  });
+
+  it("keeps bars and rings reachable through the layout picker", async () => {
+    vi.mocked(native.setWidgetView).mockImplementation(async (view) => view);
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([provider()]),
+    );
+    const { container } = render(<FloatingWidget />);
+    await waitFor(() => expect(screen.getByText("Claude")).toBeInTheDocument());
+
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "Widget layout" }),
+      "rings",
+    );
+    await waitFor(() =>
+      expect(container.querySelectorAll(".w-ring")).toHaveLength(1),
+    );
+
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "Widget layout" }),
+      "bars",
+    );
+    await waitFor(() =>
+      expect(container.querySelectorAll(".w-bar")).toHaveLength(1),
+    );
+    expect(
+      container.querySelector(".w-ring"),
+    ).toBeNull();
+  });
+
+  it("falls back to bars for an invalid stored view", async () => {
+    // The backend stores free-form strings, so an invalid layout is a real
+    // possibility the widget must survive; the type cast documents that.
+    vi.mocked(native.fetchWidgetSettings).mockResolvedValue({
+      opacity: 1,
+      locked: false,
+      visible: true,
+      selected_providers: [],
+      view: "spirals",
+    } as unknown as native.WidgetSettingsData);
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([provider()]),
+    );
+    const { container } = render(<FloatingWidget />);
+    await waitFor(() => expect(screen.getByText("Claude")).toBeInTheDocument());
+
+    expect(container.querySelector(".w-root")).toHaveAttribute(
+      "data-view",
+      "bars",
+    );
+    expect(screen.queryByText(/Quota mood:/)).not.toBeInTheDocument();
+  });
+
+  it("celebrates briefly after a successful manual refresh and returns to the derived mood", async () => {
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([provider()]),
+    );
+    const { container } = render(<FloatingWidget />);
+    await waitFor(() =>
+      expect(screen.getByText("Quota mood: Happy")).toBeInTheDocument(),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Refresh quota" }));
+    await waitFor(() =>
+      expect(container.querySelector(".pet-react-celebrate")).not.toBeNull(),
+    );
+    expect(container.querySelector(".pet-stage")).toHaveClass("pet-mood-happy");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_600);
+    });
+    expect(container.querySelector(".pet-react-celebrate")).toBeNull();
+    expect(container.querySelector(".pet-stage")).toHaveClass("pet-mood-happy");
+  });
+
+  it("does not celebrate when the manual refresh fails", async () => {
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([provider()]),
+    );
+    vi.mocked(native.refreshAll).mockRejectedValue(
+      new Error("storage locked"),
+    );
+    const { container } = render(<FloatingWidget />);
+    await waitFor(() =>
+      expect(screen.getByText("Quota mood: Happy")).toBeInTheDocument(),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Refresh quota" }));
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent("storage locked"),
+    );
+    expect(container.querySelector(".pet-react-celebrate")).toBeNull();
+    expect(screen.getByText("Quota mood: Happy")).toBeInTheDocument();
   });
 });
 

@@ -77,4 +77,30 @@ describe("UI conventions", () => {
     );
     expect(widget).toContain("remaining_percent === null");
   });
+
+  it("loads no remote assets in the widget window", () => {
+    const widgetRoot = path.join(SRC, "windows/widget");
+    const offenders: string[] = [];
+    for (const file of collectFiles(widgetRoot)) {
+      const content = fs.readFileSync(file, "utf-8");
+      if (
+        /url\(\s*["']?https?:/.test(content) ||
+        /@import\s+["']?https?:/.test(content) ||
+        /\bsrc\s*=\s*["']https?:/.test(content) ||
+        /\bhref\s*=\s*["']https?:/.test(content)
+      ) {
+        offenders.push(path.relative(SRC, file));
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("keeps the pet animation off under reduced motion", () => {
+    const petCss = fs.readFileSync(
+      path.join(SRC, "windows/widget/PetMascot.css"),
+      "utf-8",
+    );
+    expect(petCss).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(petCss).toMatch(/animation:\s*none\s*!important/);
+  });
 });

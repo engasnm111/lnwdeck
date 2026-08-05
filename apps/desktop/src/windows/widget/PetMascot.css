@@ -1,0 +1,432 @@
+/*
+ * Animated robot pet for the floating widget's pet layout.
+ *
+ * The artwork is a single inline SVG whose parts are moved by CSS keyframes
+ * using transform and opacity only. Each mood selects a pose (mouth, eyes,
+ * alarm lines, sleep marks) and an animation. The svg is decorative; the mood
+ * is announced as text in `.pet-status`. All motion is disabled under
+ * `prefers-reduced-motion: reduce` while the static poses remain.
+ */
+
+@import "../../styles/tokens.css";
+
+.pet-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex: none;
+  height: 96px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.pet-stage[data-locked="false"] {
+  cursor: grab;
+}
+
+.pet-stage[data-locked="false"]:active {
+  cursor: grabbing;
+}
+
+.pet-svg {
+  height: 74px;
+  width: auto;
+  overflow: visible;
+}
+
+.pet-status {
+  margin: 0;
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+/* Static artwork */
+
+.pet-face {
+  fill: var(--bg-panel-elevated);
+  stroke: var(--border-strong);
+  stroke-width: 2;
+}
+
+.pet-torso {
+  fill: var(--accent-subtle);
+  stroke: var(--border-strong);
+  stroke-width: 2;
+}
+
+.pet-foot {
+  fill: var(--accent-primary);
+}
+
+.pet-ear {
+  fill: var(--accent-primary);
+  opacity: 0.9;
+}
+
+.pet-antenna {
+  stroke: var(--accent-primary);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.pet-antenna-tip {
+  fill: var(--warning);
+}
+
+.pet-eye {
+  fill: var(--text-primary);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.pet-eye-closed {
+  fill: none;
+  stroke: var(--text-primary);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  opacity: 0;
+}
+
+.pet-mouth {
+  fill: none;
+  stroke: var(--text-secondary);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  opacity: 0;
+}
+
+.pet-mouth-critical {
+  fill: var(--danger-subtle);
+  stroke: var(--danger);
+}
+
+.pet-alarm path {
+  fill: none;
+  stroke: var(--danger);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  opacity: 0;
+}
+
+.pet-z {
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  opacity: 0;
+}
+
+.pet-sparkle {
+  fill: var(--warning);
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Idle motion */
+
+.pet-body {
+  animation: pet-bob 2.8s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.pet-head {
+  animation: pet-sway 3.6s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: 50% 90%;
+}
+
+.pet-eye {
+  animation: pet-blink 4.6s infinite;
+}
+
+.pet-ear-r {
+  animation: pet-ear-wiggle 4.4s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+.pet-antenna-tip {
+  animation: pet-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes pet-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes pet-sway {
+  0%,
+  100% {
+    transform: rotate(-1.2deg);
+  }
+  50% {
+    transform: rotate(1.2deg);
+  }
+}
+
+@keyframes pet-blink {
+  0%,
+  90%,
+  100% {
+    transform: scaleY(1);
+  }
+  93%,
+  97% {
+    transform: scaleY(0.08);
+  }
+}
+
+@keyframes pet-ear-wiggle {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  30% {
+    transform: rotate(9deg);
+  }
+  60% {
+    transform: rotate(-4deg);
+  }
+}
+
+@keyframes pet-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Moods: a pose plus a motion, selected by the derived mood class */
+
+.pet-mood-happy .pet-mouth-happy {
+  opacity: 1;
+}
+
+.pet-mood-worried .pet-mouth-worried {
+  opacity: 1;
+}
+
+.pet-mood-worried .pet-eye {
+  transform: scaleY(0.55);
+  animation: pet-blink 2.4s infinite;
+}
+
+.pet-mood-worried .pet-body {
+  animation: pet-shiver 0.5s ease-in-out infinite;
+}
+
+@keyframes pet-shiver {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(1.5px);
+  }
+}
+
+.pet-mood-critical .pet-mouth-critical {
+  opacity: 1;
+}
+
+.pet-mood-critical .pet-alarm path {
+  opacity: 1;
+}
+
+.pet-mood-critical .pet-eye {
+  fill: var(--danger);
+}
+
+.pet-mood-critical .pet-head {
+  animation: pet-alarm-shake 0.22s linear infinite;
+}
+
+.pet-mood-critical .pet-antenna-tip {
+  animation: pet-flash 0.5s steps(2, jump-none) infinite;
+}
+
+@keyframes pet-alarm-shake {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  25% {
+    transform: rotate(-3deg);
+  }
+  75% {
+    transform: rotate(3deg);
+  }
+}
+
+@keyframes pet-flash {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0.25;
+  }
+}
+
+.pet-mood-stale .pet-mouth-stale {
+  opacity: 1;
+}
+
+.pet-mood-stale .pet-head {
+  animation: pet-tilt-puzzled 1.8s ease-in-out infinite;
+}
+
+.pet-mood-stale .pet-antenna {
+  opacity: 0.55;
+}
+
+@keyframes pet-tilt-puzzled {
+  0%,
+  100% {
+    transform: rotate(-7deg);
+  }
+  50% {
+    transform: rotate(7deg);
+  }
+}
+
+.pet-mood-error .pet-mouth-error {
+  opacity: 1;
+}
+
+.pet-mood-error .pet-eye {
+  opacity: 0;
+  animation: none;
+}
+
+.pet-mood-error .pet-eye-closed {
+  opacity: 1;
+}
+
+.pet-mood-error .pet-body {
+  animation: none;
+  transform: translateY(2px);
+}
+
+.pet-mood-error .pet-ear-l {
+  animation: none;
+  transform: rotate(-14deg);
+}
+
+.pet-mood-error .pet-ear-r {
+  animation: none;
+  transform: rotate(14deg);
+}
+
+.pet-mood-sleeping .pet-mouth-happy {
+  opacity: 1;
+}
+
+.pet-mood-sleeping .pet-eye {
+  opacity: 0;
+  animation: none;
+}
+
+.pet-mood-sleeping .pet-eye-closed {
+  opacity: 1;
+}
+
+.pet-mood-sleeping .pet-z {
+  opacity: 1;
+  animation: pet-z-float 2.6s ease-out infinite;
+}
+
+.pet-mood-sleeping .pet-body {
+  animation: pet-breathe 3.2s ease-in-out infinite;
+}
+
+@keyframes pet-z-float {
+  0% {
+    transform: translateY(4px);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+}
+
+@keyframes pet-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.025);
+  }
+}
+
+/* Brief refresh-success reaction, layered over the derived mood */
+
+.pet-react-celebrate .pet-body {
+  animation: pet-jump 0.5s ease-out 3;
+}
+
+.pet-react-celebrate .pet-sparkle {
+  opacity: 1;
+  animation: pet-sparkle-pop 0.9s ease-out 2;
+}
+
+@keyframes pet-jump {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-12px);
+  }
+  55% {
+    transform: translateY(0);
+  }
+  75% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes pet-sparkle-pop {
+  0% {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+
+/* Reduced motion: stop every animation but keep the mood poses */
+
+@media (prefers-reduced-motion: reduce) {
+  .pet-svg * {
+    animation: none !important;
+  }
+
+  .pet-react-celebrate .pet-sparkle {
+    opacity: 1;
+  }
+}

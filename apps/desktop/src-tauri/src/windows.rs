@@ -28,7 +28,7 @@ pub struct WidgetSettings {
     /// Provider ids the user pinned. Empty means every provider that reported
     /// data, so a fresh install shows everything rather than nothing.
     pub selected_providers: Vec<String>,
-    /// Layout: "bars" or "rings".
+    /// Layout: "bars", "rings" or "pet".
     pub view: String,
 }
 
