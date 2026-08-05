@@ -114,12 +114,16 @@ fn pipeline_totals_aggregate_all_runs() {
         .expect("a1");
     repo.insert_collector_run(&run("a", 2, 6, "", None))
         .expect("a2");
+    // The retry time must lie in the future: the totals query only reports
+    // retries that have not passed yet, so a fixed date would make this test
+    // pass or fail depending on the day it runs.
+    let retry_at = (chrono::Utc::now() + chrono::Duration::hours(1)).to_rfc3339();
     repo.insert_collector_run(&run(
         "b",
         3,
         0,
         "SOURCE_UNAVAILABLE",
-        Some("2026-08-04T00:00:00Z".to_string()),
+        Some(retry_at.clone()),
     ))
     .expect("b1");
 
@@ -138,7 +142,7 @@ fn pipeline_totals_aggregate_all_runs() {
     );
     assert_eq!(
         totals.next_retry_at.as_deref(),
-        Some("2026-08-04T00:00:00Z"),
+        Some(retry_at.as_str()),
         "next retry comes from failed runs"
     );
 }
