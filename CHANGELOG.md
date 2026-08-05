@@ -2,6 +2,40 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [0.3.0] - 2026-08-05
+
+### Highlights
+
+- **OpenCode Go quota with real dollar caps.** The OpenCode adapter now reads
+  the Go turns recorded in the local `message` table and compares their billed
+  USD cost against the published Go caps ($12 per 5 hours, $30 per week, $60
+  per month), reporting windows with real limits, remaining and percentages.
+  When no Go turns are recorded it falls back to usage-only token windows.
+- **Gemini usage from the real session transcripts.** Gemini CLI stores one
+  transcript per chat under `~/.gemini/tmp/<project>/chats/`; every model
+  message carries cumulative token counters, so per-message usage is the delta
+  between two consecutive counters. The adapter streams those transcripts
+  read-only — including the tail of very large files — and now reports real
+  usage instead of "no token records". Prompts, responses and paths never
+  leave the source.
+- **Cursor usage and quota from its account API.** Cursor keeps no per-request
+  token data in the local editor state, so the adapter reuses the session JWT
+  Cursor's own tooling stores in `state.vscdb` and reads the account API: the
+  per-request usage CSV and the utilization summary (Plan / Auto / API lanes,
+  billing-cycle reset). The credential only travels over HTTPS to cursor.com
+  and never enters lnwdeck storage, logs or the UI.
+
+### Fixed
+
+- Gemini reported "no token records" on machines with real usage because the
+  generic JSON scan targeted a shape the CLI never writes.
+- Cursor reported "no token records" because per-request usage is not stored
+  in `state.vscdb` at all.
+- OpenCode quota could never show a remaining percentage because the local
+  estimate had no limit.
+- A storage diagnostics test used a fixed retry date and broke as soon as the
+  real clock passed it.
+
 ## [0.2.1] - 2026-08-04
 
 ### Highlights
