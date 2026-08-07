@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "lnwdeck-desktop"
 version = "0.8.0"
 description = "lnwdeck desktop application"
