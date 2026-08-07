@@ -59,6 +59,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Harden Windows runner
+        uses: ./.github/actions/harden-windows
+
       # A missing signing key would otherwise fail later with an opaque bundler
       # error, or silently produce unsigned artifacts.
       - name: Verify the signing key is configured
@@ -75,7 +78,7 @@ jobs:
       - name: Build the native messaging host
         shell: pwsh
         run: |
-          cargo build -p lnwdeck-native-messaging-host --target ${{ matrix.target }} --release
+          pwsh scripts/ci-retry.ps1 -Command "cargo build -p lnwdeck-native-messaging-host --target ${{ matrix.target }} --release" -Label "native messaging host (${{ matrix.target }})"
           Get-Item "target/${{ matrix.target }}/release/lnwdeck-browser-host.exe" |
             Select-Object FullName, Length
 
@@ -108,9 +111,12 @@ jobs:
       - name: Package portable ZIP
         shell: pwsh
         run: |
-          # Cargo --target builds land in target/<triple>/release (workspace root)
+          # Cargo --target builds land in target/<triple>/release (workspace root).
+          # The archive name carries the architecture so the three matrix jobs
+          # publish three distinct ZIPs instead of overwriting each other.
           powershell -ExecutionPolicy Bypass -File scripts/package-portable.ps1 `
-            -BuildDir "target/${{ matrix.target }}/release"
+            -BuildDir "target/${{ matrix.target }}/release" `
+            -Arch "${{ matrix.target == 'x86_64-pc-windows-msvc' && 'x64' || (matrix.target == 'aarch64-pc-windows-msvc' && 'arm64' || 'x86') }}"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

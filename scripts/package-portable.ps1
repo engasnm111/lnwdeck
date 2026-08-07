@@ -1,7 +1,12 @@
 param(
     [string]$BuildDir = "target\release",
     [string]$OutputFile = "",
-    [string]$Version = ""
+    [string]$Version = "",
+    # Architecture label for the archive name (x64, arm64, x86). The release
+    # pipeline builds one ZIP per target triple; without the label all three
+    # matrix jobs would produce identically-named archives and overwrite each
+    # other. Omitted locally, where the archive keeps the plain name.
+    [string]$Arch = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,7 +21,11 @@ if (-not $Version) {
     $Version = $PackageConfig.version
 }
 if (-not $OutputFile) {
-    $OutputFile = "lnwdeck_${Version}_portable.zip"
+    if ($Arch) {
+        $OutputFile = "lnwdeck_${Version}_${Arch}_portable.zip"
+    } else {
+        $OutputFile = "lnwdeck_${Version}_portable.zip"
+    }
 }
 
 Write-Host "=== lnwdeck Portable Packaging v$Version ==="
