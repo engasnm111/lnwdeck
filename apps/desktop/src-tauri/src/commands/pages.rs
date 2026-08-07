@@ -240,6 +240,7 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<SettingsView, String> 
 #[tauri::command]
 pub fn save_settings(
     settings: AppSettings,
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<SettingsView, String> {
     {
@@ -257,6 +258,10 @@ pub fn save_settings(
 
         SettingsService::save(&storage.conn, &settings).map_err(|e| e.to_string())?;
     }
+    // The widget size preset is stored with the rest of the settings, but it
+    // only takes effect when the window is resized — do that here so saving
+    // the form changes the widget immediately.
+    crate::windows::apply_widget_size(&app);
     get_settings(state)
 }
 
