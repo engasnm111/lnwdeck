@@ -18,6 +18,10 @@ const e2eSpec = readFileSync(
   new URL("../apps/desktop/e2e/app.spec.ts", import.meta.url),
   "utf8",
 );
+const desktopBuildScript = readFileSync(
+  new URL("../apps/desktop/src-tauri/build.rs", import.meta.url),
+  "utf8",
+);
 const workflowFiles = [
   ".github/workflows/ci.yml",
   ".github/workflows/security.yml",
@@ -58,14 +62,52 @@ test("build-heavy CI jobs use the runner proven by the release workflow", () => 
   assert.match(jobSection("compile"), /runs-on: windows-latest/);
 });
 
+test("Cargo build concurrency is scoped to build-heavy jobs", () => {
+  const globalEnv = workflow.slice(
+    workflow.indexOf("env:\n"),
+    workflow.indexOf("jobs:\n"),
+  );
+  assert.doesNotMatch(globalEnv, /CARGO_BUILD_JOBS/);
+  for (const [name, nextJob] of [
+    ["check", "test"],
+    ["test", "e2e-ui"],
+    ["e2e-ui", "compile"],
+    ["compile", null],
+  ]) {
+    assert.match(
+      jobSection(name, nextJob),
+      /^    env:\r?\n(?:      [^\r\n]*\r?\n)*      CARGO_BUILD_JOBS:[ \t]*2\b/m,
+      `${name} should own its build concurrency setting`,
+    );
+  }
+});
+
+test("Rust caches share CI artifacts without crossing architecture targets", () => {
+  for (const [name, nextJob] of [
+    ["check", "test"],
+    ["test", "e2e-ui"],
+    ["e2e-ui", "compile"],
+  ]) {
+    const section = jobSection(name, nextJob);
+    assert.match(section, /shared-key:\s*ci\b/, `${name} should share the CI cache`);
+    assert.doesNotMatch(section, /^\s+key:/m);
+  }
+  const compile = jobSection("compile");
+  assert.match(
+    compile,
+    /shared-key:\s*compile-\$\{\{ matrix\.target \}\}/,
+  );
+  assert.doesNotMatch(compile, /^\s+key:/m);
+});
+
 test("build jobs prepare the native messaging host before consuming it", () => {
   const e2e = jobSection("e2e-ui", "compile");
-  assert.match(e2e, /cargo build -p lnwdeck-native-messaging-host --release/);
+  assert.match(e2e, /cargo build -p lnwdeck-native-messaging-host\b(?![^\n]*--release)/);
 
   const compile = jobSection("compile");
   assert.match(
     compile,
-    /cargo build -p lnwdeck-native-messaging-host --target \$\{\{ matrix\.target \}\} --release/,
+    /cargo build -p lnwdeck-native-messaging-host --target \$\{\{ matrix\.target \}\}(?![^\n]*--release)/,
   );
 });
 
@@ -73,6 +115,24 @@ test("architecture compile checks do not build every test target", () => {
   const compile = jobSection("compile");
   assert.match(compile, /cargo check --workspace --target/);
   assert.doesNotMatch(compile, /cargo check --workspace --all-targets/);
+});
+
+test("UI build reuses debug Native Host artifacts and skips ARM64 LLVM setup", () => {
+  const e2e = jobSection("e2e-ui", "compile");
+  assert.doesNotMatch(e2e, /Install LLVM for ARM64 cross-compilation/);
+  assert.match(e2e, /cargo build -p lnwdeck-native-messaging-host\b(?![^\n]*--release)/);
+  assert.match(e2e, /target\/debug\/lnwdeck-browser-host\.exe/);
+  assert.match(e2e, /tauri build --debug --no-bundle/);
+  assert.match(e2e, /LNWD_E2E_BUILD_PROFILE:\s*debug/);
+
+  const compile = jobSection("compile");
+  assert.match(
+    compile,
+    /cargo build -p lnwdeck-native-messaging-host --target \$\{\{ matrix\.target \}\}(?![^\n]*--release)/,
+  );
+  assert.match(compile, /target\/\$\{\{ matrix\.target \}\}\/debug\/lnwdeck-browser-host\.exe/);
+  assert.match(desktopBuildScript, /CARGO_PROFILE|PROFILE/);
+  assert.match(desktopBuildScript, /["']debug["']/);
 });
 
 test("all project workflows use the supported Node 24 line", () => {
@@ -109,4 +169,10 @@ test("WebView2 smoke uses a dynamic endpoint and reports startup state", () => {
   assert.ok(e2eScript.includes("$app.HasExited"));
   assert.ok(e2eScript.includes("exit code"));
   assert.ok(e2eSpec.includes("LNWD_E2E_CDP_PORT"));
+});
+
+test("WebView2 smoke applies and restores an app-scoped CDP policy", () => {
+  assert.ok(e2eScript.includes("Policies\\Microsoft\\Edge\\WebView2\\AdditionalBrowserArguments"));
+  assert.ok(e2eScript.includes("New-ItemProperty"));
+  assert.ok(e2eScript.includes("Remove-ItemProperty"));
 });

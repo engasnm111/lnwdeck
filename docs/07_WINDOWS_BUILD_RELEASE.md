@@ -106,6 +106,16 @@ Stable channel only in v0.1
 - `release.yml`: matrix build, sign, checksum, manifest, attest, publish
 - `nightly-compat.yml`: architecture compile checks and fixture suites
 
+### CI build performance
+
+- Cargo build concurrency is scoped per Windows job at two workers; it is not
+  applied globally, so unrelated jobs do not inherit a serialized build.
+- Check, test, and UI jobs share the x64 Rust cache. Architecture compile jobs
+  keep target-specific cache keys so x64, ARM64, and x86 artifacts never mix.
+- The UI smoke job builds the Native Messaging Host and Tauri app in debug mode
+  so both use the same `target/debug` artifact tree. Release packaging continues
+  to use release artifacts.
+
 ## 8. Release protection
 
 - Tagged release

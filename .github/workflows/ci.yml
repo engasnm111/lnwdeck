@@ -14,10 +14,6 @@ env:
   CARGO_TERM_COLOR: always
   # Keep CI failures deterministic: a warning is an error.
   RUSTFLAGS: -D warnings
-  # The Windows runner has ~7 GB of RAM; whole-workspace clippy/test/check
-  # with full debug info can exceed that while linking, killing cargo
-  # silently. Serialize the build and keep only line tables.
-  CARGO_BUILD_JOBS: 1
   CARGO_PROFILE_DEV_DEBUG: "line-tables-only"
   CARGO_PROFILE_TEST_DEBUG: "line-tables-only"
   CARGO_PROFILE_CHECK_DEBUG: "line-tables-only"
@@ -26,6 +22,8 @@ jobs:
   check:
     name: Check (fmt, clippy, typecheck)
     runs-on: windows-2022
+    env:
+      CARGO_BUILD_JOBS: 2
     steps:
       - uses: actions/checkout@v5
 
@@ -44,7 +42,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          key: check
+          shared-key: ci
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -66,6 +64,8 @@ jobs:
   test:
     name: Test
     runs-on: windows-2022
+    env:
+      CARGO_BUILD_JOBS: 2
     steps:
       - uses: actions/checkout@v5
 
@@ -82,7 +82,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          key: test
+          shared-key: ci
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -123,6 +123,9 @@ jobs:
   e2e-ui:
     name: UI E2E (Playwright + WebView2)
     runs-on: windows-latest
+    env:
+      CARGO_BUILD_JOBS: 2
+      LNWD_E2E_BUILD_PROFILE: debug
     steps:
       - uses: actions/checkout@v5
 
@@ -139,7 +142,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          key: e2e-ui
+          shared-key: ci
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -147,29 +150,17 @@ jobs:
       - name: Harden Windows runner
         uses: ./.github/actions/harden-windows
 
-      # Cross-compiling to aarch64 needs clang for ring/libsqlite3-sys (C
-      # build scripts); the GitHub runner does not expose it on PATH by
-      # default, and without it the custom build commands fail.
-      - name: Install LLVM for ARM64 cross-compilation
-        shell: pwsh
-        run: |
-          if (-not (Get-Command clang -ErrorAction SilentlyContinue)) {
-            choco install llvm -y --no-progress
-            $env:Path = "$env:ProgramFiles\LLVM\bin;" + $env:Path
-          }
-          echo "CC_aarch64_pc_windows_msvc=clang" >> $env:GITHUB_ENV
-
       - name: Build native messaging host
         shell: pwsh
         run: |
-          pwsh scripts/ci-retry.ps1 -Command "cargo build -p lnwdeck-native-messaging-host --release" -Label "native messaging host"
-          Get-Item "target/release/lnwdeck-browser-host.exe" |
+          pwsh scripts/ci-retry.ps1 -Command "cargo build -p lnwdeck-native-messaging-host" -Label "native messaging host (debug)"
+          Get-Item "target/debug/lnwdeck-browser-host.exe" |
             Select-Object FullName, Length
 
-      - name: Build release app (no bundle)
+      - name: Build debug app (no bundle)
         shell: pwsh
         run: |
-          pwsh scripts/ci-retry.ps1 -Command "pnpm --filter @lnwdeck/desktop run tauri build --no-bundle" -Label "release app build"
+          pwsh scripts/ci-retry.ps1 -Command "pnpm --filter @lnwdeck/desktop run tauri build --debug --no-bundle" -Label "debug app build"
 
       - name: Run Playwright UI smoke tests
         shell: pwsh
@@ -178,6 +169,8 @@ jobs:
   compile:
     name: Compile (${{ matrix.target }})
     runs-on: windows-latest
+    env:
+      CARGO_BUILD_JOBS: 2
     strategy:
       fail-fast: false
       matrix:
@@ -205,7 +198,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          key: compile-${{ matrix.target }}
+          shared-key: compile-${{ matrix.target }}
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -228,8 +221,8 @@ jobs:
       - name: Build native messaging host
         shell: pwsh
         run: |
-          pwsh scripts/ci-retry.ps1 -Command "cargo build -p lnwdeck-native-messaging-host --target ${{ matrix.target }} --release" -Label "native messaging host ${{ matrix.target }}"
-          Get-Item "target/${{ matrix.target }}/release/lnwdeck-browser-host.exe" |
+          pwsh scripts/ci-retry.ps1 -Command "cargo build -p lnwdeck-native-messaging-host --target ${{ matrix.target }}" -Label "native messaging host ${{ matrix.target }} (debug)"
+          Get-Item "target/${{ matrix.target }}/debug/lnwdeck-browser-host.exe" |
             Select-Object FullName, Length
 
       - name: Build frontend
