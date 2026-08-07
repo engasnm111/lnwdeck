@@ -101,10 +101,11 @@ function Enable-Widget {
         "import sqlite3, sys",
         "conn = sqlite3.connect(sys.argv[1])",
         "conn.execute(""INSERT OR REPLACE INTO app_settings (key, value) VALUES ('widget_visible','true')"")",
+        "conn.execute(""INSERT OR REPLACE INTO app_settings (key, value) VALUES ('pet_visible','true')"")",
         "for key in ('widget_width', 'widget_height', 'widget_x', 'widget_y'):",
         "    conn.execute('DELETE FROM app_settings WHERE key = ?', (key,))",
         "conn.commit()",
-        "print('widget visibility enabled')"
+        "print('widget and pet visibility enabled')"
     )
     $temp = Join-Path $env:TEMP "lnwdeck_show_widget.py"
     Set-Content -Path $temp -Value $lines -Encoding utf8
@@ -171,11 +172,13 @@ try {
     Send-Nav "{TAB}{ENTER}"
     Save-WindowShot -Title "lnwdeck" -FileName "providers_page.png" -OwnerPid $ownerPid
 
+    # Sidebar order: Overview, Providers, Analytics, Costs, Budgets, Models,
+    # Alerts, Pet, Settings, System — the count below lands on the target page.
     for ($i = 0; $i -lt 3; $i++) { Send-Nav "{TAB}" }
     Send-Nav "{ENTER}"
     Save-WindowShot -Title "lnwdeck" -FileName "costs_page.png" -OwnerPid $ownerPid
 
-    for ($i = 0; $i -lt 4; $i++) { Send-Nav "{TAB}" }
+    for ($i = 0; $i -lt 6; $i++) { Send-Nav "{TAB}" }
     Send-Nav "{ENTER}"
     Save-WindowShot -Title "lnwdeck" -FileName "system_diagnostics.png" -OwnerPid $ownerPid
 
@@ -190,6 +193,12 @@ try {
         Start-Sleep -Milliseconds 900
     }
     Save-WindowShot -Title "lnwdeck quota" -FileName "floating_widget.png" -OwnerPid $ownerPid
+
+    # The desktop pet floats on a transparent window; capture it last. The
+    # sprite may be anywhere on screen, so wait for it to settle near the
+    # bottom where it normally rests.
+    Start-Sleep -Seconds 4
+    Save-WindowShot -Title "lnwdeck pet" -FileName "desktop_pet.png" -OwnerPid $ownerPid
 }
 finally {
     if ($process -and -not $process.HasExited) {

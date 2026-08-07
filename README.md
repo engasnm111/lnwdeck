@@ -73,6 +73,7 @@ machine they were taken on.
 | Costs | ![Costs](assets/screenshots/costs_page.png) |
 | System diagnostics | ![System](assets/screenshots/system_diagnostics.png) |
 | Floating widget | ![Widget](assets/screenshots/floating_widget.png) |
+| Desktop pet | ![Pet](assets/screenshots/desktop_pet.png) |
 
 Recapture them with `pwsh ./scripts/capture_app_screenshots.ps1 -ShowWidget`
 after a release build; the script photographs the real windows and never mocks
@@ -80,17 +81,19 @@ data.
 
 ## Floating widget
 
-- Always on top, frameless, remembered position, size, opacity, layout and
-  provider selection.
+- Always on top, frameless, remembered position, opacity, layout and provider
+  selection. The window size is **fixed** to one of three presets chosen in
+  Settings — Small (300x300), Medium (400x420) or Large (500x500) — and
+  content scrolls inside the window when it outgrows the space.
 - Drag by the header, or by the pet stage in pet layout; Lock pins it in place.
   Refresh, Dashboard, layout picker, provider picker and Close are in the
   header. Escape closes it.
-- Three layouts chosen from the header: bars, rings, or the animated pet. All
-  three render the same quota dashboard data; the pet layout shows the same
-  rows below a small robot pet whose mood reacts to the visible quotas
-  (happy, worried, critical, stale, error, sleeping) and celebrates a
+- Three layouts chosen from the header or from Settings: bars, rings, or the
+  animated pet. All three render the same quota dashboard data; the pet layout
+  shows the same rows below a small robot pet whose mood reacts to the visible
+  quotas (happy, worried, critical, stale, error, sleeping) and celebrates a
   successful manual refresh. The pet is decorative; the quota rows carry the
-  accessible information.
+  accessible information. Rings wrap to fit narrow sizes.
 - Community pets from [codex-pets.net](https://codex-pets.net) can replace the
   built-in robot: import one in Settings from a pet URL or a `.codex-pet.zip`
   file. The package is downloaded only on that explicit action, over HTTPS,
@@ -108,6 +111,39 @@ data.
   hatched track; a window with no reset time shows "Reset time unavailable".
   Pet mode never estimates a missing percentage: providers without published
   limits stay unavailable, exactly as in bars and rings.
+
+## Desktop pet
+
+A floating companion that walks across your screen, powered by the same real
+quota data the dashboard reads.
+
+- **Transparent pet window** that moves with the pet: the window is small and
+  fixed-size, so clicks pass through everywhere except the pet itself. Size
+  presets are chosen in the Pet page — Small (200x300), Medium (280x400) or
+  Large (360x520) — and the sprite scales with the window.
+- **Walks on its own**: idle, walk left/right with an edge bounce, and
+  auto-sleep after inactivity (toggleable). Speed and opacity are adjustable.
+- **Hover shows every quota window** the providers published: real remaining
+  percentages render as colour-coded bars, usage-only windows (no published
+  limit) render as hatched "used" rows, and the list scrolls when it is long.
+- **Right-click opens a menu** with Pet settings and Close pet. Left-press +
+  drag picks the pet up and moves it anywhere on screen (clamped to the
+  monitor).
+- **Six bundled default pets** from [codex-pets.net](https://codex-pets.net)
+  ship inside the binary (youyou, old-bai, a-ti, sharkler, solaire,
+  tennis-ball), installed on first run with no network needed. Any community
+  pet can be imported by URL or id from the Pet page; v1 and v2 spritesheets
+  are both rendered as animated atlases.
+- **Pet page in the sidebar** manages everything: show/hide, character
+  selection with live spritesheet previews, speed, size, opacity,
+  auto-sleep, and codex-pets.net imports.
+
+## Design system
+
+The UI follows the "Carbon & Emeralds" design language documented in
+[docs/DESIGN.md](docs/DESIGN.md): layered zinc-neutrals on near-black carbon
+surfaces, a single emerald accent (never purple, never neon), and platform
+native typography. Dark is the default theme; light mirrors it faithfully.
 
 ## Quickstart
 

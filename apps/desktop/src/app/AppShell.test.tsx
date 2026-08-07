@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+﻿import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
@@ -49,7 +49,13 @@ const settingsView = (theme: "dark" | "light" | "system"): native.SettingsViewDa
     widget_opacity: 1,
     widget_locked: false,
     widget_visible: false,
+    widget_size: "medium",
     retention_days: 90,
+    pet_visible: false,
+    pet_character: "robot",
+    pet_speed: "normal",
+    pet_opacity: 1,
+    pet_auto_sleep: true,
   },
   startup_supported: true,
   startup_registered: false,
