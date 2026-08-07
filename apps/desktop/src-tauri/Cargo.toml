@@ -1,6 +1,6 @@
-[package]
+﻿[package]
 name = "lnwdeck-desktop"
-version = "0.7.1"
+version = "0.8.0"
 description = "lnwdeck desktop application"
 authors = ["lnwdeck contributors"]
 edition = "2021"
@@ -37,6 +37,18 @@ lnwdeck-provider-kiro = { path = "../../../crates/providers/kiro" }
 lnwdeck-provider-ollama = { path = "../../../crates/providers/ollama" }
 lnwdeck-provider-opencode = { path = "../../../crates/providers/opencode" }
 lnwdeck-provider-openrouter = { path = "../../../crates/providers/openrouter" }
+lnwdeck-provider-zai = { path = "../../../crates/providers/zai" }
+lnwdeck-provider-zcode = { path = "../../../crates/providers/zcode" }
+lnwdeck-provider-kimi = { path = "../../../crates/providers/kimi" }
+lnwdeck-provider-kilo-cli = { path = "../../../crates/providers/kilo-cli" }
+lnwdeck-provider-kilo-code = { path = "../../../crates/providers/kilo-code" }
+lnwdeck-provider-mimo = { path = "../../../crates/providers/mimo" }
+lnwdeck-provider-roo = { path = "../../../crates/providers/roo" }
+lnwdeck-provider-codebuddy = { path = "../../../crates/providers/codebuddy" }
+lnwdeck-provider-workbuddy = { path = "../../../crates/providers/workbuddy" }
+lnwdeck-provider-pi-agent = { path = "../../../crates/providers/pi-agent" }
+lnwdeck-provider-omp = { path = "../../../crates/providers/omp" }
+lnwdeck-provider-hermes = { path = "../../../crates/providers/hermes" }
 rusqlite = { version = "0.31", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 getrandom = "0.3"
@@ -58,3 +70,4 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_Wind
 [dev-dependencies]
 tempfile = "3"
 minisign-verify = "0.2"
+

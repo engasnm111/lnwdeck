@@ -2,6 +2,60 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [0.8.0] - 2026-08-08
+
+### Highlights
+
+- **Z.AI quota, for real.** The new ZCode adapter reads the GLM Coding Plan
+  quota ZCode stores locally and reports the published 5-hour, weekly and
+  tool-call windows with real percentages and reset times (monitor API when a
+  plaintext key is in `~/.zcode/v2/config.json`, otherwise the
+  `billing/balance` records ZCode already wrote to its own logs), falling back
+  to usage-only local windows. The new Z.AI adapter estimates GLM usage from
+  Claude Code and OpenCode sessions wherever the Coding Plan is used, and the
+  pricing catalog now covers the GLM model family.
+- **12 new provider adapters** — parity with the TokenTracker tool list for
+  every passive local source: ZCode, Z.AI (GLM), Kimi Code, Kilo CLI, Kilo
+  Code, Mimo Code, Roo Code, CodeBuddy, WorkBuddy, pi, oh-my-pi and Hermes.
+  All are read-only scans of files the tools already write; nothing is
+  installed into any tool and no credentials are read.
+
+### Added
+
+- **ZCode** (`zcode_ai`): usage from `~/.zcode/cli/db/db.sqlite` (bundled
+  Claude/Codex/Gemini sub-agent turns excluded), quota from the Z.AI / BigModel
+  coding-plan monitor API or local balance logs.
+- **Z.AI** (`zai_glm`): GLM usage across Claude Code JSONL and the OpenCode
+  message table (`opencode-go` turns excluded), usage-only quota windows.
+- **Kimi Code** (`kimi_code`): `wire.jsonl` reader for both the legacy
+  `~/.kimi` StatusUpdate layout and the official `~/.kimi-code` `step.end`
+  layout with `modelAlias`.
+- **Kilo CLI** (`kilo_cli`): OpenCode-fork store at
+  `~/.local/share/kilo/kilo.db`.
+- **Mimo Code** (`mimo_code`): OpenCode-fork store at
+  `~/.local/share/mimocode/mimocode.db`; only native `mimo` / `xiaomi` turns
+  are counted, mirrored Claude history is excluded.
+- **Kilo Code** (`kilo_code`) and **Roo Code** (`roo_code`): Cline-derived
+  `ui_messages.json` task readers; Roo uses the last `<model>` tag from
+  `api_conversation_history.json` and falls back to `protocol:<apiProtocol>`.
+- **CodeBuddy** (`codebuddy`), **WorkBuddy** (`workbuddy`), **pi** (`pi_agent`)
+  and **oh-my-pi** (`omp`): Claude-fork JSONL session scans.
+- **Hermes** (`hermes`): read-only `state.db` sessions reader
+  (`~/.hermes/state.db` or `%LOCALAPPDATA%\hermes\state.db`).
+- **Pricing catalog**: `zai` provider entry with the published GLM price list,
+  `kimi` entries for the K2 family, and provider normalization for
+  `zcode_ai` / `zai_glm` / `glm-*` models.
+- **Shared parser infrastructure**: OpenCode-fork `message` table reader and
+  Cline `ui_messages.json` parser in `lnwdeck-provider-runtime`, plus raw
+  `authorization` header support in `lnwdeck-provider-http`.
+
+### Verification
+
+- 60 new unit tests across the adapter crates and shared parsers; contract
+  suite extended from 10 to 22 adapters and passing; `cargo fmt --check`,
+  `cargo clippy --workspace --all-targets --all-features -- -D warnings` and
+  the full workspace test suite pass locally.
+
 ## [0.7.1] - 2026-08-08
 
 ### Fixed

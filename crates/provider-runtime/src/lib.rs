@@ -3,11 +3,13 @@ pub mod collection;
 pub mod descriptor;
 pub mod detection;
 pub mod health;
+pub mod opencode_fork;
 pub mod permissions;
 pub mod quota;
 pub mod registry;
 pub mod scheduler;
 pub mod token_scan;
+pub mod ui_messages;
 pub mod wasm;
 
 pub use adapter::{ProviderAdapter, NOT_SUPPORTED};

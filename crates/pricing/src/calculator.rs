@@ -60,6 +60,13 @@ pub fn normalize_provider_id(provider: &str) -> &str {
         "google"
     } else if p.contains("moonshot") || p.contains("kimi") {
         "kimi"
+    } else if p.contains("zai")
+        || p.contains("zcode")
+        || p.contains("zhipu")
+        || p.contains("bigmodel")
+        || p.contains("glm")
+    {
+        "zai"
     } else if p.contains("opencode") {
         "opencode"
     } else {
@@ -77,6 +84,8 @@ fn infer_provider(model: &str) -> &str {
         "google"
     } else if m.starts_with("moonshot") || m.starts_with("kimi") {
         "kimi"
+    } else if m.starts_with("glm") {
+        "zai"
     } else {
         "openai"
     }
@@ -122,6 +131,13 @@ mod tests {
         assert_eq!(normalize_provider_id("kiro_ai"), "unknown");
         assert_eq!(normalize_provider_id("kimi_code"), "kimi");
         assert_eq!(normalize_provider_id("moonshot-v1"), "kimi");
+    }
+
+    #[test]
+    fn zcode_and_glm_map_to_the_zai_catalog() {
+        assert_eq!(normalize_provider_id("zcode_ai"), "zai");
+        assert_eq!(normalize_provider_id("zai_glm"), "zai");
+        assert_eq!(infer_provider("glm-5.2"), "zai");
     }
 
     #[test]

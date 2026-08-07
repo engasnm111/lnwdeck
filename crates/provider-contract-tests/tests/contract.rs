@@ -6,18 +6,30 @@
 //! privacy-safe payloads with no fabricated percentages.
 
 use lnwdeck_provider_claude::ClaudeAdapter;
+use lnwdeck_provider_codebuddy::CodebuddyAdapter;
 use lnwdeck_provider_codex::CodexAdapter;
 use lnwdeck_provider_copilot::CopilotAdapter;
 use lnwdeck_provider_cursor::CursorAdapter;
 use lnwdeck_provider_gemini::GeminiAdapter;
 use lnwdeck_provider_grok::GrokAdapter;
+use lnwdeck_provider_hermes::HermesAdapter;
+use lnwdeck_provider_kilo_cli::KiloCliAdapter;
+use lnwdeck_provider_kilo_code::KiloCodeAdapter;
+use lnwdeck_provider_kimi::KimiAdapter;
 use lnwdeck_provider_kiro::KiroAdapter;
+use lnwdeck_provider_mimo::MimoAdapter;
 use lnwdeck_provider_ollama::OllamaAdapter;
+use lnwdeck_provider_omp::OmpAdapter;
 use lnwdeck_provider_opencode::OpenCodeAdapter;
 use lnwdeck_provider_openrouter::OpenRouterAdapter;
+use lnwdeck_provider_pi_agent::PiAdapter;
+use lnwdeck_provider_roo::RooAdapter;
 use lnwdeck_provider_runtime::{
     AdapterHealthStatus, AdapterRegistry, ChannelSupport, ProviderAdapter, NOT_SUPPORTED,
 };
+use lnwdeck_provider_workbuddy::WorkbuddyAdapter;
+use lnwdeck_provider_zai::ZaiAdapter;
+use lnwdeck_provider_zcode::ZCodeAdapter;
 use lnwdeck_security::PrivacyGuard;
 use std::collections::HashSet;
 
@@ -30,6 +42,18 @@ fn builtin_adapters() -> Vec<Box<dyn ProviderAdapter>> {
         Box::new(GeminiAdapter::new()),
         Box::new(GrokAdapter::new()),
         Box::new(KiroAdapter::new()),
+        Box::new(KimiAdapter::new()),
+        Box::new(KiloCliAdapter::new()),
+        Box::new(KiloCodeAdapter::new()),
+        Box::new(MimoAdapter::new()),
+        Box::new(RooAdapter::new()),
+        Box::new(CodebuddyAdapter::new()),
+        Box::new(WorkbuddyAdapter::new()),
+        Box::new(PiAdapter::new()),
+        Box::new(OmpAdapter::new()),
+        Box::new(HermesAdapter::new()),
+        Box::new(ZaiAdapter::new()),
+        Box::new(ZCodeAdapter::new()),
         Box::new(OllamaAdapter::new()),
         Box::new(OpenCodeAdapter::new(&[0u8; 32])),
         Box::new(OpenRouterAdapter::new()),
@@ -48,7 +72,7 @@ fn every_adapter_has_a_stable_unique_identifier() {
             "provider ids must be unique: duplicate {id}"
         );
     }
-    assert_eq!(adapters.len(), 10, "all built-in providers registered");
+    assert_eq!(adapters.len(), 22, "all built-in providers registered");
 }
 
 #[test]
@@ -238,7 +262,7 @@ fn all_adapters_register_in_one_registry_without_id_collisions() {
             .register(adapter)
             .unwrap_or_else(|err| panic!("registering {id} failed: {err}"));
     }
-    assert_eq!(registry.len(), 10, "all built-in providers registered");
+    assert_eq!(registry.len(), 22, "all built-in providers registered");
     for descriptor in registry.descriptors() {
         assert_eq!(
             registry.display_name(descriptor.id),

@@ -1,16 +1,28 @@
 use crate::state::AppState;
 use lnwdeck_application::refresh::RefreshCycleOutcome;
 use lnwdeck_provider_claude::ClaudeAdapter;
+use lnwdeck_provider_codebuddy::CodebuddyAdapter;
 use lnwdeck_provider_codex::CodexAdapter;
 use lnwdeck_provider_copilot::CopilotAdapter;
 use lnwdeck_provider_cursor::CursorAdapter;
 use lnwdeck_provider_gemini::GeminiAdapter;
 use lnwdeck_provider_grok::GrokAdapter;
+use lnwdeck_provider_hermes::HermesAdapter;
+use lnwdeck_provider_kilo_cli::KiloCliAdapter;
+use lnwdeck_provider_kilo_code::KiloCodeAdapter;
+use lnwdeck_provider_kimi::KimiAdapter;
 use lnwdeck_provider_kiro::KiroAdapter;
+use lnwdeck_provider_mimo::MimoAdapter;
 use lnwdeck_provider_ollama::OllamaAdapter;
+use lnwdeck_provider_omp::OmpAdapter;
 use lnwdeck_provider_opencode::OpenCodeAdapter;
 use lnwdeck_provider_openrouter::OpenRouterAdapter;
+use lnwdeck_provider_pi_agent::PiAdapter;
+use lnwdeck_provider_roo::RooAdapter;
 use lnwdeck_provider_runtime::{AdapterRegistry, ProviderAdapter};
+use lnwdeck_provider_workbuddy::WorkbuddyAdapter;
+use lnwdeck_provider_zai::ZaiAdapter;
+use lnwdeck_provider_zcode::ZCodeAdapter;
 use lnwdeck_storage::repositories::{
     AppSettingsRepository, CollectorRunRow, DiagnosticsRepository, PipelineTotals, ProviderStateRow,
 };
@@ -70,6 +82,18 @@ fn build_registry(hash_key: &[u8]) -> Result<AdapterRegistry, String> {
         Box::new(CursorAdapter::new()),
         Box::new(CopilotAdapter::new()),
         Box::new(KiroAdapter::new()),
+        Box::new(KimiAdapter::new()),
+        Box::new(KiloCliAdapter::new()),
+        Box::new(KiloCodeAdapter::new()),
+        Box::new(MimoAdapter::new()),
+        Box::new(RooAdapter::new()),
+        Box::new(CodebuddyAdapter::new()),
+        Box::new(WorkbuddyAdapter::new()),
+        Box::new(PiAdapter::new()),
+        Box::new(OmpAdapter::new()),
+        Box::new(HermesAdapter::new()),
+        Box::new(ZaiAdapter::new()),
+        Box::new(ZCodeAdapter::new()),
         Box::new(OllamaAdapter::new()),
         Box::new(OpenRouterAdapter::new()),
         Box::new(GrokAdapter::new()),

@@ -108,7 +108,7 @@ pub struct PetManifest {
     pub description: String,
     pub spritesheet_path: String,
     /// Always serialized: the webview needs the real value (1 or 2) to pick
-    /// the right atlas layout. Omitting v1 broke v1 pets — the frontend saw
+    /// the right atlas layout. Omitting v1 broke v1 pets โ€” the frontend saw
     /// `undefined` and rendered them with the v2 grid.
     pub sprite_version_number: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -128,7 +128,7 @@ pub fn is_pet_id(id: &str) -> bool {
     bytes.iter().all(|b| alnum(*b) || *b == b'-')
 }
 
-/// `[a-z][a-z0-9-]{0,39}` — an optional short label for the pet kind.
+/// `[a-z][a-z0-9-]{0,39}` โ€” an optional short label for the pet kind.
 fn is_kind(value: &str) -> bool {
     if value.is_empty() || value.len() > 40 {
         return false;
@@ -429,6 +429,7 @@ pub fn download_pet_package(id: &str) -> Result<Vec<u8>, String> {
     }
     let url = codex_pets_download_url(id);
     let request = JsonRequest {
+        raw_auth_token: None,
         url: &url,
         bearer_token: None,
         timeout: PET_DOWNLOAD_TIMEOUT,

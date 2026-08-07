@@ -1981,7 +1981,7 @@ dependencies = [
 
 [[package]]
 name = "lnwdeck-desktop"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "chrono",
  "getrandom 0.3.4",
@@ -1992,17 +1992,29 @@ dependencies = [
  "lnwdeck-hook-manager",
  "lnwdeck-pricing",
  "lnwdeck-provider-claude",
+ "lnwdeck-provider-codebuddy",
  "lnwdeck-provider-codex",
  "lnwdeck-provider-copilot",
  "lnwdeck-provider-cursor",
  "lnwdeck-provider-gemini",
  "lnwdeck-provider-grok",
+ "lnwdeck-provider-hermes",
  "lnwdeck-provider-http",
+ "lnwdeck-provider-kilo-cli",
+ "lnwdeck-provider-kilo-code",
+ "lnwdeck-provider-kimi",
  "lnwdeck-provider-kiro",
+ "lnwdeck-provider-mimo",
  "lnwdeck-provider-ollama",
+ "lnwdeck-provider-omp",
  "lnwdeck-provider-opencode",
  "lnwdeck-provider-openrouter",
+ "lnwdeck-provider-pi-agent",
+ "lnwdeck-provider-roo",
  "lnwdeck-provider-runtime",
+ "lnwdeck-provider-workbuddy",
+ "lnwdeck-provider-zai",
+ "lnwdeck-provider-zcode",
  "lnwdeck-security",
  "lnwdeck-storage",
  "lnwdeck-windows-integration",
@@ -2091,6 +2103,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "lnwdeck-provider-codebuddy"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "lnwdeck-domain",
+ "lnwdeck-provider-runtime",
+ "tempfile",
+]
+
+[[package]]
 name = "lnwdeck-provider-codex"
 version = "0.2.0"
 dependencies = [
@@ -2108,16 +2130,28 @@ version = "0.2.0"
 dependencies = [
  "lnwdeck-domain",
  "lnwdeck-provider-claude",
+ "lnwdeck-provider-codebuddy",
  "lnwdeck-provider-codex",
  "lnwdeck-provider-copilot",
  "lnwdeck-provider-cursor",
  "lnwdeck-provider-gemini",
  "lnwdeck-provider-grok",
+ "lnwdeck-provider-hermes",
+ "lnwdeck-provider-kilo-cli",
+ "lnwdeck-provider-kilo-code",
+ "lnwdeck-provider-kimi",
  "lnwdeck-provider-kiro",
+ "lnwdeck-provider-mimo",
  "lnwdeck-provider-ollama",
+ "lnwdeck-provider-omp",
  "lnwdeck-provider-opencode",
  "lnwdeck-provider-openrouter",
+ "lnwdeck-provider-pi-agent",
+ "lnwdeck-provider-roo",
  "lnwdeck-provider-runtime",
+ "lnwdeck-provider-workbuddy",
+ "lnwdeck-provider-zai",
+ "lnwdeck-provider-zcode",
  "lnwdeck-security",
 ]
 
@@ -2172,11 +2206,55 @@ dependencies = [
 ]
 
 [[package]]
+name = "lnwdeck-provider-hermes"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "lnwdeck-domain",
+ "lnwdeck-provider-runtime",
+ "rusqlite",
+ "tempfile",
+]
+
+[[package]]
 name = "lnwdeck-provider-http"
 version = "0.2.0"
 dependencies = [
  "serde_json",
  "ureq",
+]
+
+[[package]]
+name = "lnwdeck-provider-kilo-cli"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "lnwdeck-domain",
+ "lnwdeck-provider-runtime",
+ "rusqlite",
+ "tempfile",
+]
+
+[[package]]
+name = "lnwdeck-provider-kilo-code"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "lnwdeck-domain",
+ "lnwdeck-provider-runtime",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "lnwdeck-provider-kimi"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "lnwdeck-domain",
+ "lnwdeck-provider-runtime",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -2190,6 +2268,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "lnwdeck-provider-mimo"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "lnwdeck-domain",
+ "lnwdeck-provider-runtime",
+ "rusqlite",
+ "tempfile",
+]
+
+[[package]]
 name = "lnwdeck-provider-ollama"
 version = "0.2.0"
 dependencies = [
@@ -2197,6 +2286,16 @@ dependencies = [
  "lnwdeck-domain",
  "lnwdeck-provider-runtime",
  "lnwdeck-security",
+]
+
+[[package]]
+name = "lnwdeck-provider-omp"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "lnwdeck-domain",
+ "lnwdeck-provider-runtime",
+ "tempfile",
 ]
 
 [[package]]
@@ -2225,15 +2324,72 @@ dependencies = [
 ]
 
 [[package]]
+name = "lnwdeck-provider-pi-agent"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "lnwdeck-domain",
+ "lnwdeck-provider-runtime",
+ "tempfile",
+]
+
+[[package]]
+name = "lnwdeck-provider-roo"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "lnwdeck-domain",
+ "lnwdeck-provider-runtime",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "lnwdeck-provider-runtime"
 version = "0.2.0"
 dependencies = [
  "chrono",
  "lnwdeck-domain",
+ "rusqlite",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror 2.0.19",
+]
+
+[[package]]
+name = "lnwdeck-provider-workbuddy"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "lnwdeck-domain",
+ "lnwdeck-provider-runtime",
+ "tempfile",
+]
+
+[[package]]
+name = "lnwdeck-provider-zai"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "lnwdeck-domain",
+ "lnwdeck-provider-runtime",
+ "rusqlite",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "lnwdeck-provider-zcode"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "lnwdeck-domain",
+ "lnwdeck-provider-http",
+ "lnwdeck-provider-runtime",
+ "rusqlite",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]

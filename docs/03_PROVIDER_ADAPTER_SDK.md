@@ -217,6 +217,20 @@ Repeated crash policy:
 | Kiro           |           Yes |       Provider-dependent |                 No | Optional |                Yes |             Estimated |
 | Ollama         | Local API/log |                       No |          Local API |       No |     Not applicable | Zero or user override |
 | OpenRouter     |            No |                       No |                Yes | Optional |       Credit/limit |                 Exact |
+| ZCode          |           Yes |                       No |                 Yes |       No |        Yes (real) |             Estimated |
+| Z.AI (GLM)     |           Yes |                       No |                 No |       No | Local estimate |             Estimated |
+| Kimi Code      |           Yes |                       No |                 No |       No | Local estimate |             Estimated |
+| Kilo CLI       |           Yes |                       No |                 No |       No | Local estimate |             Estimated |
+| Kilo Code      |           Yes |                       No |                 No |       No | Local estimate |             Estimated |
+| Mimo Code      |           Yes |                       No |                 No |       No | Local estimate |             Estimated |
+| Roo Code       |           Yes |                       No |                 No |       No | Local estimate |             Estimated |
+| CodeBuddy      |           Yes |                       No |                 No |       No | Local estimate |             Estimated |
+| WorkBuddy      |           Yes |                       No |                 No |       No | Local estimate |             Estimated |
+| pi / oh-my-pi  |           Yes |              OMP notify* |                 No |       No | Local estimate |             Estimated |
+| Hermes         |           Yes |                       No |                 No |       No | Local estimate |             Estimated |
+
+\* oh-my-pi's notify extension is not installed by lnwdeck; the passive session
+reader is the only source.
 
 Final capability must be verified against current provider behavior during implementation. Unsupported capability must be shown honestly, not fabricated.
 

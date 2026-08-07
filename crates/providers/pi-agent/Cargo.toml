@@ -1,0 +1,15 @@
+﻿[package]
+name = "lnwdeck-provider-pi-agent"
+version = "0.1.0"
+edition = "2021"
+description = "pi provider adapter for lnwdeck"
+
+[dependencies]
+lnwdeck-domain = { path = "../../domain" }
+lnwdeck-provider-runtime = { path = "../../provider-runtime" }
+chrono = { version = "0.4" }
+
+[dev-dependencies]
+tempfile = "3"
+
+

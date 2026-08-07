@@ -1,4 +1,4 @@
-﻿//! Gemini subscription quota, as published by Google's Code Assist API.
+//! Gemini subscription quota, as published by Google's Code Assist API.
 //!
 //! The Gemini CLI and Antigravity store an OAuth payload in
 //! `~/.gemini/oauth_creds.json`; the same token authorises
@@ -184,6 +184,7 @@ pub fn fetch_windows(auth_path: &Path, timeout: Duration) -> Result<Option<Quota
 
     let assist = post_json(
         JsonRequest {
+            raw_auth_token: None,
             url: LOAD_CODE_ASSIST,
             bearer_token: Some(&oauth.access_token),
             timeout,
@@ -219,6 +220,7 @@ pub fn fetch_windows(auth_path: &Path, timeout: Duration) -> Result<Option<Quota
     };
     let response = post_json(
         JsonRequest {
+            raw_auth_token: None,
             url: RETRIEVE_QUOTA,
             bearer_token: Some(&oauth.access_token),
             timeout,

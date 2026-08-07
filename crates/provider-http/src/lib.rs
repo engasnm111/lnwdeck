@@ -47,11 +47,15 @@ impl HttpResponse {
 pub struct JsonRequest<'a> {
     pub url: &'a str,
     pub bearer_token: Option<&'a str>,
+    /// Raw `authorization` header value, sent verbatim (no `Bearer ` prefix).
+    /// Used by provider APIs that expect the raw key in the header.
+    pub raw_auth_token: Option<&'a str>,
     pub timeout: Duration,
     /// Header names to return with the response, lowercase.
     pub capture_headers: &'a [&'a str],
     /// Extra request headers, for provider APIs that require an opt-in header.
-    /// Never used for credentials: those go through `bearer_token`.
+    /// Never used for credentials: those go through `bearer_token` or
+    /// `raw_auth_token`.
     pub extra_headers: &'a [(&'a str, &'a str)],
 }
 
@@ -60,6 +64,7 @@ impl<'a> JsonRequest<'a> {
         Self {
             url,
             bearer_token: None,
+            raw_auth_token: None,
             timeout: Duration::from_secs(10),
             capture_headers: &[],
             extra_headers: &[],
@@ -68,6 +73,12 @@ impl<'a> JsonRequest<'a> {
 
     pub fn bearer(mut self, token: &'a str) -> Self {
         self.bearer_token = Some(token);
+        self
+    }
+
+    /// Sets the `authorization` header to the value verbatim.
+    pub fn raw_auth(mut self, token: &'a str) -> Self {
+        self.raw_auth_token = Some(token);
         self
     }
 
@@ -116,6 +127,12 @@ pub fn get_json(request: JsonRequest<'_>) -> Result<HttpResponse, String> {
             return Err("NOT_CONFIGURED".to_string());
         }
         call = call.header("authorization", &format!("Bearer {token}"));
+    }
+    if let Some(token) = request.raw_auth_token {
+        if token.trim().is_empty() {
+            return Err("NOT_CONFIGURED".to_string());
+        }
+        call = call.header("authorization", token);
     }
 
     let mut response = match call.call() {
@@ -177,6 +194,12 @@ pub fn post_json(
         }
         call = call.header("authorization", &format!("Bearer {token}"));
     }
+    if let Some(token) = request.raw_auth_token {
+        if token.trim().is_empty() {
+            return Err("NOT_CONFIGURED".to_string());
+        }
+        call = call.header("authorization", token);
+    }
 
     let mut response = match call.send_json(body) {
         Ok(response) => response,
@@ -231,6 +254,12 @@ pub fn get_text(request: JsonRequest<'_>) -> Result<(u16, String), String> {
         }
         call = call.header("authorization", &format!("Bearer {token}"));
     }
+    if let Some(token) = request.raw_auth_token {
+        if token.trim().is_empty() {
+            return Err("NOT_CONFIGURED".to_string());
+        }
+        call = call.header("authorization", token);
+    }
 
     let mut response = match call.call() {
         Ok(response) => response,
@@ -277,6 +306,12 @@ pub fn get_bytes(request: JsonRequest<'_>) -> Result<(u16, Vec<u8>), String> {
             return Err("NOT_CONFIGURED".to_string());
         }
         call = call.header("authorization", &format!("Bearer {token}"));
+    }
+    if let Some(token) = request.raw_auth_token {
+        if token.trim().is_empty() {
+            return Err("NOT_CONFIGURED".to_string());
+        }
+        call = call.header("authorization", token);
     }
 
     let mut response = match call.call() {

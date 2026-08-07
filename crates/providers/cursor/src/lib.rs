@@ -134,6 +134,7 @@ impl CursorAdapter {
 
     fn fetch_text(&self, url: &str, cookie: &str) -> Result<String, String> {
         let (_, body) = lnwdeck_provider_http::get_text(JsonRequest {
+            raw_auth_token: None,
             url,
             bearer_token: None,
             timeout: self.timeout,
@@ -202,7 +203,7 @@ pub struct CursorUsage {
 
 /// Normalizes Cursor's account subject into the id used inside its session
 /// cookie: native `auth0|user_XXXXX` becomes `user_XXXXX`; WorkOS-bridged
-/// OAuth subjects (`google-oauth2|…`, `github|…`, `oidc|…`) stay verbatim.
+/// OAuth subjects (`google-oauth2|โ€ฆ`, `github|โ€ฆ`, `oidc|โ€ฆ`) stay verbatim.
 pub fn normalize_user_id(subject: &str) -> Option<String> {
     let trimmed = subject.trim();
     if trimmed.is_empty() {
@@ -507,6 +508,7 @@ impl ProviderAdapter for CursorAdapter {
         }
         let cookie = self.session_cookie()?;
         let response = lnwdeck_provider_http::get_json(JsonRequest {
+            raw_auth_token: None,
             url: &self.quota_url,
             bearer_token: None,
             timeout: self.timeout,

@@ -18,3 +18,15 @@ lnwdeck-provider-kiro = { path = "../providers/kiro" }
 lnwdeck-provider-ollama = { path = "../providers/ollama" }
 lnwdeck-provider-opencode = { path = "../providers/opencode" }
 lnwdeck-provider-openrouter = { path = "../providers/openrouter" }
+lnwdeck-provider-zai = { path = "../providers/zai" }
+lnwdeck-provider-zcode = { path = "../providers/zcode" }
+lnwdeck-provider-kimi = { path = "../providers/kimi" }
+lnwdeck-provider-kilo-cli = { path = "../providers/kilo-cli" }
+lnwdeck-provider-kilo-code = { path = "../providers/kilo-code" }
+lnwdeck-provider-mimo = { path = "../providers/mimo" }
+lnwdeck-provider-roo = { path = "../providers/roo" }
+lnwdeck-provider-codebuddy = { path = "../providers/codebuddy" }
+lnwdeck-provider-workbuddy = { path = "../providers/workbuddy" }
+lnwdeck-provider-pi-agent = { path = "../providers/pi-agent" }
+lnwdeck-provider-omp = { path = "../providers/omp" }
+lnwdeck-provider-hermes = { path = "../providers/hermes" }

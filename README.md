@@ -45,15 +45,30 @@ whose source is missing reports that instead of an empty success.
 | Cursor | Local estimate | Local estimate (usage windows) | `state.vscdb` | Local files |
 | Copilot | Local estimate | Local estimate (usage windows) | CLI and editor logs | Local files |
 | Kiro | Local estimate | Local estimate (usage windows) | Local session records | Local files |
+| ZCode | Local estimate | Published percentage per window | `api.z.ai/api/monitor/usage/quota/limit` (Z.AI coding plan) or local `billing/balance` logs | ZCode sign-in |
+| Z.AI (GLM) | Local estimate | Local estimate (usage windows) | GLM turns in Claude Code and OpenCode sessions | Local files |
+| Kimi Code | Local estimate | Local estimate (usage windows) | `~/.kimi` / `~/.kimi-code` wire logs | Local files |
+| Kilo CLI | Local estimate | Local estimate (usage windows) | `~/.local/share/kilo/kilo.db` | Local files |
+| Kilo Code | Local estimate | Local estimate (usage windows) | `ui_messages.json` task history | Local files |
+| Mimo Code | Local estimate | Local estimate (usage windows) | `~/.local/share/mimocode/mimocode.db` | Local files |
+| Roo Code | Local estimate | Local estimate (usage windows) | `ui_messages.json` task history | Local files |
+| CodeBuddy | Local estimate | Local estimate (usage windows) | `~/.codebuddy/projects` | Local files |
+| WorkBuddy | Local estimate | Local estimate (usage windows) | `~/.workbuddy/projects` | Local files |
+| pi | Local estimate | Local estimate (usage windows) | `~/.pi/agent/sessions` | Local files |
+| oh-my-pi | Local estimate | Local estimate (usage windows) | `~/.omp/agent/sessions` | Local files |
+| Hermes | Local estimate | Local estimate (usage windows) | `~/.hermes/state.db` | Local files |
 | Ollama | Not supported | Local / Unlimited when reachable | Local API probe | Nothing |
 | OpenRouter | Not supported | Supported (credits and rate limit) | `GET /api/v1/key` | API key |
 | Grok (xAI) | Not supported | Supported when xAI publishes rate limits | `GET /v1/api-key` headers | API key |
 
 "Published percentage per window" means the vendor reports how much of each
 rate-limit window is used; lnwdeck shows that percentage and its reset time and
-invents no token counts around it. Those two requests reuse the OAuth token the
-vendor's own CLI already stored for you, so there is nothing to configure; when
-no token is present the provider falls back to local usage windows.
+invents no token counts around it. Those requests reuse the OAuth token (Claude,
+Codex) or API key (ZCode) the vendor's own CLI already stored for you, so there
+is nothing to configure; when no token is present the provider falls back to
+local usage windows. ZCode's quota comes from the Z.AI GLM Coding Plan monitor
+API (5-hour, weekly and tool-call windows); when no API key is stored it reads
+the `billing/balance` records ZCode already wrote into its own logs.
 
 "Local estimate" means the numbers are real measurements taken from local files,
 but the provider publishes no plan limit, so no remaining percentage is shown -
@@ -231,9 +246,10 @@ against the built artifacts and asserts that a tampered installer is rejected.
   carry them, and the rejection is recorded.
 - Provider API keys are stored in the Windows Credential Manager, never in the
   database, the logs or an export.
-- Network requests happen only for the two provider APIs above (reusing the token
-  their own CLI stored) and for providers where you stored a key. Nothing else
-  leaves the machine.
+- Network requests happen only for the provider APIs above (reusing the token
+  their own CLI stored), for ZCode's coding-plan quota monitor
+  (`api.z.ai` / `bigmodel.cn`), and for providers where you stored a key.
+  Nothing else leaves the machine.
 - Data is stored in a local SQLite database. It is not encrypted at rest; see
   the limitations below.
 
@@ -244,9 +260,9 @@ against the built artifacts and asserts that a tampered installer is rejected.
   Windows SmartScreen will warn on first run.
 - The browser extension must be loaded manually (Developer mode); the native
   messaging host binary itself ships with the installer.
-- Gemini, Cursor, Copilot and Kiro collectors read whatever token records their
-  tools happen to write locally; if a version stops writing them, the adapter
-  reports that it found no records rather than guessing.
+- Gemini, Cursor, Copilot, Kiro and the v0.8 local collectors read whatever
+  token records their tools happen to write locally; if a version stops writing
+  them, the adapter reports that it found no records rather than guessing.
 - OpenCode usage events are cumulative session snapshots; per-update delta
   accounting is not implemented.
 

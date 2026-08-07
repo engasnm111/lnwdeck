@@ -32,7 +32,32 @@
       "models": {
         "moonshot-v1-8k": { "input_per_1k": "0.00120", "output_per_1k": "0.00120" },
         "moonshot-v1-32k": { "input_per_1k": "0.00240", "output_per_1k": "0.00240" },
-        "kimi-latest": { "input_per_1k": "0.00150", "output_per_1k": "0.00150" }
+        "kimi-latest": { "input_per_1k": "0.00150", "output_per_1k": "0.00150" },
+        "kimi-k2": { "input_per_1k": "0.00015", "output_per_1k": "0.00060" },
+        "kimi-k2.6": { "input_per_1k": "0.00015", "output_per_1k": "0.00060" },
+        "kimi-k2-turbo": { "input_per_1k": "0.00015", "output_per_1k": "0.00060" }
+      }
+    },
+    "zai": {
+      "models": {
+        "glm-5.2": { "input_per_1k": "0.00140", "output_per_1k": "0.00440" },
+        "glm-5.1": { "input_per_1k": "0.00140", "output_per_1k": "0.00440" },
+        "glm-5": { "input_per_1k": "0.00100", "output_per_1k": "0.00320" },
+        "glm-5-turbo": { "input_per_1k": "0.00120", "output_per_1k": "0.00400" },
+        "glm-4.7": { "input_per_1k": "0.00060", "output_per_1k": "0.00220" },
+        "glm-4.6": { "input_per_1k": "0.00060", "output_per_1k": "0.00220" },
+        "glm-4.5": { "input_per_1k": "0.00060", "output_per_1k": "0.00220" },
+        "glm-4.5-x": { "input_per_1k": "0.00220", "output_per_1k": "0.00890" },
+        "glm-4.5-air": { "input_per_1k": "0.00020", "output_per_1k": "0.00110" },
+        "glm-4.5-airx": { "input_per_1k": "0.00110", "output_per_1k": "0.00450" },
+        "glm-4.7-flash": { "input_per_1k": "0.00000", "output_per_1k": "0.00000" },
+        "glm-4.7-flashx": { "input_per_1k": "0.00007", "output_per_1k": "0.00040" },
+        "glm-4.5-flash": { "input_per_1k": "0.00000", "output_per_1k": "0.00000" },
+        "glm-4-32b-0414-128k": { "input_per_1k": "0.00010", "output_per_1k": "0.00010" },
+        "glm-4.6v": { "input_per_1k": "0.00030", "output_per_1k": "0.00090" },
+        "glm-4.5v": { "input_per_1k": "0.00060", "output_per_1k": "0.00180" },
+        "glm-5v-turbo": { "input_per_1k": "0.00120", "output_per_1k": "0.00400" },
+        "glm-ocr": { "input_per_1k": "0.00003", "output_per_1k": "0.00003" }
       }
     },
     "opencode": {
