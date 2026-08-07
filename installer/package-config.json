@@ -1,14 +1,14 @@
 {
   "name": "lnwdeck",
-  "version": "0.6.3",
+  "version": "0.7.0",
   "description": "Local-only Universal AI Usage Tracker",
   "architectures": [
-    { "arch": "x64", "target": "x86_64-pc-windows-msvc", "artifact": "lnwdeck_0.6.3_x64-setup.exe" },
-    { "arch": "ARM64", "target": "aarch64-pc-windows-msvc", "artifact": "lnwdeck_0.6.3_arm64-setup.exe" },
-    { "arch": "x86", "target": "i686-pc-windows-msvc", "artifact": "lnwdeck_0.6.3_x86-setup.exe" }
+    { "arch": "x64", "target": "x86_64-pc-windows-msvc", "artifact": "lnwdeck_0.7.0_x64-setup.exe" },
+    { "arch": "ARM64", "target": "aarch64-pc-windows-msvc", "artifact": "lnwdeck_0.7.0_arm64-setup.exe" },
+    { "arch": "x86", "target": "i686-pc-windows-msvc", "artifact": "lnwdeck_0.7.0_x86-setup.exe" }
   ],
   "portable": {
-    "artifact": "lnwdeck_0.6.3_portable.zip",
+    "artifact": "lnwdeck_0.7.0_portable.zip",
     "marker_file": ".lnwdeck_portable"
   },
   "native_host": {

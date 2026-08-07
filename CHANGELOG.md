@@ -2,6 +2,31 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [0.7.0] - 2026-08-07
+
+### Highlights
+
+- **Premium Dark Futuristic Glassmorphism.** A full visual redesign of every
+  window: near-black navy canvas with ambient cyan/blue/violet glows, frosted
+  glass panels with thin glowing borders, a cyan → violet accent family, and
+  an amber → red warm gradient reserved for primary CTAs. The sidebar, topbar,
+  cards, tables, controls, floating widget and tray popup all follow the new
+  language documented in `docs/DESIGN.md`.
+- **Atmospheric background.** Drifting gradient orbs, a faded grid and an
+  inline SVG noise grain sit behind the dashboard; motion is transform/opacity
+  only and fully disabled under `prefers-reduced-motion`.
+- **Premium micro-interactions.** Card hover lifts with a cyan glow, primary
+  buttons sweep a shine across the warm gradient, progress bars and toggles
+  carry the cyan → blue gradient, active navigation glows cyan → violet.
+- **Widget restyled to match.** The floating widget is a frosted navy glass
+  card with a glowing border and the dashboard's cyan → violet top-edge
+  accent.
+- **CI/CD reliability.** The Windows runner no longer kills cargo silently
+  mid-build: Defender exclusions, an enlarged pagefile, retrying cargo steps
+  with memory/disk diagnostics, and LLVM for the ARM64 compile job. Release
+  publishes a portable ZIP per architecture instead of one overwriting all
+  three.
+
 ## [0.4.0] - 2026-08-05
 
 ### Highlights
