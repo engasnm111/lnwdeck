@@ -70,9 +70,7 @@ machine they were taken on.
 |---|---|
 | Overview | ![Overview](assets/screenshots/overview_dashboard.png) |
 | Providers | ![Providers](assets/screenshots/providers_page.png) |
-| Costs | ![Costs](assets/screenshots/costs_page.png) |
 | System diagnostics | ![System](assets/screenshots/system_diagnostics.png) |
-| Floating widget | ![Widget](assets/screenshots/floating_widget.png) |
 | Desktop pet | ![Pet](assets/screenshots/desktop_pet.png) |
 
 Recapture them with `pwsh ./scripts/capture_app_screenshots.ps1 -ShowWidget`
