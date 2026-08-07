@@ -103,4 +103,32 @@ describe("UI conventions", () => {
     expect(petCss).toContain("@media (prefers-reduced-motion: reduce)");
     expect(petCss).toMatch(/animation:\s*none\s*!important/);
   });
+
+  it("pins the Premium Dark Futuristic Glassmorphism palette", () => {
+    // docs/DESIGN.md is the single source of truth for the brand: near-black
+    // navy canvas, cyan/blue/violet accents, amber-to-red CTAs, and the glass
+    // surface recipe (white 3-6%, blur, thin borders).
+    const tokens = fs.readFileSync(
+      path.join(SRC, "styles/tokens.css"),
+      "utf-8",
+    );
+    const lower = tokens.toLowerCase();
+    for (const color of [
+      "#05070f", // near-black navy canvas
+      "#22d3ee", // neon cyan primary accent
+      "#2563eb", // electric blue secondary accent
+      "#8b5cf6", // violet supporting accent
+      "#f59e0b", // amber CTA start
+      "#ef4444", // red CTA end
+      "#e8edf7", // primary text
+      "#8d9bb5", // secondary text
+    ]) {
+      expect(lower).toContain(color);
+    }
+    // Glass recipe: the panel fill must be translucent white, not opaque.
+    expect(lower).toMatch(/--bg-panel:[^;]*rgba\(255,\s*255,\s*255,\s*0\.0[3-6]/);
+    // Token names are the public contract: a redesign changes values, never names.
+    expect(lower).toContain("--accent-primary");
+    expect(lower).toContain("--chart-5");
+  });
 });

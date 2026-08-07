@@ -255,8 +255,12 @@
 }
 
 .pet-tooltip-inner {
-  background: linear-gradient(145deg, rgba(18, 20, 24, 0.92), rgba(30, 32, 38, 0.84));
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: linear-gradient(
+    160deg,
+    rgba(10, 14, 28, 0.9) 0%,
+    rgba(22, 28, 52, 0.82) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 14px;
   padding: 10px 14px;
   min-width: 180px;
@@ -265,7 +269,7 @@
   overflow-y: auto;
   backdrop-filter: blur(16px) saturate(140%);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3), 0 0 18px rgba(34, 211, 238, 0.08);
 }
 
 .pet-tooltip-inner::-webkit-scrollbar {
@@ -395,9 +399,13 @@
   min-width: 150px;
   padding: 4px;
   border-radius: 10px;
-  background: linear-gradient(145deg, rgba(20, 22, 27, 0.96), rgba(26, 28, 34, 0.94));
+  background: linear-gradient(
+    160deg,
+    rgba(10, 14, 28, 0.94) 0%,
+    rgba(20, 26, 48, 0.92) 100%
+  );
   border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 18px rgba(139, 92, 246, 0.08);
   backdrop-filter: blur(14px) saturate(140%);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
   display: flex;
@@ -424,11 +432,11 @@
 }
 
 .pet-menu-item-danger {
-  color: #fb7185;
+  color: #f87171;
 }
 
 .pet-menu-item-danger:hover {
-  background: rgba(251, 113, 133, 0.14);
+  background: rgba(248, 113, 113, 0.14);
 }
 
 /* ── Reduced motion ────────────────────────────────────── */

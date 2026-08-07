@@ -123,7 +123,13 @@ export function AppShell() {
   const freshness = freshnessOf(lastSync, now);
 
   return (
-    <div className="app-layout">
+    <>
+      <div className="app-backdrop" aria-hidden="true">
+        <span className="app-backdrop-orb app-backdrop-orb-cyan" />
+        <span className="app-backdrop-orb app-backdrop-orb-blue" />
+        <span className="app-backdrop-orb app-backdrop-orb-violet" />
+      </div>
+      <div className="app-layout">
       <nav
         aria-label={t("app.navAria")}
         className={`app-sidebar ${collapsed ? "app-sidebar-collapsed" : ""}`.trim()}
@@ -236,6 +242,7 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

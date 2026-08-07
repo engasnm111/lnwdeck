@@ -86,17 +86,155 @@ button {
   background-clip: content-box;
 }
 
-/* Primitives */
+/*
+ * Atmospheric background.
+ *
+ * One fixed layer behind the shell: a faint grid faded at the edges, a
+ * low-opacity noise grain (inline SVG, no network), and three blurred
+ * gradient orbs drifting on transform/opacity only. Every animation is
+ * disabled under prefers-reduced-motion.
+ */
+
+.app-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.app-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+  -webkit-mask-image: radial-gradient(
+    ellipse 90% 80% at 50% 28%,
+    black 25%,
+    transparent 78%
+  );
+  mask-image: radial-gradient(
+    ellipse 90% 80% at 50% 28%,
+    black 25%,
+    transparent 78%
+  );
+}
+
+.app-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.app-backdrop-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  will-change: transform, opacity;
+}
+
+.app-backdrop-orb-cyan {
+  width: 520px;
+  height: 520px;
+  left: -140px;
+  top: -160px;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(34, 211, 238, 0.4),
+    transparent 68%
+  );
+  animation: orb-drift-a 26s var(--ease-standard) infinite alternate;
+}
+
+.app-backdrop-orb-blue {
+  width: 460px;
+  height: 460px;
+  right: -120px;
+  top: 12%;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(37, 99, 235, 0.36),
+    transparent 68%
+  );
+  animation: orb-drift-b 32s var(--ease-standard) infinite alternate;
+}
+
+.app-backdrop-orb-violet {
+  width: 560px;
+  height: 560px;
+  left: 34%;
+  bottom: -220px;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(139, 92, 246, 0.32),
+    transparent 68%
+  );
+  animation: orb-drift-c 38s var(--ease-standard) infinite alternate;
+}
+
+@keyframes orb-drift-a {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.55;
+  }
+  to {
+    transform: translate3d(60px, 44px, 0) scale(1.12);
+    opacity: 0.8;
+  }
+}
+
+@keyframes orb-drift-b {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.5;
+  }
+  to {
+    transform: translate3d(-52px, 60px, 0) scale(1.08);
+    opacity: 0.75;
+  }
+}
+
+@keyframes orb-drift-c {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.45;
+  }
+  to {
+    transform: translate3d(-80px, -56px, 0) scale(1.15);
+    opacity: 0.7;
+  }
+}
+
+/* Primitives — glass surfaces */
 
 .ui-card {
-  background: var(--bg-panel);
+  position: relative;
+  background: linear-gradient(
+    160deg,
+    var(--glass-fill-elevated) 0%,
+    var(--glass-fill) 60%
+  );
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
   border: 1px solid var(--border-subtle);
+  border-top-color: var(--glass-edge);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
   padding: var(--space-4);
   transition:
     box-shadow var(--duration-normal) var(--ease-standard),
-    border-color var(--duration-normal) var(--ease-standard);
+    border-color var(--duration-normal) var(--ease-standard),
+    transform var(--duration-normal) var(--ease-standard);
+}
+
+.ui-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-glow);
+  box-shadow: var(--shadow-lifted), 0 0 24px var(--glow-cyan);
 }
 
 .ui-card-header {
@@ -163,6 +301,7 @@ button {
 }
 
 .ui-button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -170,10 +309,13 @@ button {
   padding: 0.375rem var(--space-3);
   min-height: 32px;
   border-radius: var(--radius-control);
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-panel-elevated);
+  border: 1px solid var(--border-strong);
+  background: var(--glass-fill-elevated);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
   color: var(--text-primary);
   font-weight: 600;
+  overflow: hidden;
   transition:
     background var(--duration-fast) var(--ease-standard),
     border-color var(--duration-fast) var(--ease-standard),
@@ -183,13 +325,15 @@ button {
 
 .ui-button:hover:not(:disabled) {
   background: var(--bg-hover);
-  border-color: var(--border-strong);
+  border-color: var(--border-glow);
+  box-shadow: 0 0 16px var(--glow-cyan);
 }
 
 .ui-button:active:not(:disabled) {
   background: var(--bg-active);
   /* Tactile press: the button physically pushes down. */
   transform: translateY(1px);
+  box-shadow: none;
 }
 
 .ui-button:disabled {
@@ -197,16 +341,41 @@ button {
   cursor: not-allowed;
 }
 
+/*
+ * Primary CTA: the warm amber - red gradient. Attention color only — never
+ * used for status, links or decoration. Hover runs a shine sweep across the
+ * face and lifts the button.
+ */
 .ui-button-primary {
-  background: linear-gradient(180deg, var(--accent-primary), var(--accent-primary-hover));
+  background: linear-gradient(135deg, var(--cta-start) 0%, var(--cta-end) 100%);
   border-color: transparent;
-  color: var(--text-inverse);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  color: var(--cta-text);
+  text-shadow: var(--cta-text-shadow);
+  box-shadow: 0 1px 2px rgba(20, 8, 0, 0.35), 0 4px 14px rgba(239, 68, 68, 0.25);
 }
 
 .ui-button-primary:hover:not(:disabled) {
-  background: var(--accent-primary-hover);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 0 14px var(--accent-subtle);
+  background: linear-gradient(135deg, var(--cta-start) 0%, var(--cta-end) 100%);
+  box-shadow: 0 2px 4px rgba(20, 8, 0, 0.35), 0 6px 22px rgba(239, 68, 68, 0.42);
+  transform: translateY(-1px);
+}
+
+.ui-button-primary::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 80%
+  );
+  transform: translateX(-130%);
+  transition: transform var(--duration-slow) var(--ease-standard);
+}
+
+.ui-button-primary:hover:not(:disabled)::after {
+  transform: translateX(130%);
 }
 
 .ui-button-danger {
@@ -217,11 +386,19 @@ button {
 
 .ui-button-danger:hover:not(:disabled) {
   background: var(--danger-subtle);
+  border-color: var(--danger);
+  box-shadow: 0 0 14px var(--danger-subtle);
 }
 
 .ui-button-ghost {
   background: transparent;
   border-color: transparent;
+}
+
+.ui-button-ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .ui-button-small {
@@ -237,6 +414,8 @@ button {
   border-radius: var(--radius-control);
   border: 1px solid var(--border-strong);
   background: var(--bg-input);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   color: var(--text-primary);
   transition:
     border-color var(--duration-fast) var(--ease-standard),
@@ -314,8 +493,9 @@ button {
 }
 
 .ui-toggle input:checked {
-  background: var(--accent-primary);
+  background: linear-gradient(135deg, var(--accent-primary), #2563eb);
   border-color: transparent;
+  box-shadow: 0 0 10px var(--glow-cyan);
 }
 
 .ui-toggle input:checked::after {
@@ -355,7 +535,7 @@ button {
 .ui-progress-fill {
   height: 100%;
   border-radius: var(--radius-pill);
-  background: var(--success);
+  background: linear-gradient(90deg, var(--accent-primary), #2563eb);
   transition: width var(--duration-normal) ease;
 }
 
@@ -368,7 +548,7 @@ button {
 }
 
 .ui-progress-fill-accent {
-  background: var(--accent-primary);
+  background: linear-gradient(90deg, var(--accent-primary), #2563eb);
 }
 
 /* Hatched track: the limit is unknown, so there is nothing to fill. */
@@ -384,6 +564,10 @@ button {
   overflow-x: auto;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-card);
+  background: var(--glass-fill);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.3);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.3);
+  box-shadow: var(--shadow-card);
 }
 
 .ui-table {
@@ -399,7 +583,7 @@ button {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
-  background: var(--bg-panel-elevated);
+  background: var(--bg-hover);
   border-bottom: 1px solid var(--border-subtle);
   position: sticky;
   top: 0;
@@ -427,17 +611,51 @@ button {
 }
 
 .ui-metric-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-4);
-  background: var(--bg-panel);
+  background: linear-gradient(
+    160deg,
+    var(--glass-fill-elevated) 0%,
+    var(--glass-fill) 55%
+  );
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
   border: 1px solid var(--border-subtle);
+  border-top-color: var(--glass-edge);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
+  overflow: hidden;
   transition:
     box-shadow var(--duration-normal) var(--ease-standard),
-    transform var(--duration-normal) var(--ease-standard);
+    transform var(--duration-normal) var(--ease-standard),
+    border-color var(--duration-normal) var(--ease-standard);
+}
+
+/* A soft cyan - violet accent line along the top edge of the card. */
+.ui-metric-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--glow-cyan) 35%,
+    var(--glow-violet) 75%,
+    transparent
+  );
+  opacity: 0.7;
+}
+
+.ui-metric-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-glow);
+  box-shadow: var(--shadow-lifted), 0 0 22px var(--glow-cyan);
 }
 
 .ui-metric-card-head {
@@ -516,7 +734,10 @@ button {
   display: inline-flex;
   gap: var(--space-1);
   padding: var(--space-1);
-  background: var(--neutral-subtle);
+  background: var(--glass-fill);
+  backdrop-filter: blur(14px) saturate(1.25);
+  -webkit-backdrop-filter: blur(14px) saturate(1.25);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-control);
 }
 
@@ -528,12 +749,21 @@ button {
   color: var(--text-secondary);
   font-size: 0.8125rem;
   font-weight: 600;
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.ui-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
 }
 
 .ui-tab[aria-selected="true"] {
   background: var(--bg-panel-elevated);
   color: var(--text-primary);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-card), 0 0 12px var(--glow-cyan);
 }
 
 .ui-inline-note {
@@ -544,4 +774,24 @@ button {
 .ui-mono {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+/* Shimmer: the warm accent sweeps across key headlines on a slow loop. */
+@keyframes shimmer-gradient {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 200% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-backdrop-orb {
+    animation: none;
+  }
+
+  .ui-button-primary::after {
+    display: none;
+  }
 }

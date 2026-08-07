@@ -1,5 +1,5 @@
 /*
- * Tray popup — dark carbon card, matching styles/tokens.css values.
+ * Tray popup — glass card, matching styles/tokens.css values.
  * The tray window is a separate webview that does not load the shared
  * token stylesheet, so the palette is repeated here deliberately.
  */
@@ -16,10 +16,13 @@
 }
 
 .tray-card {
-  background: #121218;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03));
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
   border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-top-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), 0 0 24px rgba(34, 211, 238, 0.1);
   padding: 22px 24px;
   display: flex;
   flex-direction: column;
@@ -46,18 +49,18 @@
 .tray-brand-title {
   font-size: 19px;
   font-weight: 500;
-  color: #a1a1aa;
+  color: #e8edf7;
   letter-spacing: -0.2px;
 }
 
 .tray-badge-ok {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #34d399;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  color: #22d3ee;
   font-size: 13px;
   font-weight: 500;
   padding: 2px 10px;
   border-radius: 6px;
-  background: rgba(52, 211, 153, 0.08);
+  background: rgba(34, 211, 238, 0.1);
 }
 
 .tray-metrics {
@@ -88,7 +91,7 @@
 }
 
 .tray-icon-t {
-  color: #38bdf8;
+  color: #22d3ee;
   font-weight: 700;
   font-size: 15px;
 }
@@ -100,23 +103,23 @@
 }
 
 .tray-icon-cube {
-  color: #2dd4bf;
+  color: #8b5cf6;
 }
 
 .tray-icon-chart {
-  color: #a1a1aa;
+  color: #8d9bb5;
 }
 
 .tray-metric-label {
   font-size: 15px;
   font-weight: 500;
-  color: #b6b6bf;
+  color: #8d9bb5;
 }
 
 .tray-metric-value {
   font-size: 17px;
   font-weight: 600;
-  color: #34d399;
+  color: #22d3ee;
   font-variant-numeric: tabular-nums;
 }
 
@@ -125,9 +128,9 @@
   padding: 11px 0;
   margin-top: 4px;
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 10px;
-  color: #b6b6bf;
+  color: #8d9bb5;
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;
@@ -138,8 +141,8 @@
 
 .tray-action-btn:hover {
   background-color: rgba(255, 255, 255, 0.09);
-  border-color: rgba(255, 255, 255, 0.2);
-  color: #f4f4f5;
+  border-color: rgba(34, 211, 238, 0.35);
+  color: #e8edf7;
 }
 
 .tray-action-btn:active {
@@ -147,7 +150,7 @@
 }
 
 .tray-action-btn:focus-visible {
-  outline: 2px solid #34d399;
+  outline: 2px solid #22d3ee;
   outline-offset: 2px;
 }
 
@@ -163,16 +166,16 @@
 .tray-footer-status {
   font-size: 14px;
   font-weight: 500;
-  color: #a1a1aa;
+  color: #8d9bb5;
 }
 
 .tray-badge-lnwdev {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #34d399;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  color: #22d3ee;
   font-weight: 600;
   padding: 3px 12px;
   border-radius: 8px;
-  background: rgba(52, 211, 153, 0.08);
+  background: rgba(34, 211, 238, 0.1);
   font-size: 13px;
   letter-spacing: 0.5px;
 }
@@ -180,6 +183,6 @@
 .tray-loading {
   padding: 30px;
   text-align: center;
-  color: #82828d;
+  color: #64708c;
   font-size: 14px;
 }

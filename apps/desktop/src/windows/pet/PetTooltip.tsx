@@ -102,7 +102,7 @@ export function PetTooltip({ visible }: { visible: boolean }) {
   }
 
   const toneColor = (tone: QuotaBar["tone"]) =>
-    tone === "danger" ? "#fb7185" : tone === "warn" ? "#fbbf24" : "#34d399";
+    tone === "danger" ? "#f87171" : tone === "warn" ? "#fbbf24" : "#22d3ee";
 
   const hasRows = bars.length > 0 || usageRows.length > 0;
 

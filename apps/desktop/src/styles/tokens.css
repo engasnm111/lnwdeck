@@ -1,5 +1,5 @@
 /*
- * Design tokens — Carbon & Emeralds.
+ * Design tokens — Premium Dark Futuristic Glassmorphism.
  *
  * Dark is the default; light is applied when the user picks it or when the
  * system prefers light and the user chose "system". The theme is set as
@@ -7,10 +7,10 @@
  * reflects a real stored setting.
  *
  * Palette rules (enforced by docs/DESIGN.md):
- *   - Absolute zinc neutrals: one hue family, no warm/cool drift.
- *   - A single emerald accent (saturation < 80%). No purple, no neon.
- *   - Never pure black: every surface sits on Carbon Ink (#0B0B0F).
- *   - Status hues share the fresh family: emerald / amber / rose / sky.
+ *   - Near-black navy canvas (#05070F); never pure black.
+ *   - Accent triad: Neon Cyan / Electric Blue / Violet.
+ *   - The warm Amber - Red gradient is reserved for primary CTAs.
+ *   - Glass surfaces: white 3-6% translucent fill + backdrop blur.
  *
  * Variable names are the public contract of this file: components and pages
  * reference them, so a redesign changes values, never names.
@@ -19,50 +19,63 @@
 :root {
   color-scheme: dark;
 
-  /* Surfaces: layered carbon, lit by a faint emerald atmosphere. */
-  --bg-app: #0b0b0f;
+  /* Surfaces: layered abyss, lit by a cyan/blue/violet atmosphere. */
+  --bg-app: #05070f;
   --bg-app-gradient: radial-gradient(
       1100px 620px at 12% -8%,
-      rgba(52, 211, 153, 0.14),
+      rgba(34, 211, 238, 0.13),
       transparent 55%
     ),
-    radial-gradient(900px 540px at 100% 0%, rgba(56, 189, 248, 0.08), transparent 55%),
-    linear-gradient(180deg, #0e0e13 0%, #0b0b0f 100%);
-  --bg-sidebar: rgba(17, 17, 23, 0.88);
-  --bg-panel: rgba(24, 24, 31, 0.92);
-  --bg-panel-elevated: rgba(31, 31, 40, 0.96);
-  --bg-hover: rgba(255, 255, 255, 0.055);
-  --bg-active: rgba(255, 255, 255, 0.095);
-  --bg-input: rgba(9, 9, 12, 0.85);
+    radial-gradient(900px 540px at 100% 0%, rgba(139, 92, 246, 0.1), transparent 55%),
+    radial-gradient(760px 480px at 78% 108%, rgba(37, 99, 235, 0.1), transparent 55%),
+    linear-gradient(180deg, #070b16 0%, #05070f 100%);
+  --bg-sidebar: rgba(10, 14, 28, 0.55);
+  --bg-panel: rgba(255, 255, 255, 0.04);
+  --bg-panel-elevated: rgba(255, 255, 255, 0.07);
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --bg-active: rgba(255, 255, 255, 0.1);
+  --bg-input: rgba(255, 255, 255, 0.04);
 
-  --border-subtle: rgba(255, 255, 255, 0.075);
-  --border-strong: rgba(255, 255, 255, 0.14);
-  --border-focus: #34d399;
+  --border-subtle: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --border-focus: #22d3ee;
 
-  --text-primary: #f4f4f5;
-  --text-secondary: #b6b6bf;
-  --text-muted: #82828d;
-  --text-inverse: #0b0b0f;
+  --text-primary: #e8edf7;
+  --text-secondary: #8d9bb5;
+  --text-muted: #64708c;
+  --text-inverse: #05070f;
 
-  --accent-primary: #34d399;
-  --accent-primary-hover: #4ade80;
-  --accent-subtle: rgba(52, 211, 153, 0.14);
+  --accent-primary: #22d3ee;
+  --accent-primary-hover: #67e8f9;
+  --accent-subtle: rgba(34, 211, 238, 0.12);
+
+  /* Warm CTA gradient: amber - red, only for primary action buttons. */
+  --cta-start: #f59e0b;
+  --cta-end: #ef4444;
+  --cta-text: #ffffff;
+  --cta-text-shadow: 0 1px 2px rgba(20, 8, 0, 0.45);
+
+  /* Glow vocabulary: cyan - violet. */
+  --glow-cyan: rgba(34, 211, 238, 0.28);
+  --glow-blue: rgba(37, 99, 235, 0.28);
+  --glow-violet: rgba(139, 92, 246, 0.28);
+  --border-glow: rgba(34, 211, 238, 0.32);
 
   --success: #34d399;
   --success-subtle: rgba(52, 211, 153, 0.13);
   --warning: #fbbf24;
   --warning-subtle: rgba(251, 191, 36, 0.13);
-  --danger: #fb7185;
-  --danger-subtle: rgba(251, 113, 133, 0.13);
+  --danger: #f87171;
+  --danger-subtle: rgba(248, 113, 113, 0.13);
   --info: #38bdf8;
   --info-subtle: rgba(56, 189, 248, 0.13);
   --neutral-subtle: rgba(255, 255, 255, 0.06);
 
-  --chart-1: #34d399;
-  --chart-2: #38bdf8;
-  --chart-3: #fbbf24;
-  --chart-4: #fb7185;
-  --chart-5: #2dd4bf;
+  --chart-1: #22d3ee;
+  --chart-2: #2563eb;
+  --chart-3: #8b5cf6;
+  --chart-4: #f59e0b;
+  --chart-5: #ef4444;
 
   /* 4px spacing scale. */
   --space-1: 0.25rem;
@@ -73,15 +86,24 @@
   --space-6: 2rem;
   --space-7: 3rem;
 
-  /* Radii: controls 6, cards 12, dialog 14. */
-  --radius-sm: 5px;
-  --radius-control: 7px;
-  --radius-card: 12px;
+  /* Radii: controls 8, cards 14, dialog 16. */
+  --radius-sm: 6px;
+  --radius-control: 8px;
+  --radius-card: 14px;
   --radius-pill: 999px;
 
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 20px rgba(0, 0, 0, 0.28);
-  --shadow-popup: 0 12px 40px rgba(0, 0, 0, 0.55);
-  --shadow-lifted: 0 2px 4px rgba(0, 0, 0, 0.32), 0 14px 36px rgba(0, 0, 0, 0.36);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 32px rgba(0, 0, 0, 0.42);
+  --shadow-popup: 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 16px 48px rgba(0, 0, 0, 0.55);
+  --shadow-lifted: 0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 2px 4px rgba(0, 0, 0, 0.3), 0 16px 44px rgba(0, 0, 0, 0.5);
+
+  /* Glass recipe used by panels that carry backdrop-filter. */
+  --glass-blur: 20px;
+  --glass-fill: rgba(255, 255, 255, 0.04);
+  --glass-fill-elevated: rgba(255, 255, 255, 0.07);
+  --glass-edge: rgba(255, 255, 255, 0.14);
 
   /* Type: Segoe UI Variable first, a monospace for data. */
   --font-family: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui,
@@ -108,47 +130,66 @@
 [data-theme="light"] {
   color-scheme: light;
 
-  --bg-app: #f5f5f7;
+  --bg-app: #f3f6fc;
   --bg-app-gradient: radial-gradient(
       1100px 620px at 12% -8%,
-      rgba(52, 211, 153, 0.12),
+      rgba(34, 211, 238, 0.14),
       transparent 55%
     ),
-    radial-gradient(900px 540px at 100% 0%, rgba(56, 189, 248, 0.07), transparent 55%),
-    linear-gradient(180deg, #f8f8fa 0%, #f5f5f7 100%);
-  --bg-sidebar: rgba(255, 255, 255, 0.85);
-  --bg-panel: rgba(255, 255, 255, 0.93);
-  --bg-panel-elevated: #ffffff;
-  --bg-hover: rgba(12, 12, 16, 0.05);
-  --bg-active: rgba(12, 12, 16, 0.09);
-  --bg-input: #ffffff;
+    radial-gradient(900px 540px at 100% 0%, rgba(139, 92, 246, 0.1), transparent 55%),
+    radial-gradient(760px 480px at 78% 108%, rgba(37, 99, 235, 0.1), transparent 55%),
+    linear-gradient(180deg, #f8faff 0%, #f3f6fc 100%);
+  --bg-sidebar: rgba(255, 255, 255, 0.62);
+  --bg-panel: rgba(255, 255, 255, 0.72);
+  --bg-panel-elevated: rgba(255, 255, 255, 0.92);
+  --bg-hover: rgba(10, 14, 28, 0.05);
+  --bg-active: rgba(10, 14, 28, 0.09);
+  --bg-input: rgba(255, 255, 255, 0.85);
 
-  --border-subtle: rgba(12, 12, 16, 0.09);
-  --border-strong: rgba(12, 12, 16, 0.18);
-  --border-focus: #059669;
+  --border-subtle: rgba(10, 14, 28, 0.1);
+  --border-strong: rgba(10, 14, 28, 0.18);
+  --border-focus: #0891b2;
 
-  --text-primary: #16161a;
-  --text-secondary: #47474f;
-  --text-muted: #64646d;
+  --text-primary: #10162a;
+  --text-secondary: #3d4a68;
+  --text-muted: #5d6b8a;
   --text-inverse: #ffffff;
 
-  --accent-primary: #059669;
-  --accent-primary-hover: #047857;
-  --accent-subtle: rgba(5, 150, 105, 0.11);
+  --accent-primary: #0891b2;
+  --accent-primary-hover: #06b6d4;
+  --accent-subtle: rgba(8, 145, 178, 0.11);
+
+  --cta-start: #f59e0b;
+  --cta-end: #ef4444;
+  --cta-text: #ffffff;
+  --cta-text-shadow: 0 1px 2px rgba(20, 8, 0, 0.35);
+
+  --glow-cyan: rgba(34, 211, 238, 0.22);
+  --glow-blue: rgba(37, 99, 235, 0.2);
+  --glow-violet: rgba(139, 92, 246, 0.22);
+  --border-glow: rgba(8, 145, 178, 0.3);
 
   --success: #059669;
   --success-subtle: rgba(5, 150, 105, 0.11);
   --warning: #b45309;
   --warning-subtle: rgba(180, 83, 9, 0.12);
-  --danger: #e11d48;
-  --danger-subtle: rgba(225, 29, 72, 0.1);
+  --danger: #dc2626;
+  --danger-subtle: rgba(220, 38, 38, 0.1);
   --info: #0369a1;
   --info-subtle: rgba(3, 105, 161, 0.1);
-  --neutral-subtle: rgba(12, 12, 16, 0.06);
+  --neutral-subtle: rgba(10, 14, 28, 0.06);
 
-  --shadow-card: 0 1px 2px rgba(12, 12, 16, 0.05), 0 6px 18px rgba(12, 12, 16, 0.06);
-  --shadow-popup: 0 12px 36px rgba(12, 12, 16, 0.16);
-  --shadow-lifted: 0 2px 4px rgba(12, 12, 16, 0.06), 0 14px 32px rgba(12, 12, 16, 0.1);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 1px 2px rgba(16, 22, 42, 0.05), 0 10px 28px rgba(16, 22, 42, 0.08);
+  --shadow-popup: 0 0 0 1px rgba(16, 22, 42, 0.08),
+    0 16px 44px rgba(16, 22, 42, 0.16);
+  --shadow-lifted: 0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 2px 4px rgba(16, 22, 42, 0.06), 0 16px 40px rgba(16, 22, 42, 0.12);
+
+  --glass-blur: 20px;
+  --glass-fill: rgba(255, 255, 255, 0.7);
+  --glass-fill-elevated: rgba(255, 255, 255, 0.9);
+  --glass-edge: rgba(255, 255, 255, 0.8);
 }
 
 /* Users who chose "system" follow the OS preference. */
@@ -156,47 +197,66 @@
   [data-theme="system"] {
     color-scheme: light;
 
-    --bg-app: #f5f5f7;
+    --bg-app: #f3f6fc;
     --bg-app-gradient: radial-gradient(
         1100px 620px at 12% -8%,
-        rgba(52, 211, 153, 0.12),
+        rgba(34, 211, 238, 0.14),
         transparent 55%
       ),
-      radial-gradient(900px 540px at 100% 0%, rgba(56, 189, 248, 0.07), transparent 55%),
-      linear-gradient(180deg, #f8f8fa 0%, #f5f5f7 100%);
-    --bg-sidebar: rgba(255, 255, 255, 0.85);
-    --bg-panel: rgba(255, 255, 255, 0.93);
-    --bg-panel-elevated: #ffffff;
-    --bg-hover: rgba(12, 12, 16, 0.05);
-    --bg-active: rgba(12, 12, 16, 0.09);
-    --bg-input: #ffffff;
+      radial-gradient(900px 540px at 100% 0%, rgba(139, 92, 246, 0.1), transparent 55%),
+      radial-gradient(760px 480px at 78% 108%, rgba(37, 99, 235, 0.1), transparent 55%),
+      linear-gradient(180deg, #f8faff 0%, #f3f6fc 100%);
+    --bg-sidebar: rgba(255, 255, 255, 0.62);
+    --bg-panel: rgba(255, 255, 255, 0.72);
+    --bg-panel-elevated: rgba(255, 255, 255, 0.92);
+    --bg-hover: rgba(10, 14, 28, 0.05);
+    --bg-active: rgba(10, 14, 28, 0.09);
+    --bg-input: rgba(255, 255, 255, 0.85);
 
-    --border-subtle: rgba(12, 12, 16, 0.09);
-    --border-strong: rgba(12, 12, 16, 0.18);
-    --border-focus: #059669;
+    --border-subtle: rgba(10, 14, 28, 0.1);
+    --border-strong: rgba(10, 14, 28, 0.18);
+    --border-focus: #0891b2;
 
-    --text-primary: #16161a;
-    --text-secondary: #47474f;
-    --text-muted: #64646d;
+    --text-primary: #10162a;
+    --text-secondary: #3d4a68;
+    --text-muted: #5d6b8a;
     --text-inverse: #ffffff;
 
-    --accent-primary: #059669;
-    --accent-primary-hover: #047857;
-    --accent-subtle: rgba(5, 150, 105, 0.11);
+    --accent-primary: #0891b2;
+    --accent-primary-hover: #06b6d4;
+    --accent-subtle: rgba(8, 145, 178, 0.11);
+
+    --cta-start: #f59e0b;
+    --cta-end: #ef4444;
+    --cta-text: #ffffff;
+    --cta-text-shadow: 0 1px 2px rgba(20, 8, 0, 0.35);
+
+    --glow-cyan: rgba(34, 211, 238, 0.22);
+    --glow-blue: rgba(37, 99, 235, 0.2);
+    --glow-violet: rgba(139, 92, 246, 0.22);
+    --border-glow: rgba(8, 145, 178, 0.3);
 
     --success: #059669;
     --success-subtle: rgba(5, 150, 105, 0.11);
     --warning: #b45309;
     --warning-subtle: rgba(180, 83, 9, 0.12);
-    --danger: #e11d48;
-    --danger-subtle: rgba(225, 29, 72, 0.1);
+    --danger: #dc2626;
+    --danger-subtle: rgba(220, 38, 38, 0.1);
     --info: #0369a1;
     --info-subtle: rgba(3, 105, 161, 0.1);
-    --neutral-subtle: rgba(12, 12, 16, 0.06);
+    --neutral-subtle: rgba(10, 14, 28, 0.06);
 
-    --shadow-card: 0 1px 2px rgba(12, 12, 16, 0.05), 0 6px 18px rgba(12, 12, 16, 0.06);
-    --shadow-popup: 0 12px 36px rgba(12, 12, 16, 0.16);
-    --shadow-lifted: 0 2px 4px rgba(12, 12, 16, 0.06), 0 14px 32px rgba(12, 12, 16, 0.1);
+    --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.6) inset,
+      0 1px 2px rgba(16, 22, 42, 0.05), 0 10px 28px rgba(16, 22, 42, 0.08);
+    --shadow-popup: 0 0 0 1px rgba(16, 22, 42, 0.08),
+      0 16px 44px rgba(16, 22, 42, 0.16);
+    --shadow-lifted: 0 1px 0 rgba(255, 255, 255, 0.7) inset,
+      0 2px 4px rgba(16, 22, 42, 0.06), 0 16px 40px rgba(16, 22, 42, 0.12);
+
+    --glass-blur: 20px;
+    --glass-fill: rgba(255, 255, 255, 0.7);
+    --glass-fill-elevated: rgba(255, 255, 255, 0.9);
+    --glass-edge: rgba(255, 255, 255, 0.8);
   }
 }
 

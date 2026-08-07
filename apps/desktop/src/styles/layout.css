@@ -1,6 +1,8 @@
-﻿/* Application shell and page layout. */
+/* Application shell and page layout. */
 
 .app-layout {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: auto 1fr;
   height: 100%;
@@ -15,7 +17,8 @@
   width: 236px;
   padding: var(--space-4) var(--space-3);
   background: var(--bg-sidebar);
-  backdrop-filter: blur(28px) saturate(1.2);
+  backdrop-filter: blur(28px) saturate(1.4);
+  -webkit-backdrop-filter: blur(28px) saturate(1.4);
   border-right: 1px solid var(--border-subtle);
   transition:
     width var(--duration-normal) var(--ease-standard),
@@ -34,14 +37,14 @@
   padding: 0 var(--space-2) var(--space-3);
 }
 
-/* A small accent mark next to the wordmark. */
+/* A small cyan - violet accent mark next to the wordmark. */
 .app-sidebar-brand-mark {
   flex: none;
   width: 10px;
   height: 10px;
   border-radius: 3px;
-  background: linear-gradient(135deg, var(--accent-primary), var(--chart-5));
-  box-shadow: 0 0 12px var(--accent-subtle);
+  background: linear-gradient(135deg, var(--accent-primary), var(--chart-3));
+  box-shadow: 0 0 12px var(--glow-cyan);
 }
 
 .app-sidebar-brand-name {
@@ -94,7 +97,8 @@
   transition:
     background var(--duration-fast) var(--ease-standard),
     color var(--duration-fast) var(--ease-standard),
-    transform var(--duration-fast) var(--ease-standard);
+    transform var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
 }
 
 .app-sidebar-link:hover {
@@ -104,23 +108,28 @@
   transform: translateX(1px);
 }
 
+/* Active item: cyan - violet wash with a matching glow indicator. */
 .app-sidebar-link.active {
-  background: var(--accent-subtle);
+  background: linear-gradient(
+    90deg,
+    var(--accent-subtle) 0%,
+    rgba(139, 92, 246, 0.09) 100%
+  );
   color: var(--text-primary);
   font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.14);
 }
 
-/* Windows 11 style selection indicator. */
 .app-sidebar-link.active::before {
   content: "";
   position: absolute;
   left: 0;
-  top: 20%;
-  bottom: 20%;
+  top: 18%;
+  bottom: 18%;
   width: 3px;
   border-radius: var(--radius-pill);
-  background: linear-gradient(180deg, var(--accent-primary), var(--chart-5));
-  box-shadow: 0 0 8px var(--accent-subtle);
+  background: linear-gradient(180deg, var(--accent-primary), var(--chart-3));
+  box-shadow: 0 0 10px var(--glow-cyan);
 }
 
 .app-sidebar-link svg {
@@ -130,6 +139,8 @@
 
 .app-sidebar-link.active svg {
   opacity: 1;
+  color: var(--accent-primary);
+  filter: drop-shadow(0 0 5px var(--glow-cyan));
 }
 
 .app-sidebar-link-count {
@@ -166,7 +177,8 @@
   padding: var(--space-3) var(--space-5);
   border-bottom: 1px solid var(--border-subtle);
   background: var(--bg-sidebar);
-  backdrop-filter: blur(28px) saturate(1.2);
+  backdrop-filter: blur(28px) saturate(1.4);
+  -webkit-backdrop-filter: blur(28px) saturate(1.4);
 }
 
 .app-topbar-title {
@@ -226,10 +238,29 @@
   margin-bottom: var(--space-5);
 }
 
+/* Page headlines: a slow cyan - violet shimmer sweep, nothing louder. */
 .page-title {
   font-size: var(--font-size-xl);
   font-weight: 650;
   letter-spacing: -0.015em;
+  background: linear-gradient(
+    90deg,
+    var(--text-primary) 0%,
+    var(--accent-primary) 30%,
+    var(--chart-3) 55%,
+    var(--text-primary) 80%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--text-primary);
+  animation: shimmer-gradient 9s linear infinite;
+  animation-play-state: paused;
+}
+
+.page-title:hover {
+  animation-play-state: running;
 }
 
 .page-subtitle {
@@ -314,7 +345,7 @@
   padding: var(--space-3);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-control);
-  background: var(--bg-panel-elevated);
+  background: var(--bg-input);
 }
 
 .channel-title {
@@ -358,7 +389,7 @@
   flex: 1;
   min-width: 3px;
   border-radius: 2px 2px 0 0;
-  background: var(--chart-1);
+  background: linear-gradient(180deg, var(--chart-1), var(--chart-2));
 }
 
 .alert-row {
@@ -369,7 +400,9 @@
   border: 1px solid var(--border-subtle);
   border-left: 4px solid var(--border-strong);
   border-radius: var(--radius-control);
-  background: var(--bg-panel-elevated);
+  background: var(--glass-fill);
+  backdrop-filter: blur(14px) saturate(1.25);
+  -webkit-backdrop-filter: blur(14px) saturate(1.25);
   transition:
     transform 120ms ease,
     box-shadow 120ms ease,
@@ -378,22 +411,22 @@
 
 .alert-row:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-lifted), 0 0 18px var(--glow-blue);
 }
 
 .alert-row-critical {
   border-left-color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 6%, var(--bg-panel-elevated));
+  background: color-mix(in srgb, var(--danger) 7%, var(--glass-fill));
 }
 
 .alert-row-warning {
   border-left-color: var(--warning);
-  background: color-mix(in srgb, var(--warning) 6%, var(--bg-panel-elevated));
+  background: color-mix(in srgb, var(--warning) 7%, var(--glass-fill));
 }
 
 .alert-row-info {
   border-left-color: var(--info);
-  background: color-mix(in srgb, var(--info) 6%, var(--bg-panel-elevated));
+  background: color-mix(in srgb, var(--info) 7%, var(--glass-fill));
 }
 
 .alert-row .row {
@@ -446,6 +479,8 @@
   padding: var(--space-2) var(--space-5);
   border-bottom: 1px solid var(--border-subtle);
   background: var(--info-subtle);
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
   font-size: 0.8125rem;
 }
 
@@ -476,9 +511,10 @@
 .pet-card-active {
   padding: var(--space-2) var(--space-3);
   margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-3));
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border-glow);
   border-radius: var(--radius-control);
   background: var(--bg-panel-elevated);
+  box-shadow: 0 0 12px var(--glow-cyan);
 }
 
 /* A single idle frame of a codex-pets.net spritesheet as a preview. */
@@ -511,8 +547,8 @@
 
 /* Pet pose toggles: two compact columns under one fieldset. */
 .ui-fieldset {
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
-  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
   padding: var(--space-3);
   margin: 0;
 }
@@ -521,7 +557,7 @@
   font-size: 0.8rem;
   font-weight: 600;
   padding: 0 var(--space-1);
-  color: var(--text-secondary, rgba(255, 255, 255, 0.65));
+  color: var(--text-secondary);
 }
 
 .settings-pose-grid {
@@ -554,6 +590,13 @@
   flex-direction: column;
   gap: var(--space-1);
   font-size: 0.85rem;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.65));
+  color: var(--text-secondary);
   line-height: 1.5;
+}
+
+/* Reduced motion: freeze the headline shimmer entirely. */
+@media (prefers-reduced-motion: reduce) {
+  .page-title {
+    animation: none;
+  }
 }
