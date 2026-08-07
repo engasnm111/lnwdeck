@@ -579,9 +579,10 @@ export interface PetWindowSettingsData {
   character: string;
   speed: string;
   opacity: number;
-  auto_sleep: boolean;
-  /** Fixed window size preset: "small", "medium" or "large". */
-  size_preset: PetSizePreset;
+  /** Serialized camelCase by the backend (PetWindowSettings). */
+  autoSleep: boolean;
+  /** Serialized camelCase by the backend (PetWindowSettings). */
+  sizePreset: PetSizePreset;
 }
 
 /** Fixed pet window sizes: chosen in Settings, never user-resized. */

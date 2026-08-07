@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+﻿import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as native from "../../lib/native";
@@ -23,8 +23,8 @@ const petSettings = (overrides: Partial<native.PetWindowSettingsData> = {}) => (
   character: "youyou",
   speed: "normal",
   opacity: 1,
-  auto_sleep: true,
-  size_preset: "medium" as native.PetSizePreset,
+  autoSleep: true,
+  sizePreset: "medium" as native.PetSizePreset,
   ...overrides,
 });
 

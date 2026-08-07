@@ -17,7 +17,6 @@
   /* The hover tooltip renders above the pet; it must be allowed to reach the
      top of the window, so nothing here clips it. */
   overflow: visible;
-  cursor: grab;
   font-family: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif;
   user-select: none;
   -webkit-user-select: none;
@@ -29,7 +28,13 @@
   padding-bottom: 6px;
 }
 
-.pet-window:active {
+/* Only the pet itself is draggable; the transparent window area around it
+   stays inert. */
+.pet-sprite {
+  cursor: grab;
+}
+
+.pet-sprite:active {
   cursor: grabbing;
 }
 

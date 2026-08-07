@@ -1,4 +1,4 @@
-﻿//! Gemini CLI passive local collector.
+//! Gemini CLI passive local collector.
 //!
 //! Gemini CLI keeps one session transcript per chat under
 //! `~/.gemini/tmp/<project>/chats/session-*.jsonl`. Every model message in a
@@ -17,12 +17,14 @@ use lnwdeck_provider_runtime::{
 };
 use std::path::PathBuf;
 
+mod antigravity;
 mod transcript;
 
+pub mod quota_api;
 pub use transcript::TranscriptBounds;
 
 const PROVIDER_ID: &str = "google_gemini";
-const ADAPTER_VERSION: &str = "0.3.0";
+const ADAPTER_VERSION: &str = "0.4.0";
 const DATA_SOURCE: &str = "local_transcripts";
 
 pub struct GeminiAdapter {
@@ -54,8 +56,14 @@ impl GeminiAdapter {
         }
     }
 
+    fn oauth_path(&self) -> PathBuf {
+        self.root.join("oauth_creds.json")
+    }
+
     fn scan(&self) -> ScanReport {
-        transcript::scan_transcripts(&self.root, &self.bounds)
+        let mut report = transcript::scan_transcripts(&self.root, &self.bounds);
+        antigravity::scan_antigravity(&self.root, self.bounds.max_files, &mut report.samples);
+        report
     }
 
     fn detection(&self) -> DetectionResult {
@@ -82,9 +90,41 @@ impl GeminiAdapter {
             result.permission_state = "no_sessions".to_string();
         } else {
             result.detected = true;
-            result.permission_state = "read_ok".to_string();
+            result.permission_state = if self.oauth_path().is_file() {
+                "read_ok_auth".to_string()
+            } else {
+                "read_ok_no_auth".to_string()
+            };
         }
         result
+    }
+
+    /// Real Gemini quota windows from the Code Assist API, then a usage-only
+    /// estimate from local transcripts when the API is not reachable.
+    fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
+        if !self.root.is_dir() {
+            return Ok(None);
+        }
+        match quota_api::fetch_windows(&self.oauth_path(), quota_api::default_timeout()) {
+            Ok(Some(report)) => Ok(Some(report)),
+            Ok(None) => self.local_quota_estimate(),
+            Err(code) if code == "AUTH_EXPIRED" || code == "RATE_LIMITED" => Err(code),
+            Err(_) => self.local_quota_estimate(),
+        }
+    }
+
+    fn local_quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
+        let report = self.scan();
+        let windows = rolling_usage_windows(&report, chrono::Utc::now(), Confidence::Medium);
+        if windows.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(QuotaReport::new(
+            PROVIDER_ID,
+            "local_estimate",
+            windows,
+            DEFAULT_FRESHNESS,
+        )))
     }
 }
 
@@ -119,20 +159,7 @@ impl ProviderAdapter for GeminiAdapter {
     }
 
     fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
-        if !self.root.is_dir() {
-            return Ok(None);
-        }
-        let report = self.scan();
-        let windows = rolling_usage_windows(&report, chrono::Utc::now(), Confidence::Medium);
-        if windows.is_empty() {
-            return Ok(None);
-        }
-        Ok(Some(QuotaReport::new(
-            PROVIDER_ID,
-            "local_estimate",
-            windows,
-            DEFAULT_FRESHNESS,
-        )))
+        self.quota_estimate()
     }
 
     fn health_check(&self) -> AdapterHealth {

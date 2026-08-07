@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { currentMonitor } from "@tauri-apps/api/window";
 import {
@@ -74,8 +74,8 @@ export function DesktopPet() {
     character: "",
     speed: "normal",
     opacity: 1.0,
-    auto_sleep: true,
-    size_preset: "medium",
+    autoSleep: true,
+    sizePreset: "medium",
   });
   const [pets, setPets] = useState<PetManifest[]>([]);
   const [scale, setScale] = useState(1);
@@ -123,7 +123,7 @@ export function DesktopPet() {
       screenW: bounds.w,
       screenH: bounds.h,
       speed: settingsRef.current.speed as PetSpeed,
-      autoSleep: settingsRef.current.auto_sleep,
+      autoSleep: settingsRef.current.autoSleep,
     };
     const next = pickNextPhase(
       movementStateRef.current,
@@ -268,7 +268,7 @@ export function DesktopPet() {
         screenW: bounds.w,
         screenH: bounds.h,
         speed: settingsRef.current.speed as PetSpeed,
-        autoSleep: settingsRef.current.auto_sleep,
+        autoSleep: settingsRef.current.autoSleep,
       };
       setPos((prev) => {
         const result = tickMovement(prev.x, prev.y, state, dir, config);
@@ -372,7 +372,7 @@ export function DesktopPet() {
 
   // Sprite size follows the size preset, shrinking only when the window
   // viewport is too small for it.
-  const base = SPRITE_BASE[settings.size_preset] ?? SPRITE_BASE.medium;
+  const base = SPRITE_BASE[settings.sizePreset] ?? SPRITE_BASE.medium;
   const spriteW = Math.max(48, Math.min(base, viewSize.w - 12));
   const spriteH = Math.round(spriteW * SPRITE_ASPECT);
 
@@ -380,10 +380,6 @@ export function DesktopPet() {
     <div
       className="pet-window"
       style={{ opacity: settings.opacity }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onMouseLeave={() => setHovering(false)}
       onClick={closeMenu}
       onContextMenu={(e) => e.preventDefault()}
     >
@@ -392,6 +388,9 @@ export function DesktopPet() {
           className="pet-sprite"
           onMouseEnter={() => setHovering(true)}
           onMouseLeave={() => setHovering(false)}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
           onContextMenu={onContextMenu}
           title={activePet?.displayName}
         >

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+﻿import { useCallback, useEffect, useState } from "react";
 import { Badge, Button, Card, DataState, Field, Toggle } from "@lnwdeck/ui";
 import {
   fetchPetSpritesheetUrl,
@@ -231,7 +231,7 @@ export function PetPage() {
                   <select
                     id="pet-size"
                     className="ui-select"
-                    value={settings.size_preset}
+                    value={settings.sizePreset}
                     onChange={(e) =>
                       void handleSetSize(e.target.value as PetSizePreset)
                     }
@@ -262,7 +262,7 @@ export function PetPage() {
                   id="pet-auto-sleep"
                   label="Auto-sleep after inactivity"
                   hint="The pet falls asleep when you stop interacting"
-                  checked={settings.auto_sleep}
+                  checked={settings.autoSleep}
                   onChange={(checked) => void handleSetAutoSleep(checked)}
                 />
               </div>

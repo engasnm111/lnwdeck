@@ -307,14 +307,16 @@ pub fn setup_windows(app: &tauri::App) {
         .expect("failed to build pet window");
 }
 
-pub fn handle_close_request(window: &tauri::Window) {
+pub fn handle_close_request(window: &tauri::Window, api: &tauri::CloseRequestApi) {
     match window.label() {
         // Closing the dashboard hides it to the tray; the app keeps collecting.
         MAIN_LABEL => {
+            api.prevent_close();
             window.hide().ok();
         }
         // Closing the widget is the same as hiding it, and is remembered.
         WIDGET_LABEL => {
+            api.prevent_close();
             window.hide().ok();
             let app = window.app_handle();
             let state = app.state::<AppState>();
@@ -327,6 +329,7 @@ pub fn handle_close_request(window: &tauri::Window) {
         }
         // Closing the pet hides it, and is remembered.
         PET_LABEL => {
+            api.prevent_close();
             window.hide().ok();
             let app = window.app_handle();
             let state = app.state::<AppState>();

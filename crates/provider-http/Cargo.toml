@@ -5,5 +5,5 @@ edition = "2021"
 description = "Minimal, bounded HTTPS client shared by lnwdeck network provider adapters"
 
 [dependencies]
-ureq = { version = "3", default-features = false, features = ["rustls"] }
+ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
 serde_json = "1"

@@ -3,7 +3,7 @@
 //! Adapters that read quota from a provider API share this client so that
 //! every outbound request has the same guarantees:
 //!
-//! - GET only, with an explicit timeout, and no redirect following.
+//! - GET and JSON POST, with an explicit timeout, and no redirect following.
 //! - The API key is sent in the `Authorization` header and never appears in a
 //!   returned error, so a failure can be recorded verbatim in diagnostics.
 //! - Errors are reduced to sanitized, stable codes (`AUTH_EXPIRED`,
@@ -119,6 +119,66 @@ pub fn get_json(request: JsonRequest<'_>) -> Result<HttpResponse, String> {
     }
 
     let mut response = match call.call() {
+        Ok(response) => response,
+        Err(ureq::Error::StatusCode(status)) => return Err(code_for_status(status).to_string()),
+        Err(ureq::Error::Timeout(_)) => return Err("PROVIDER_TIMEOUT".to_string()),
+        Err(_) => return Err("SOURCE_UNAVAILABLE".to_string()),
+    };
+
+    let status = response.status().as_u16();
+    let mut headers = HashMap::new();
+    for name in request.capture_headers {
+        if let Some(value) = response.headers().get(*name).and_then(|v| v.to_str().ok()) {
+            headers.insert(name.to_ascii_lowercase(), value.to_string());
+        }
+    }
+
+    let text = response
+        .body_mut()
+        .read_to_string()
+        .map_err(|_| "PROVIDER_UNREADABLE_BODY".to_string())?;
+    let body = serde_json::from_str(&text).map_err(|_| "SOURCE_SCHEMA_MISMATCH".to_string())?;
+
+    Ok(HttpResponse {
+        status,
+        body,
+        headers,
+    })
+}
+
+/// Performs a JSON POST request and parses the JSON body.
+///
+/// Some provider APIs (Gemini quota) only answer POST. The contract is
+/// identical to [`get_json`]: HTTPS only, explicit timeout, no redirects,
+/// sanitized error codes, and the bearer token never appears in an error.
+pub fn post_json(
+    request: JsonRequest<'_>,
+    body: &serde_json::Value,
+) -> Result<HttpResponse, String> {
+    if !request.url.starts_with("https://") {
+        return Err("INSECURE_ENDPOINT".to_string());
+    }
+    let agent = ureq::Agent::config_builder()
+        .timeout_global(Some(request.timeout))
+        .max_redirects(0)
+        .build()
+        .new_agent();
+
+    let mut call = agent
+        .post(request.url)
+        .header("accept", "application/json")
+        .header("content-type", "application/json");
+    for (name, value) in request.extra_headers {
+        call = call.header(*name, *value);
+    }
+    if let Some(token) = request.bearer_token {
+        if token.trim().is_empty() {
+            return Err("NOT_CONFIGURED".to_string());
+        }
+        call = call.header("authorization", &format!("Bearer {token}"));
+    }
+
+    let mut response = match call.send_json(body) {
         Ok(response) => response,
         Err(ureq::Error::StatusCode(status)) => return Err(code_for_status(status).to_string()),
         Err(ureq::Error::Timeout(_)) => return Err("PROVIDER_TIMEOUT".to_string()),
