@@ -1,12 +1,35 @@
 /**
- * Movement state machine for the desktop pet.
+ * Movement and pose state machine for the desktop pet.
  *
- * The pet cycles through: idle -> walk -> idle -> ... with occasional sleep.
- * Walk direction and duration are randomized; the pet bounces off screen edges.
+ * The pet cycles through idle, walking and sleeping, and while idle it
+ * randomly plays ambient poses from the spritesheet (waving, jumping,
+ * looking around, waiting, reviewing). Walk direction and duration are
+ * randomized; the pet bounces off screen edges. Pose states never move the
+ * pet — only walk states advance the window.
  */
 
-export type PetMovementState = "idle" | "walk-left" | "walk-right" | "sleep";
+export type PetMovementState =
+  | "idle"
+  | "walk-left"
+  | "walk-right"
+  | "sleep"
+  | "wave"
+  | "jump"
+  | "look-left"
+  | "look-right"
+  | "waiting"
+  | "review";
 export type PetSpeed = "slow" | "normal" | "fast";
+
+/** Ambient poses the pet plays at random while idle (not moving). */
+export const AMBIENT_POSES: readonly PetMovementState[] = [
+  "wave",
+  "jump",
+  "look-left",
+  "look-right",
+  "waiting",
+  "review",
+];
 
 /** Pixels per frame at each speed tier. */
 const SPEED_PX: Record<PetSpeed, number> = { slow: 1.2, normal: 2.4, fast: 4.0 };
@@ -15,11 +38,18 @@ const SPEED_PX: Record<PetSpeed, number> = { slow: 1.2, normal: 2.4, fast: 4.0 }
 const IDLE_MS: [number, number] = [3000, 12000];
 const WALK_MS: [number, number] = [2000, 8000];
 const SLEEP_MS: [number, number] = [15000, 45000];
+const POSE_MS: [number, number] = [1800, 4000];
 /** How long until the pet decides to sleep (ms of continuous idle). */
 const AUTO_SLEEP_THRESHOLD_MS = 30000;
+/** Chance that an idle phase turns into an ambient pose instead of a walk. */
+const AMBIENT_CHANCE = 0.45;
 
 function rand(min: number, max: number): number {
   return min + Math.random() * (max - min);
+}
+
+function pick<T>(items: readonly T[]): T {
+  return items[Math.floor(Math.random() * items.length)];
 }
 
 export interface MovementConfig {
@@ -80,7 +110,7 @@ export function tickMovement(
     return { x: nx, y, state, direction: nd, nextPhase: false };
   }
 
-  // Idle / sleep: stay in place.
+  // Idle, sleep and ambient poses stay in place.
   return { x, y, state, direction, nextPhase: false };
 }
 
@@ -112,8 +142,8 @@ export function pickNextPhase(
     };
   }
 
-  // After walking, rest.
-  if (current === "walk-left" || current === "walk-right") {
+  // After walking or an ambient pose, rest.
+  if (current === "walk-left" || current === "walk-right" || AMBIENT_POSES.includes(current)) {
     return {
       state: "idle",
       direction: Math.random() > 0.5 ? "left" : "right",
@@ -121,7 +151,16 @@ export function pickNextPhase(
     };
   }
 
-  // After idle, walk.
+  // After idle, sometimes play an ambient pose, otherwise walk.
+  if (Math.random() < AMBIENT_CHANCE) {
+    const pose = pick(AMBIENT_POSES);
+    return {
+      state: pose,
+      direction:
+        pose === "look-left" ? "left" : pose === "look-right" ? "right" : Math.random() > 0.5 ? "left" : "right",
+      duration: rand(...POSE_MS),
+    };
+  }
   const dir: "left" | "right" = Math.random() > 0.5 ? "left" : "right";
   return {
     state: dir === "left" ? "walk-left" : "walk-right",

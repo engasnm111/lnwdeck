@@ -289,12 +289,18 @@ export function DesktopPet() {
     };
   }, []);
 
-  // Drag: press + move picks the pet up. Pointer capture keeps the drag
-  // alive even when the cursor runs ahead of the small window.
+  // Drag: press + move picks the pet up. The pet stops walking immediately:
+  // the phase timer is cancelled and the pose settles to idle, so the drag
+  // never fights the movement loop.
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     dragging.current = true;
+    if (phaseTimer.current) {
+      clearTimeout(phaseTimer.current);
+      phaseTimer.current = null;
+    }
+    setMovementState("idle");
     dragStart.current = {
       winX: posRef.current.x,
       winY: posRef.current.y,
@@ -331,6 +337,12 @@ export function DesktopPet() {
   const onPointerUp = useCallback(() => {
     dragging.current = false;
     idleSince.current = Date.now();
+    // Resume normal behaviour after the drag settles.
+    setTimeout(() => {
+      if (!dragging.current && !phaseTimer.current) {
+        scheduleRef.current();
+      }
+    }, 120);
   }, []);
 
   // Right-click: small context menu with Close / Settings.
@@ -368,7 +380,19 @@ export function DesktopPet() {
         ? "pet-state-walk-right"
         : movementState === "sleep"
           ? "pet-state-sleep"
-          : "pet-state-idle";
+          : movementState === "wave"
+            ? "pet-state-wave"
+            : movementState === "jump"
+              ? "pet-state-jump"
+              : movementState === "look-left"
+                ? "pet-state-look-left"
+                : movementState === "look-right"
+                  ? "pet-state-look-right"
+                  : movementState === "waiting"
+                    ? "pet-state-waiting"
+                    : movementState === "review"
+                      ? "pet-state-review"
+                      : "pet-state-idle";
 
   // Sprite size follows the size preset, shrinking only when the window
   // viewport is too small for it.
@@ -410,7 +434,11 @@ export function DesktopPet() {
         </div>
 
         {hovering && !menu && activePet && (
-          <div className="pet-tooltip-anchor">
+          <div
+            className="pet-tooltip-anchor"
+            onMouseEnter={() => setHovering(true)}
+            onMouseLeave={() => setHovering(false)}
+          >
             <PetTooltip visible={hovering} />
           </div>
         )}

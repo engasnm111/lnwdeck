@@ -162,7 +162,47 @@
   opacity: 0.92;
 }
 
-/* v1 sheets have 9 rows: row y = (row * 12.5)%. */
+/* Ambient poses: each spritesheet row plays as a looping animation. The
+   frames-per-row are not published, so dynamic poses reuse the 6-frame walk
+   strip and calm poses the 4-frame idle strip. */
+
+.pet-state-wave {
+  --pet-row-y: 30%;
+  animation-name: pet-atlas-walk;
+  animation-duration: 0.7s;
+}
+
+.pet-state-jump {
+  --pet-row-y: 40%;
+  animation-name: pet-atlas-walk;
+  animation-duration: 0.55s;
+}
+
+.pet-state-waiting {
+  --pet-row-y: 60%;
+  animation-name: pet-atlas-idle;
+  animation-duration: 1.6s;
+}
+
+.pet-state-review {
+  --pet-row-y: 80%;
+  animation-name: pet-atlas-idle;
+  animation-duration: 1.6s;
+}
+
+.pet-state-look-right {
+  --pet-row-y: 90%;
+  animation-name: pet-atlas-idle;
+  animation-duration: 2.2s;
+}
+
+.pet-state-look-left {
+  --pet-row-y: 100%;
+  animation-name: pet-atlas-idle;
+  animation-duration: 2.2s;
+}
+
+/* v1 sheets have 9 rows: row y = (row * 12.5)%. There are no look rows. */
 .pet-atlas[data-sprite-version="1"].pet-state-walk-right {
   --pet-row-y: 12.5%;
 }
@@ -171,15 +211,41 @@
   --pet-row-y: 25%;
 }
 
+.pet-atlas[data-sprite-version="1"].pet-state-wave {
+  --pet-row-y: 37.5%;
+}
+
+.pet-atlas[data-sprite-version="1"].pet-state-jump {
+  --pet-row-y: 50%;
+}
+
+.pet-atlas[data-sprite-version="1"].pet-state-waiting {
+  --pet-row-y: 75%;
+}
+
+.pet-atlas[data-sprite-version="1"].pet-state-review {
+  --pet-row-y: 100%;
+}
+
+.pet-atlas[data-sprite-version="1"].pet-state-look-right,
+.pet-atlas[data-sprite-version="1"].pet-state-look-left {
+  --pet-row-y: 0%;
+  animation-name: pet-atlas-idle;
+  animation-duration: 1.2s;
+}
+
 /* ── Hover tooltip ─────────────────────────────────────── */
 
 .pet-tooltip-anchor {
   position: absolute;
   left: 50%;
-  bottom: calc(100% + 6px);
+  bottom: 100%;
   transform: translateX(-50%);
   z-index: 10;
-  pointer-events: none;
+  /* The tooltip must capture the pointer so the wheel scrolls its content
+     and hovering it keeps it open; the sprite's mouseleave never fires while
+     the cursor is already inside the tooltip area. */
+  pointer-events: auto;
 }
 
 .pet-tooltip {
