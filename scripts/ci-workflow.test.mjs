@@ -6,6 +6,18 @@ const workflow = readFileSync(
   new URL("../.github/workflows/ci.yml", import.meta.url),
   "utf8",
 );
+const retryScript = readFileSync(
+  new URL("./ci-retry.ps1", import.meta.url),
+  "utf8",
+);
+const workflowFiles = [
+  ".github/workflows/ci.yml",
+  ".github/workflows/security.yml",
+  ".github/workflows/release.yml",
+].map((file) => [
+  file,
+  readFileSync(new URL(`../${file}`, import.meta.url), "utf8"),
+]);
 
 function jobSection(name, nextJob = null) {
   const start = workflow.indexOf(`  ${name}:\n`);
@@ -24,4 +36,25 @@ test("architecture compile checks do not build every test target", () => {
   const compile = jobSection("compile");
   assert.match(compile, /cargo check --workspace --target/);
   assert.doesNotMatch(compile, /cargo check --workspace --all-targets/);
+});
+
+test("all project workflows use the supported Node 24 line", () => {
+  for (const [file, content] of workflowFiles) {
+    assert.match(content, /node-version:\s*24\b/, file);
+    assert.doesNotMatch(content, /node-version:\s*22\b/, file);
+  }
+});
+
+test("CI retry is limited to silent build-progress failures", () => {
+  assert.match(
+    retryScript,
+    /\$retryableFailure\s*=\s*\(\$code\s*-eq\s*1\)\s*-or\s*\(\$code\s*-eq\s*101\)/,
+  );
+  assert.match(retryScript, /\$hasDiagnostic/);
+  assert.match(retryScript, /\$hasTestOutput/);
+  assert.match(
+    retryScript,
+    /\$canRetry\s*=\s*\$retryableFailure\s*-and\s*-not\s*\$hasDiagnostic\s*-and\s*-not\s*\$hasTestOutput/,
+  );
+  assert.match(retryScript, /\$attemptsUsed/);
 });
