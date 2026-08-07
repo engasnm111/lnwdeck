@@ -70,7 +70,9 @@ machine they were taken on.
 |---|---|
 | Overview | ![Overview](assets/screenshots/overview_dashboard.png) |
 | Providers | ![Providers](assets/screenshots/providers_page.png) |
+| Costs | ![Costs](assets/screenshots/costs_page.png) |
 | System diagnostics | ![System](assets/screenshots/system_diagnostics.png) |
+| Floating widget | ![Widget](assets/screenshots/floating_widget.png) |
 | Desktop pet | ![Pet](assets/screenshots/desktop_pet.png) |
 
 Recapture them with `pwsh ./scripts/capture_app_screenshots.ps1 -ShowWidget`
@@ -168,10 +170,13 @@ with seconds (e.g. `07/08/2569 15:45:32` in Thai).
 
 ## Design system
 
-The UI follows the "Carbon & Emeralds" design language documented in
-[docs/DESIGN.md](docs/DESIGN.md): layered zinc-neutrals on near-black carbon
-surfaces, a single emerald accent (never purple, never neon), and platform
-native typography. Dark is the default theme; light mirrors it faithfully.
+The UI follows the "Premium Dark Futuristic Glassmorphism" design language
+documented in [docs/DESIGN.md](docs/DESIGN.md): a near-black navy canvas
+(`#05070F`) lit by ambient cyan, blue and violet glows, frosted glass panels
+with thin glowing borders, a cyan → violet accent family, and an amber → red
+warm gradient reserved for primary CTAs. Dark is the default theme; light
+mirrors it faithfully. All motion animates only transform/opacity and is
+disabled under `prefers-reduced-motion`.
 
 ## Quickstart
 
@@ -204,11 +209,11 @@ $env:TAURI_SIGNING_PRIVATE_KEY = Get-Content keys/lnwdeck.key -Raw
 $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
 pnpm tauri:build
 
-# Portable archive
+# Portable archive (add -Arch x64|arm64|x86 when packaging a specific target)
 pwsh ./scripts/package-portable.ps1
 
 # Updater manifest from the built, signed artifacts
-node scripts/generate-updater-json.mjs v0.2.1 <assets-dir>
+node scripts/generate-updater-json.mjs v0.7.0 <assets-dir>
 ```
 
 The bundler writes `*-setup.exe` next to a `*.sig` signature. The updater
