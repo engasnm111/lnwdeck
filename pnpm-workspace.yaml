@@ -3,3 +3,5 @@ packages:
   - "packages/*"
 allowBuilds:
   esbuild: true
+overrides:
+  nanoid: ">=3.3.17 <4"
