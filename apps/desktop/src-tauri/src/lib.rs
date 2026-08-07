@@ -254,6 +254,9 @@ pub fn run() {
             windows::set_pet_opacity,
             windows::set_pet_auto_sleep,
             windows::set_pet_size_preset,
+            windows::set_pet_stay_in_place,
+            windows::set_pet_pose,
+            windows::set_language,
             updater::check_for_update,
             updater::install_update,
         ])

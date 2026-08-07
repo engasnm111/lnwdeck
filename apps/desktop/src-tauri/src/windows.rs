@@ -73,6 +73,15 @@ pub struct PetWindowSettings {
     pub auto_sleep: bool,
     /// Fixed window size preset: "small", "medium" or "large".
     pub size_preset: String,
+    /// Whether the pet stays in place instead of walking.
+    pub stay_in_place: bool,
+    /// Ambient pose toggles (spritesheet rows the pet may play while idle).
+    pub pose_wave: bool,
+    pub pose_jump: bool,
+    pub pose_look_left: bool,
+    pub pose_look_right: bool,
+    pub pose_waiting: bool,
+    pub pose_review: bool,
 }
 
 /// Dimensions for a pet size preset, or the medium default.
@@ -152,6 +161,13 @@ pub fn pet_window_settings(app: &tauri::AppHandle) -> PetWindowSettings {
         opacity: 1.0,
         auto_sleep: true,
         size_preset: DEFAULT_PET_SIZE.to_string(),
+        stay_in_place: false,
+        pose_wave: true,
+        pose_jump: true,
+        pose_look_left: true,
+        pose_look_right: true,
+        pose_waiting: true,
+        pose_review: true,
     };
     let Ok(guard) = state.ensure_storage() else {
         return defaults;
@@ -167,6 +183,13 @@ pub fn pet_window_settings(app: &tauri::AppHandle) -> PetWindowSettings {
             opacity: settings.pet_opacity,
             auto_sleep: settings.pet_auto_sleep,
             size_preset: settings.pet_size,
+            stay_in_place: settings.pet_stay_in_place,
+            pose_wave: settings.pet_pose_wave,
+            pose_jump: settings.pet_pose_jump,
+            pose_look_left: settings.pet_pose_look_left,
+            pose_look_right: settings.pet_pose_look_right,
+            pose_waiting: settings.pet_pose_waiting,
+            pose_review: settings.pet_pose_review,
         },
         Err(_) => defaults,
     }
@@ -664,6 +687,45 @@ pub fn set_pet_size_preset(app: tauri::AppHandle, preset: String) -> Result<Stri
         SettingsService::set_pet_size_preset(&storage.conn, &preset).map_err(|e| e.to_string())?
     };
     apply_pet_size(&app);
+    Ok(stored)
+}
+
+/// Sets whether the pet stays in place instead of walking.
+#[tauri::command]
+pub fn set_pet_stay_in_place(app: tauri::AppHandle, value: bool) -> Result<bool, String> {
+    let state = app.state::<AppState>();
+    let stored = {
+        let guard = state.ensure_storage()?;
+        let storage = guard.as_ref().ok_or("storage not initialized")?;
+        SettingsService::set_pet_stay_in_place(&storage.conn, value).map_err(|e| e.to_string())?
+    };
+    emit_pet_window_settings(&app);
+    Ok(stored)
+}
+
+/// Enables or disables one ambient pose by its setting key.
+#[tauri::command]
+pub fn set_pet_pose(app: tauri::AppHandle, key: String, enabled: bool) -> Result<bool, String> {
+    let state = app.state::<AppState>();
+    let stored = {
+        let guard = state.ensure_storage()?;
+        let storage = guard.as_ref().ok_or("storage not initialized")?;
+        SettingsService::set_pet_pose(&storage.conn, &key, enabled).map_err(|e| e.to_string())?
+    };
+    emit_pet_window_settings(&app);
+    Ok(stored)
+}
+
+/// Sets the UI language and returns what was stored.
+#[tauri::command]
+pub fn set_language(app: tauri::AppHandle, language: String) -> Result<String, String> {
+    let state = app.state::<AppState>();
+    let stored = {
+        let guard = state.ensure_storage()?;
+        let storage = guard.as_ref().ok_or("storage not initialized")?;
+        SettingsService::set_language(&storage.conn, &language).map_err(|e| e.to_string())?
+    };
+    let _ = app.emit("language-changed", stored.clone());
     Ok(stored)
 }
 

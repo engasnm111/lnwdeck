@@ -17,7 +17,7 @@ use lnwdeck_storage::repositories::{
 };
 use lnwdeck_windows_integration::{CredentialState, CredentialStore, StartupRegistration};
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{Emitter, State};
 
 /// Parses a window name, reporting the accepted values on a typo instead of
 /// silently falling back to a different window.
@@ -262,7 +262,9 @@ pub fn save_settings(
     // only takes effect when the window is resized — do that here so saving
     // the form changes the widget immediately.
     crate::windows::apply_widget_size(&app);
-    get_settings(state)
+    let view = get_settings(state)?;
+    let _ = app.emit("settings-changed", view.settings.theme.clone());
+    Ok(view)
 }
 
 /// Stores an API key for a provider in the Windows Credential Manager.

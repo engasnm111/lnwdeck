@@ -6,10 +6,12 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     let show = MenuItemBuilder::with_id("show", "Show lnwdeck").build(app)?;
     let widget_toggle = MenuItemBuilder::with_id("widget", "Toggle Widget").build(app)?;
+    let check_update = MenuItemBuilder::with_id("check-update", "Check for updates").build(app)?;
     let quit = MenuItemBuilder::with_id("quit", "Quit lnwdeck").build(app)?;
     let menu = MenuBuilder::new(app)
         .item(&show)
         .item(&widget_toggle)
+        .item(&check_update)
         .item(&quit)
         .build()?;
 
@@ -42,6 +44,11 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 if let Err(error) = result {
                     crate::record_tray_event("WIDGET_TOGGLE_FAILED", &error, app);
                 }
+            }
+            "check-update" => {
+                // Silent update: check, download, verify and install the
+                // newest version, then restart the application.
+                crate::updater::check_and_install_silent(app.clone());
             }
             "quit" => {
                 app.exit(0);

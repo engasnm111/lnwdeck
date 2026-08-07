@@ -27,6 +27,14 @@ pub const KEY_PET_SPEED: &str = "pet_speed";
 pub const KEY_PET_OPACITY: &str = "pet_opacity";
 pub const KEY_PET_AUTO_SLEEP: &str = "pet_auto_sleep";
 pub const KEY_PET_SIZE: &str = "pet_size_preset";
+pub const KEY_PET_STAY_IN_PLACE: &str = "pet_stay_in_place";
+pub const KEY_PET_POSE_WAVE: &str = "pet_pose_wave";
+pub const KEY_PET_POSE_JUMP: &str = "pet_pose_jump";
+pub const KEY_PET_POSE_LOOK_LEFT: &str = "pet_pose_look_left";
+pub const KEY_PET_POSE_LOOK_RIGHT: &str = "pet_pose_look_right";
+pub const KEY_PET_POSE_WAITING: &str = "pet_pose_waiting";
+pub const KEY_PET_POSE_REVIEW: &str = "pet_pose_review";
+pub const KEY_LANGUAGE: &str = "language";
 
 /// Refresh intervals the UI offers. Zero disables the background loop.
 pub const ALLOWED_REFRESH_INTERVALS: &[u64] = &[0, 30, 60, 300, 900, 3600];
@@ -43,6 +51,17 @@ pub const ALLOWED_PET_SPEEDS: &[&str] = &["slow", "normal", "fast"];
 /// Desktop pet size presets: the pet window is fixed-size, never resized by
 /// the user; the preset scales both the window and the sprite.
 pub const ALLOWED_PET_SIZES: &[&str] = &["small", "medium", "large"];
+/// Pet ambient poses the user can toggle individually.
+pub const PET_POSE_KEYS: &[&str] = &[
+    KEY_PET_POSE_WAVE,
+    KEY_PET_POSE_JUMP,
+    KEY_PET_POSE_LOOK_LEFT,
+    KEY_PET_POSE_LOOK_RIGHT,
+    KEY_PET_POSE_WAITING,
+    KEY_PET_POSE_REVIEW,
+];
+/// UI languages: the major international languages plus Thai.
+pub const ALLOWED_LANGUAGES: &[&str] = &["en", "th", "zh", "ja", "ko", "de", "fr", "es", "ru"];
 /// Built-in desktop pet characters.
 pub const BUILTIN_PET_CHARACTERS: &[&str] = &["robot", "cat", "ghost", "dragon", "crab", "blob"];
 
@@ -55,6 +74,7 @@ const DEFAULT_PET_OPACITY: f64 = 1.0;
 const DEFAULT_PET_CHARACTER: &str = "robot";
 const DEFAULT_PET_SPEED: &str = "normal";
 const DEFAULT_PET_SIZE: &str = "medium";
+const DEFAULT_LANGUAGE: &str = "en";
 /// Upper bound on pinned widget providers, matching the built-in adapter count
 /// with room to spare.
 const MAX_WIDGET_PROVIDERS: usize = 32;
@@ -76,6 +96,14 @@ pub struct AppSettings {
     pub pet_opacity: f64,
     pub pet_auto_sleep: bool,
     pub pet_size: String,
+    pub pet_stay_in_place: bool,
+    pub pet_pose_wave: bool,
+    pub pet_pose_jump: bool,
+    pub pet_pose_look_left: bool,
+    pub pet_pose_look_right: bool,
+    pub pet_pose_waiting: bool,
+    pub pet_pose_review: bool,
+    pub language: String,
 }
 
 impl Default for AppSettings {
@@ -96,6 +124,14 @@ impl Default for AppSettings {
             pet_opacity: DEFAULT_PET_OPACITY,
             pet_auto_sleep: true,
             pet_size: DEFAULT_PET_SIZE.to_string(),
+            pet_stay_in_place: false,
+            pet_pose_wave: true,
+            pet_pose_jump: true,
+            pet_pose_look_left: true,
+            pet_pose_look_right: true,
+            pet_pose_waiting: true,
+            pet_pose_review: true,
+            language: DEFAULT_LANGUAGE.to_string(),
         }
     }
 }
@@ -204,6 +240,30 @@ impl SettingsService {
             pet_size: read(KEY_PET_SIZE)?
                 .filter(|value| ALLOWED_PET_SIZES.contains(&value.as_str()))
                 .unwrap_or_else(|| defaults.pet_size.clone()),
+            pet_stay_in_place: read(KEY_PET_STAY_IN_PLACE)?
+                .map(|value| value == "true")
+                .unwrap_or(defaults.pet_stay_in_place),
+            pet_pose_wave: read(KEY_PET_POSE_WAVE)?
+                .map(|value| value == "true")
+                .unwrap_or(defaults.pet_pose_wave),
+            pet_pose_jump: read(KEY_PET_POSE_JUMP)?
+                .map(|value| value == "true")
+                .unwrap_or(defaults.pet_pose_jump),
+            pet_pose_look_left: read(KEY_PET_POSE_LOOK_LEFT)?
+                .map(|value| value == "true")
+                .unwrap_or(defaults.pet_pose_look_left),
+            pet_pose_look_right: read(KEY_PET_POSE_LOOK_RIGHT)?
+                .map(|value| value == "true")
+                .unwrap_or(defaults.pet_pose_look_right),
+            pet_pose_waiting: read(KEY_PET_POSE_WAITING)?
+                .map(|value| value == "true")
+                .unwrap_or(defaults.pet_pose_waiting),
+            pet_pose_review: read(KEY_PET_POSE_REVIEW)?
+                .map(|value| value == "true")
+                .unwrap_or(defaults.pet_pose_review),
+            language: read(KEY_LANGUAGE)?
+                .filter(|value| ALLOWED_LANGUAGES.contains(&value.as_str()))
+                .unwrap_or_else(|| defaults.language.clone()),
         })
     }
 
@@ -255,6 +315,23 @@ impl SettingsService {
         write(KEY_PET_OPACITY, format!("{:.2}", settings.pet_opacity))?;
         write(KEY_PET_AUTO_SLEEP, settings.pet_auto_sleep.to_string())?;
         write(KEY_PET_SIZE, settings.pet_size.clone())?;
+        write(
+            KEY_PET_STAY_IN_PLACE,
+            settings.pet_stay_in_place.to_string(),
+        )?;
+        write(KEY_PET_POSE_WAVE, settings.pet_pose_wave.to_string())?;
+        write(KEY_PET_POSE_JUMP, settings.pet_pose_jump.to_string())?;
+        write(
+            KEY_PET_POSE_LOOK_LEFT,
+            settings.pet_pose_look_left.to_string(),
+        )?;
+        write(
+            KEY_PET_POSE_LOOK_RIGHT,
+            settings.pet_pose_look_right.to_string(),
+        )?;
+        write(KEY_PET_POSE_WAITING, settings.pet_pose_waiting.to_string())?;
+        write(KEY_PET_POSE_REVIEW, settings.pet_pose_review.to_string())?;
+        write(KEY_LANGUAGE, settings.language.clone())?;
 
         // Read back so the caller reports stored state, not the request.
         Self::load(conn)
@@ -471,6 +548,58 @@ impl SettingsService {
             .map_err(|e| SettingsError::Storage(e.to_string()))?;
         Self::pet_size_preset(conn)
     }
+
+    /// Stores whether the pet stays in place instead of walking.
+    pub fn set_pet_stay_in_place(conn: &Connection, value: bool) -> Result<bool, SettingsError> {
+        AppSettingsRepository::new(conn)
+            .set(KEY_PET_STAY_IN_PLACE, &value.to_string())
+            .map_err(|e| SettingsError::Storage(e.to_string()))?;
+        Ok(Self::load(conn)?.pet_stay_in_place)
+    }
+
+    /// Enables or disables one ambient pose by its setting key.
+    pub fn set_pet_pose(
+        conn: &Connection,
+        key: &str,
+        enabled: bool,
+    ) -> Result<bool, SettingsError> {
+        if !PET_POSE_KEYS.contains(&key) {
+            return Err(SettingsError::InvalidWidgetView(key.to_string()));
+        }
+        AppSettingsRepository::new(conn)
+            .set(key, &enabled.to_string())
+            .map_err(|e| SettingsError::Storage(e.to_string()))?;
+        let settings = Self::load(conn)?;
+        Ok(match key {
+            KEY_PET_POSE_WAVE => settings.pet_pose_wave,
+            KEY_PET_POSE_JUMP => settings.pet_pose_jump,
+            KEY_PET_POSE_LOOK_LEFT => settings.pet_pose_look_left,
+            KEY_PET_POSE_LOOK_RIGHT => settings.pet_pose_look_right,
+            KEY_PET_POSE_WAITING => settings.pet_pose_waiting,
+            _ => settings.pet_pose_review,
+        })
+    }
+
+    /// The UI language, defaulting to English.
+    pub fn language(conn: &Connection) -> Result<String, SettingsError> {
+        let stored = AppSettingsRepository::new(conn)
+            .get(KEY_LANGUAGE)
+            .map_err(|e| SettingsError::Storage(e.to_string()))?;
+        Ok(stored
+            .filter(|value| ALLOWED_LANGUAGES.contains(&value.as_str()))
+            .unwrap_or_else(|| DEFAULT_LANGUAGE.to_string()))
+    }
+
+    /// Stores the UI language and returns what was stored.
+    pub fn set_language(conn: &Connection, language: &str) -> Result<String, SettingsError> {
+        if !ALLOWED_LANGUAGES.contains(&language) {
+            return Err(SettingsError::InvalidWidgetView(language.to_string()));
+        }
+        AppSettingsRepository::new(conn)
+            .set(KEY_LANGUAGE, language)
+            .map_err(|e| SettingsError::Storage(e.to_string()))?;
+        Self::language(conn)
+    }
 }
 
 /// A lowercase URL-safe slug, mirroring the codex-pets.net pet id format.
@@ -530,6 +659,14 @@ mod tests {
             pet_opacity: 0.8,
             pet_auto_sleep: false,
             pet_size: "large".to_string(),
+            pet_stay_in_place: true,
+            pet_pose_wave: false,
+            pet_pose_jump: true,
+            pet_pose_look_left: true,
+            pet_pose_look_right: false,
+            pet_pose_waiting: true,
+            pet_pose_review: false,
+            language: "th".to_string(),
         };
 
         let stored = SettingsService::save(&storage.conn, &desired).expect("save");

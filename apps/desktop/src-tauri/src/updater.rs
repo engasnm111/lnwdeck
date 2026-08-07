@@ -168,6 +168,75 @@ pub async fn check_for_update(app: tauri::AppHandle) -> Result<UpdateCheck, Stri
     check(&app).await
 }
 
+/// Silently checks for and installs the newest version, then restarts.
+///
+/// Used by the tray "Check for updates" action: when an update is available it
+/// is downloaded, signature-verified and installed without further prompts.
+/// Failures are recorded in `app_events` and emitted so the UI can surface
+/// them; nothing is ever reported as success unless the installer ran.
+pub fn check_and_install_silent(app: tauri::AppHandle) {
+    std::thread::spawn(move || {
+        let result = tauri::async_runtime::block_on(async {
+            let updater = updater(&app)?;
+            let update = match updater.check().await {
+                Ok(Some(update)) => update,
+                Ok(None) => {
+                    record_event(
+                        &app,
+                        AppEventLevel::Info,
+                        "UPDATE_CHECKED",
+                        "no update is available",
+                    );
+                    let _ = app.emit(
+                        "update-check-failed",
+                        UpdateCheckFailed {
+                            code: "UP_TO_DATE".to_string(),
+                        },
+                    );
+                    return Ok(());
+                }
+                Err(error) => return Err(error_code(&error).to_string()),
+            };
+            let version = update.version.clone();
+            let progress_app = app.clone();
+            let mut downloaded: u64 = 0;
+            update
+                .download_and_install(
+                    move |chunk_length, content_length| {
+                        downloaded += chunk_length as u64;
+                        let _ = progress_app.emit(
+                            "update-progress",
+                            UpdateProgress {
+                                downloaded,
+                                total: content_length,
+                            },
+                        );
+                    },
+                    || {},
+                )
+                .await
+                .map_err(|error| error_code(&error).to_string())?;
+            record_event(
+                &app,
+                AppEventLevel::Info,
+                "UPDATE_INSTALLED",
+                &format!("installed version {version}"),
+            );
+            app.restart();
+        });
+        // `app.restart()` never returns on success; only failures reach here.
+        if let Err(code) = result {
+            record_event(
+                &app,
+                AppEventLevel::Error,
+                &code,
+                "the silent update did not complete",
+            );
+            let _ = app.emit("update-check-failed", UpdateCheckFailed { code });
+        }
+    });
+}
+
 /// Downloads and installs the available update, then restarts the app.
 ///
 /// Progress is emitted as `update-progress`. The signature is verified by the
