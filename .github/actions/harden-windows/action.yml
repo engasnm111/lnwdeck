@@ -1,0 +1,37 @@
+name: Harden Windows runner
+description: >-
+  Mitigate silent cargo kills on hosted Windows runners: exclude the build
+  directories from real-time Defender scanning, enlarge the pagefile, and
+  report free RAM so a later failure is diagnosable.
+runs:
+  using: composite
+  steps:
+    - name: Harden Windows runner
+      shell: pwsh
+      run: |
+        # Real-time scanning contends with rustc and is a known cause of
+        # "cargo died mid-compile with exit code 1 and no error line".
+        Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue
+        Add-MpPreference -ExclusionPath "D:\a" -ErrorAction SilentlyContinue
+        Add-MpPreference -ExclusionPath "$env:USERPROFILE\.cargo" -ErrorAction SilentlyContinue
+        Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\pnpm" -ErrorAction SilentlyContinue
+
+        # Hosted Windows runners have ~7 GB of commit charge; give cargo
+        # headroom by requesting a larger pagefile (best effort - a fresh
+        # runner may only apply it from the next boot).
+        try {
+          $pf = Get-CimInstance Win32_PageFileSetting -ErrorAction Stop | Select-Object -First 1
+          if ($pf) {
+            Set-CimInstance -InputObject $pf -Property @{
+              InitialSize = 8192
+              MaximumSize = 8192
+            } -ErrorAction Stop
+            Write-Output "pagefile set to 8192 MB"
+          }
+        } catch {
+          Write-Output "pagefile unchanged: $($_.Exception.Message)"
+        }
+
+        $os = Get-CimInstance Win32_OperatingSystem
+        Write-Output "free RAM: $([math]::Round($os.FreePhysicalMemory / 1MB, 1)) GB"
+        Write-Output "total visible RAM: $([math]::Round($os.TotalVisibleMemorySize / 1MB, 1)) GB"
