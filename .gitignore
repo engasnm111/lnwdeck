@@ -1,4 +1,4 @@
-﻿# Rust / Cargo
+# Rust / Cargo
 /target/
 **/target/
 Cargo.lock
@@ -68,6 +68,7 @@ tmp/
 # Portable mode marker & release bundles
 .lnwdeck_portable
 *.zip
+!apps/desktop/src-tauri/assets/pets/*.zip
 *.exe
 
 # Hook backup files
