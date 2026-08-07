@@ -1,0 +1,29 @@
+name: CI-Test-Old
+
+on:
+  push:
+    branches: ["ci-test-old-*"]
+
+jobs:
+  test-old:
+    name: Test v0.6.2 code
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: old-062
+
+      - name: cargo test (old code)
+        shell: pwsh
+        run: |
+          cargo test -p lnwdeck-desktop *> test.log 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            $joined = (Get-Content test.log | Select-Object -Last 150) -join "`n"
+            Write-Output "::error::$joined"
+            exit 1
+          }
+          Write-Output "OLD-CODE-TEST-OK"
