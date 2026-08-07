@@ -13,6 +13,8 @@
 //! declared network destination for this feature.
 
 use lnwdeck_provider_http::{get_bytes, JsonRequest};
+use lnwdeck_storage::repositories::AppSettingsRepository;
+use rusqlite::Connection;
 use serde::Serialize;
 use std::fs;
 use std::io::{Cursor, Read};
@@ -32,6 +34,71 @@ pub const CODEX_PETS_HOST: &str = "codex-pets.net";
 /// Download timeout for the pet package.
 const PET_DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// Bundled default pets from codex-pets.net, shipped inside the binary so a
+/// fresh install has a full character roster offline.
+///
+/// The packages are vendored under `src-tauri/assets/pets/` and never fetched
+/// at runtime. Ids are the codex-pets.net manifest ids.
+pub const DEFAULT_PET_IDS: [&str; 6] = [
+    "youyou",
+    "old-bai",
+    "a-ti",
+    "sharkler",
+    "solaire",
+    "tennis-ball",
+];
+
+/// The bundled packages, aligned with [`DEFAULT_PET_IDS`].
+const DEFAULT_PET_PACKAGES: [&[u8]; 6] = [
+    include_bytes!("../assets/pets/youyou.zip"),
+    include_bytes!("../assets/pets/old-bai.zip"),
+    include_bytes!("../assets/pets/a-ti.zip"),
+    include_bytes!("../assets/pets/sharkler.zip"),
+    include_bytes!("../assets/pets/solaire.zip"),
+    include_bytes!("../assets/pets/tennis-ball.zip"),
+];
+
+/// `app_settings` key marking that the bundled defaults were installed once.
+const DEFAULT_PETS_SEEDED_KEY: &str = "pet_defaults_seeded";
+
+/// Installs the bundled default pets into the store, exactly once.
+///
+/// Re-runs are idempotent: when the marker is already set, the currently
+/// installed defaults are reported and nothing is written, so a default the
+/// user removed stays removed.
+pub fn seed_default_pets(pets_dir: &Path, conn: &Connection) -> Result<Vec<String>, String> {
+    let repo = AppSettingsRepository::new(conn);
+    if repo
+        .get(DEFAULT_PETS_SEEDED_KEY)
+        .map_err(|e| e.to_string())?
+        .as_deref()
+        == Some("true")
+    {
+        return Ok(DEFAULT_PET_IDS
+            .iter()
+            .filter(|id| pets_dir.join(id).is_dir())
+            .map(|id| id.to_string())
+            .collect());
+    }
+
+    let mut installed = Vec::new();
+    for (id, package) in DEFAULT_PET_IDS.iter().zip(DEFAULT_PET_PACKAGES.iter()) {
+        if pets_dir.join(id).is_dir() {
+            installed.push((*id).to_string());
+            continue;
+        }
+        match install_pet(pets_dir, package) {
+            Ok(manifest) => installed.push(manifest.id),
+            Err(error) => {
+                return Err(format!("default pet {id}: {error}"));
+            }
+        }
+    }
+    repo.set(DEFAULT_PETS_SEEDED_KEY, "true")
+        .map_err(|e| e.to_string())?;
+    Ok(installed)
+}
+
 /// A validated pet manifest, as stored and served to the widget.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,15 +107,12 @@ pub struct PetManifest {
     pub display_name: String,
     pub description: String,
     pub spritesheet_path: String,
-    /// Version 1 is the absence of the field, matching the package format.
-    #[serde(skip_serializing_if = "skip_v1")]
+    /// Always serialized: the webview needs the real value (1 or 2) to pick
+    /// the right atlas layout. Omitting v1 broke v1 pets — the frontend saw
+    /// `undefined` and rendered them with the v2 grid.
     pub sprite_version_number: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<String>,
-}
-
-fn skip_v1(version: &u32) -> bool {
-    *version == 1
 }
 
 /// A lowercase URL-safe pet id: `[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?`.
@@ -126,8 +190,8 @@ pub fn normalize_manifest(value: &serde_json::Value) -> Result<PetManifest, Stri
     if !kind.is_empty() && !is_kind(&kind) {
         return Err("pet.json kind must be a short lowercase label when provided".to_string());
     }
-    if version_provided && sprite_version_number != 2 {
-        return Err("pet.json spriteVersionNumber must be 2 when provided".to_string());
+    if version_provided && !matches!(sprite_version_number, 1 | 2) {
+        return Err("pet.json spriteVersionNumber must be 1 or 2 when provided".to_string());
     }
 
     Ok(PetManifest {
@@ -694,5 +758,30 @@ mod tests {
         let store = dir.path().join("pets");
         assert!(install_pet(&store, b"not a zip").is_err());
         assert!(list_installed_pets(&store).is_empty());
+    }
+
+    #[test]
+    fn bundled_default_pets_install_exactly_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = dir.path().join("pets");
+        let db = tempfile::tempdir().unwrap();
+        let storage = lnwdeck_storage::Storage::open(&db.path().join("test.db")).unwrap();
+        lnwdeck_storage::migrations::apply_all(&storage.conn).unwrap();
+
+        let installed = seed_default_pets(&store, &storage.conn).unwrap();
+        assert_eq!(installed.len(), DEFAULT_PET_IDS.len());
+        for id in DEFAULT_PET_IDS {
+            assert!(store.join(id).join(PET_SPRITESHEET).exists(), "{id}");
+        }
+
+        // Seeding again reports the same set and re-installs nothing removed.
+        let again = seed_default_pets(&store, &storage.conn).unwrap();
+        assert_eq!(again.len(), DEFAULT_PET_IDS.len());
+        fs::remove_dir_all(store.join("youyou")).unwrap();
+        let after_removal = seed_default_pets(&store, &storage.conn).unwrap();
+        assert!(
+            !after_removal.iter().any(|id| id == "youyou"),
+            "a default the user removed stays removed after the first seed"
+        );
     }
 }

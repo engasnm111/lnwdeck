@@ -143,9 +143,49 @@ pub fn run() {
                     )));
                 }
             }
-
             windows::setup_windows(app);
+            // Install the bundled default pets from codex-pets.net exactly once,
+            // then point the pet at the first one unless the user already chose.
+            {
+                let state = app.state::<AppState>();
+                let guard = state.ensure_storage();
+                // Decide everything while the guard is held, but emit the
+                // settings change only after it is dropped: emitting reads
+                // settings again and would deadlock on the storage mutex.
+                let mut changed_character = false;
+                if let Ok(guard) = guard {
+                    if let Some(storage) = guard.as_ref() {
+                        let store = commands::pets::pet_store_dir(app.handle());
+                        match pets::seed_default_pets(&store, &storage.conn) {
+                            Ok(installed) if !installed.is_empty() => {
+                                let settings = lnwdeck_application::settings::SettingsService::load(
+                                    &storage.conn,
+                                );
+                                if settings.is_ok_and(|s| s.pet_character == "robot") {
+                                    let _ = lnwdeck_application::settings::SettingsService::
+                                        set_pet_character(&storage.conn, &installed[0]);
+                                    changed_character = true;
+                                }
+                            }
+                            Ok(_) => {}
+                            Err(error) => {
+                                record_event(
+                                    &handle,
+                                    "pet_seed",
+                                    AppEventLevel::Warning,
+                                    "PET_SEED_FAILED",
+                                    &error,
+                                );
+                            }
+                        }
+                    }
+                }
+                if changed_character {
+                    windows::emit_pet_window_settings(app.handle());
+                }
+            }
             windows::restore_widget_state(app);
+            windows::restore_pet_window_state(app);
             if let Err(error) = tray::setup_tray(app) {
                 record_event(
                     &handle,
@@ -166,11 +206,6 @@ pub fn run() {
             if let tauri::WindowEvent::Moved { .. } = event {
                 if window.label() == "widget" {
                     windows::save_widget_position(window.app_handle());
-                }
-            }
-            if let tauri::WindowEvent::Resized { .. } = event {
-                if window.label() == "widget" {
-                    windows::save_widget_size(window.app_handle());
                 }
             }
         })
@@ -201,6 +236,7 @@ pub fn run() {
             windows::set_widget_locked,
             windows::set_widget_providers,
             windows::set_widget_view,
+            windows::set_widget_size_preset,
             windows::show_main_window,
             commands::pets::import_widget_pet,
             commands::pets::import_widget_pet_file,
@@ -208,6 +244,16 @@ pub fn run() {
             commands::pets::get_widget_pet,
             commands::pets::set_widget_pet,
             commands::pets::remove_widget_pet,
+            windows::get_pet_window_settings,
+            windows::show_pet_window,
+            windows::hide_pet_window,
+            windows::move_pet_window,
+            windows::read_pet_spritesheet,
+            windows::set_pet_character,
+            windows::set_pet_speed,
+            windows::set_pet_opacity,
+            windows::set_pet_auto_sleep,
+            windows::set_pet_size_preset,
             updater::check_for_update,
             updater::install_update,
         ])
@@ -215,7 +261,9 @@ pub fn run() {
         // webview never loads a remote asset.
         .register_uri_scheme_protocol("petlocal", |ctx, request| {
             let store = commands::pets::pet_store_dir(ctx.app_handle());
-            commands::pets::serve_pet_asset(&store, request.uri().path())
+            let path = request.uri().path().to_string();
+            eprintln!("[petlocal] request: {path}");
+            commands::pets::serve_pet_asset(&store, &path)
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

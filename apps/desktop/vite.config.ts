@@ -19,6 +19,7 @@ export default defineConfig({
       input: {
         main: fileURLToPath(new URL("./index.html", import.meta.url)),
         widget: fileURLToPath(new URL("./widget.html", import.meta.url)),
+        pet: fileURLToPath(new URL("./pet.html", import.meta.url)),
       },
     },
   },

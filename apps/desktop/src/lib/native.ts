@@ -423,7 +423,13 @@ export interface AppSettingsData {
   widget_opacity: number;
   widget_locked: boolean;
   widget_visible: boolean;
+  widget_size: string;
   retention_days: number;
+  pet_visible: boolean;
+  pet_character: string;
+  pet_speed: string;
+  pet_opacity: number;
+  pet_auto_sleep: boolean;
 }
 
 export interface ProviderCredentialState {
@@ -469,6 +475,9 @@ export async function deleteProviderKey(
 /** Widget layout: horizontal bars, compact rings, or the animated pet. */
 export type WidgetView = "bars" | "rings" | "pet";
 
+/** Fixed widget window sizes: chosen in Settings, never user-resized. */
+export type WidgetSizePreset = "small" | "medium" | "large";
+
 /** A validated community pet from codex-pets.net, installed locally. */
 export interface PetManifest {
   id: string;
@@ -489,6 +498,8 @@ export interface WidgetSettingsData {
   view: WidgetView;
   /** Community pet id for the pet layout. Empty means the built-in robot. */
   pet_id: string;
+  /** Fixed window size preset: "small", "medium" or "large". */
+  size_preset: WidgetSizePreset;
 }
 
 export async function fetchWidgetSettings(): Promise<WidgetSettingsData> {
@@ -506,6 +517,16 @@ export async function setWidgetLocked(locked: boolean): Promise<boolean> {
 /** Switches the widget layout and returns the stored layout. */
 export async function setWidgetView(view: WidgetView): Promise<WidgetView> {
   return invoke<WidgetView>("set_widget_view", { view });
+}
+
+/**
+ * Switches the widget's fixed size preset and returns the stored preset.
+ * The backend resizes the window; the widget is never user-resized.
+ */
+export async function setWidgetSizePreset(
+  preset: WidgetSizePreset,
+): Promise<WidgetSizePreset> {
+  return invoke<WidgetSizePreset>("set_widget_size_preset", { preset });
 }
 
 /**
@@ -549,6 +570,83 @@ export async function setWidgetPet(petId: string): Promise<string> {
 /** Removes an installed pet; the widget falls back to the built-in robot. */
 export async function removeWidgetPet(petId: string): Promise<void> {
   return invoke<void>("remove_widget_pet", { petId });
+}
+
+// ── Desktop pet window ───────────────────────────────────────────────────
+
+export interface PetWindowSettingsData {
+  visible: boolean;
+  character: string;
+  speed: string;
+  opacity: number;
+  auto_sleep: boolean;
+  /** Fixed window size preset: "small", "medium" or "large". */
+  size_preset: PetSizePreset;
+}
+
+/** Fixed pet window sizes: chosen in Settings, never user-resized. */
+export type PetSizePreset = "small" | "medium" | "large";
+
+export async function fetchPetWindowSettings(): Promise<PetWindowSettingsData> {
+  return invoke<PetWindowSettingsData>("get_pet_window_settings");
+}
+
+export async function showPetWindow(): Promise<void> {
+  return invoke<void>("show_pet_window");
+}
+
+export async function hidePetWindow(): Promise<void> {
+  return invoke<void>("hide_pet_window");
+}
+
+/** Moves the pet window so it follows the pet as it walks (screen coords). */
+export async function movePetWindow(x: number, y: number): Promise<void> {
+  return invoke<void>("move_pet_window", { x, y });
+}
+
+const spritesheetCache = new Map<string, string>();
+
+/**
+ * The installed pet's spritesheet as an object URL.
+ *
+ * Loaded over IPC (raw bytes -> Blob) instead of a custom URI scheme, which
+ * WebView2 blocks on http dev origins. Cached per pet id.
+ */
+export async function fetchPetSpritesheetUrl(petId: string): Promise<string> {
+  const cached = spritesheetCache.get(petId);
+  if (cached) return cached;
+  const buffer = await invoke<ArrayBuffer>("read_pet_spritesheet", { id: petId });
+  const url = URL.createObjectURL(
+    new Blob([buffer], { type: "image/webp" }),
+  );
+  spritesheetCache.set(petId, url);
+  return url;
+}
+
+export async function setPetCharacter(character: string): Promise<string> {
+  return invoke<string>("set_pet_character", { character });
+}
+
+export async function setPetSpeed(speed: string): Promise<string> {
+  return invoke<string>("set_pet_speed", { speed });
+}
+
+export async function setPetOpacity(opacity: number): Promise<number> {
+  return invoke<number>("set_pet_opacity", { opacity });
+}
+
+export async function setPetAutoSleep(autoSleep: boolean): Promise<boolean> {
+  return invoke<boolean>("set_pet_auto_sleep", { autoSleep });
+}
+
+/**
+ * Switches the pet's fixed size preset and returns the stored preset.
+ * The backend resizes the window; the sprite scales with it.
+ */
+export async function setPetSizePreset(
+  preset: PetSizePreset,
+): Promise<PetSizePreset> {
+  return invoke<PetSizePreset>("set_pet_size_preset", { preset });
 }
 
 export async function showWidgetWindow(): Promise<void> {

@@ -122,16 +122,19 @@ describe("packaging configuration", () => {
     // Without these the webview cannot listen for backend events.
     expect(windows.has("main")).toBe(true);
     expect(windows.has("widget")).toBe(true);
+    expect(windows.has("pet")).toBe(true);
   });
 
-  it("keeps both window entry points in the built frontend", () => {
+  it("keeps every window entry point in the built frontend", () => {
     const viteConfig = fs.readFileSync(
       path.join(DESKTOP_ROOT, "vite.config.ts"),
       "utf-8",
     );
     expect(viteConfig).toContain("widget.html");
+    expect(viteConfig).toContain("pet.html");
     expect(fs.existsSync(path.join(DESKTOP_ROOT, "index.html"))).toBe(true);
     expect(fs.existsSync(path.join(DESKTOP_ROOT, "widget.html"))).toBe(true);
+    expect(fs.existsSync(path.join(DESKTOP_ROOT, "pet.html"))).toBe(true);
   });
 
   it("names the portable marker used to detect a portable install", () => {

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+﻿import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { FloatingWidget, hasFetchedQuota, statusChip } from "./FloatingWidget";
@@ -15,6 +15,7 @@ vi.mock("../../lib/native", async (importOriginal) => {
     setWidgetProviders: vi.fn(),
     setWidgetView: vi.fn(),
     getWidgetPet: vi.fn(),
+    fetchPetSpritesheetUrl: vi.fn(),
     hideWidgetWindow: vi.fn().mockResolvedValue(undefined),
     showMainWindow: vi.fn().mockResolvedValue(undefined),
     refreshAll: vi.fn().mockResolvedValue({ usage: [], quota: [] }),
@@ -95,6 +96,7 @@ describe("FloatingWidget", () => {
       selected_providers: [],
       view: "bars",
       pet_id: "",
+      size_preset: "medium",
     });
     vi.mocked(native.fetchQuotaDashboard).mockReset();
     vi.mocked(native.setWidgetLocked).mockReset();
@@ -102,6 +104,10 @@ describe("FloatingWidget", () => {
     vi.mocked(native.setWidgetView).mockReset();
     vi.mocked(native.getWidgetPet).mockReset();
     vi.mocked(native.getWidgetPet).mockResolvedValue(null);
+    vi.mocked(native.fetchPetSpritesheetUrl).mockReset();
+    vi.mocked(native.fetchPetSpritesheetUrl).mockResolvedValue(
+      "blob:mock-sprout",
+    );
     vi.mocked(native.refreshAll).mockClear();
     vi.mocked(native.hideWidgetWindow).mockClear();
     vi.mocked(native.showMainWindow).mockClear();
@@ -384,6 +390,7 @@ describe("FloatingWidget", () => {
       selected_providers: ["anthropic_claude"],
       view: "bars",
       pet_id: "",
+      size_preset: "medium",
     });
     vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
       dashboard([
@@ -458,6 +465,7 @@ describe("FloatingWidget", () => {
       selected_providers: [],
       view: "bars",
       pet_id: "",
+      size_preset: "medium",
     });
     vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
       dashboard([provider()]),
@@ -530,6 +538,7 @@ describe("FloatingWidget", () => {
       selected_providers: [],
       view: "pet",
       pet_id: "",
+      size_preset: "medium",
     });
     vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
       dashboard([provider()]),
@@ -560,6 +569,7 @@ describe("FloatingWidget pet view", () => {
     selected_providers: [],
     view: "pet",
     pet_id: "",
+      size_preset: "medium",
     ...overrides,
   });
 
@@ -709,7 +719,7 @@ describe("FloatingWidget pet view", () => {
     expect(atlas).toHaveAttribute("data-sprite-version", "2");
     expect(atlas).toHaveAttribute("aria-hidden", "true");
     expect((atlas as HTMLElement).style.backgroundImage).toContain(
-      "petlocal://pets/sprout/spritesheet.webp",
+      "blob:mock-sprout",
     );
     expect(container.querySelector(".pet-svg")).toBeNull();
   });

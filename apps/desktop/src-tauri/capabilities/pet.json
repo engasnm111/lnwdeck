@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/windows-schema.json",
+  "identifier": "pet-window",
+  "description": "Least-privilege permissions for the desktop pet window: listen for pet-window-settings events, drag the transparent window, and read its own position and monitor for clamping.",
+  "windows": ["pet"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-start-dragging",
+    "core:window:allow-outer-position",
+    "core:window:allow-outer-size",
+    "core:window:allow-current-monitor",
+    "core:window:allow-scale-factor",
+    "core:webview:default",
+    "core:app:default"
+  ]
+}

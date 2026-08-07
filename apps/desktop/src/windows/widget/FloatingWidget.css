@@ -70,6 +70,26 @@ body {
   display: none;
 }
 
+/* Small (300x300) preset: hide the brand so the controls fit. */
+@media (max-width: 340px) {
+  .w-brand {
+    display: none;
+  }
+
+  .w-header {
+    padding: 8px 8px 4px;
+  }
+
+  .w-btn {
+    padding: 4px 6px;
+    font-size: 0.6875rem;
+  }
+
+  .w-body {
+    padding: 4px 8px 8px;
+  }
+}
+
 .w-btn {
   display: inline-flex;
   align-items: center;
@@ -132,7 +152,22 @@ body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 4px 12px 8px;
+  padding: 4px 12px 10px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.w-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.w-body::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+}
+
+.w-body::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .w-cards {
@@ -326,6 +361,7 @@ body {
 
 .w-rings {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   justify-content: space-around;
   padding: 8px 0 2px;

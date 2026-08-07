@@ -352,6 +352,7 @@ export function FloatingWidget() {
     selected_providers: [],
     view: "bars",
     pet_id: "",
+    size_preset: "medium",
   });
   const [refreshing, setRefreshing] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -381,6 +382,12 @@ export function FloatingWidget() {
       pet_id: payload.pet_id ?? "",
       view:
         payload.view === "rings" || payload.view === "pet" ? payload.view : "bars",
+      size_preset:
+        payload.size_preset === "small" ||
+        payload.size_preset === "medium" ||
+        payload.size_preset === "large"
+          ? payload.size_preset
+          : "medium",
     });
   }, []);
 

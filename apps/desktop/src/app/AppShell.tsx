@@ -8,6 +8,7 @@ import {
   CostsIcon,
   ModelsIcon,
   OverviewIcon,
+  PetIcon,
   ProvidersIcon,
   RefreshIcon,
   SettingsIcon,
@@ -25,6 +26,7 @@ const navItems = [
   { to: "/budgets", label: "Budgets", icon: BudgetsIcon },
   { to: "/models", label: "Models", icon: ModelsIcon },
   { to: "/alerts", label: "Alerts", icon: AlertsIcon },
+  { to: "/pet", label: "Pet", icon: PetIcon },
   { to: "/settings", label: "Settings", icon: SettingsIcon },
   { to: "/system", label: "System", icon: SystemIcon },
 ];

@@ -1,4 +1,4 @@
-/* Application shell and page layout. */
+﻿/* Application shell and page layout. */
 
 .app-layout {
   display: grid;
@@ -40,7 +40,7 @@
   width: 10px;
   height: 10px;
   border-radius: 3px;
-  background: linear-gradient(135deg, var(--accent-primary), var(--chart-4));
+  background: linear-gradient(135deg, var(--accent-primary), var(--chart-5));
   box-shadow: 0 0 12px var(--accent-subtle);
 }
 
@@ -119,7 +119,7 @@
   bottom: 20%;
   width: 3px;
   border-radius: var(--radius-pill);
-  background: linear-gradient(180deg, var(--accent-primary), var(--chart-4));
+  background: linear-gradient(180deg, var(--accent-primary), var(--chart-5));
   box-shadow: 0 0 8px var(--accent-subtle);
 }
 
@@ -194,6 +194,12 @@
 
 .app-content {
   flex: 1;
+  /* A flex item's implicit min-height:auto would stretch this past the
+     container and get clipped by .app-main-container's overflow:hidden,
+     silently cutting off the end of long pages (scroll could not reach
+     the bottom). min-height:0 lets the item shrink so overflow-y:auto
+     actually scrolls. */
+  min-height: 0;
   overflow-y: auto;
   padding: var(--space-5);
   width: 100%;
@@ -427,4 +433,41 @@
 .banner-dismiss:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
+}
+
+/* Desktop pet page. */
+.pet-card-active {
+  padding: var(--space-2) var(--space-3);
+  margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-3));
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  background: var(--bg-panel-elevated);
+}
+
+/* A single idle frame of a codex-pets.net spritesheet as a preview. */
+.pet-preview {
+  flex: none;
+  width: 48px;
+  height: 52px;
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  image-rendering: pixelated;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-input);
+}
+
+.pet-preview[data-sprite-version="1"] {
+  background-size: 800% 900%;
+}
+
+.pet-preview[data-sprite-version="2"] {
+  background-size: 800% 1100%;
+}
+
+.settings-pet-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }

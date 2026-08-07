@@ -1,0 +1,343 @@
+/*
+ * Desktop pet styles.
+ *
+ * The pet window is small and moves with the pet; the pet itself is rendered
+ * from a codex-pets.net spritesheet atlas (8 columns; v1 has 9 rows, v2 has
+ * 11). Each movement state picks a row (background-position-y) and cycles its
+ * frames by translating the strip horizontally — transform steps land exactly
+ * on cell boundaries, so frames never bleed into each other (animating
+ * background-position smears adjacent cells in WebView2). All motion is CSS,
+ * disabled wholesale under `prefers-reduced-motion`.
+ */
+
+.pet-window {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  /* The hover tooltip renders above the pet; it must be allowed to reach the
+     top of the window, so nothing here clips it. */
+  overflow: visible;
+  cursor: grab;
+  font-family: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+  /* Anchor the pet at the bottom so the whole height above it is available
+     to the tooltip (centering would leave the tooltip half outside). */
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 6px;
+}
+
+.pet-window:active {
+  cursor: grabbing;
+}
+
+/* ── Sprite ────────────────────────────────────────────── */
+
+.pet-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.pet-sprite {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+/* ── Atlas spritesheet animation ───────────────────────── */
+
+.pet-cell {
+  position: relative;
+  overflow: hidden;
+}
+
+.pet-atlas {
+  --pet-cell-w: 96px;
+  --pet-row-y: 0%;
+  width: calc(var(--pet-cell-w) * 8);
+  height: 100%;
+  background-repeat: no-repeat;
+  background-position: 0 var(--pet-row-y);
+  image-rendering: pixelated;
+  /* Each keyframe segment is stepped with steps(1, jump-end): the transform
+     jumps straight to the next cell and holds — one frame at a time, never
+     two frames sliding through each other. */
+  animation-name: pet-atlas-idle;
+  animation-timing-function: steps(1, jump-end);
+  animation-duration: 1.2s;
+  animation-iteration-count: infinite;
+}
+
+.pet-atlas[data-sprite-version="1"] {
+  /* The strip is 8 cells wide and one cell tall: the sheet scaled so its
+     width fills the strip (100%) and its height is 9 rows (900%). */
+  background-size: 100% 900%;
+}
+
+.pet-atlas[data-sprite-version="2"] {
+  background-size: 100% 1100%;
+}
+
+/* 4 idle frames, then back to the first. */
+@keyframes pet-atlas-idle {
+  0% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(calc(var(--pet-cell-w) * -1));
+  }
+  50% {
+    transform: translateX(calc(var(--pet-cell-w) * -2));
+  }
+  75% {
+    transform: translateX(calc(var(--pet-cell-w) * -3));
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+/* 6 walk frames, then back to the first. */
+@keyframes pet-atlas-walk {
+  0% {
+    transform: translateX(0);
+  }
+  16.66% {
+    transform: translateX(calc(var(--pet-cell-w) * -1));
+  }
+  33.33% {
+    transform: translateX(calc(var(--pet-cell-w) * -2));
+  }
+  50% {
+    transform: translateX(calc(var(--pet-cell-w) * -3));
+  }
+  66.66% {
+    transform: translateX(calc(var(--pet-cell-w) * -4));
+  }
+  83.33% {
+    transform: translateX(calc(var(--pet-cell-w) * -5));
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+/* v2 rows: 0 idle, 1 running-right, 2 running-left, 3 waving, 4 jumping,
+   5 failed, 6 waiting, 7 running, 8 review, 9-10 look directions.
+   Row y is (row * 10)% of the atlas height. */
+
+.pet-state-idle {
+  --pet-row-y: 0%;
+  animation-name: pet-atlas-idle;
+  animation-duration: 1.2s;
+}
+
+.pet-state-walk-right {
+  --pet-row-y: 10%;
+  animation-name: pet-atlas-walk;
+  animation-duration: 0.5s;
+}
+
+.pet-state-walk-left {
+  --pet-row-y: 20%;
+  animation-name: pet-atlas-walk;
+  animation-duration: 0.5s;
+}
+
+.pet-state-sleep {
+  --pet-row-y: 0%;
+  animation-name: pet-atlas-idle;
+  animation-duration: 2.6s;
+  opacity: 0.92;
+}
+
+/* v1 sheets have 9 rows: row y = (row * 12.5)%. */
+.pet-atlas[data-sprite-version="1"].pet-state-walk-right {
+  --pet-row-y: 12.5%;
+}
+
+.pet-atlas[data-sprite-version="1"].pet-state-walk-left {
+  --pet-row-y: 25%;
+}
+
+/* ── Hover tooltip ─────────────────────────────────────── */
+
+.pet-tooltip-anchor {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.pet-tooltip {
+  position: relative;
+  margin-bottom: 6px;
+}
+
+.pet-tooltip-inner {
+  background: linear-gradient(145deg, rgba(18, 20, 24, 0.92), rgba(30, 32, 38, 0.84));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  padding: 10px 14px;
+  min-width: 180px;
+  max-width: 240px;
+  max-height: 210px;
+  overflow-y: auto;
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+.pet-tooltip-inner::-webkit-scrollbar {
+  width: 6px;
+}
+
+.pet-tooltip-inner::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+}
+
+.pet-tooltip-tokens {
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.pet-tooltip-token-count {
+  font-size: 0.8rem;
+  font-weight: 750;
+  color: rgba(255, 255, 255, 0.94);
+  font-variant-numeric: tabular-nums;
+}
+
+.pet-tooltip-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.pet-tooltip-bar-row {
+  display: grid;
+  grid-template-columns: 1fr 50px 36px;
+  align-items: center;
+  gap: 6px;
+}
+
+.pet-tooltip-bar-label {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pet-tooltip-bar-track {
+  display: block;
+  width: 50px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+/* Usage-only windows (no published limit): a hatched track instead of a fill. */
+.pet-tooltip-bar-track-unknown {
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.12) 0 4px,
+    transparent 4px 8px
+  );
+}
+
+.pet-tooltip-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.pet-tooltip-bar-pct {
+  font-size: 0.55rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.55);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.pet-tooltip-empty {
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.pet-tooltip-arrow {
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  width: 8px;
+  height: 8px;
+  transform: translateX(-50%) rotate(45deg);
+  background: rgba(255, 255, 255, 0.06);
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* ── Context menu ──────────────────────────────────────── */
+
+.pet-menu {
+  position: absolute;
+  z-index: 20;
+  min-width: 150px;
+  padding: 4px;
+  border-radius: 10px;
+  background: linear-gradient(145deg, rgba(20, 22, 27, 0.96), rgba(26, 28, 34, 0.94));
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pet-menu-item {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: left;
+  padding: 7px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.pet-menu-item:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.pet-menu-item-danger {
+  color: #fb7185;
+}
+
+.pet-menu-item-danger:hover {
+  background: rgba(251, 113, 133, 0.14);
+}
+
+/* ── Reduced motion ────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .pet-atlas {
+    animation: none !important;
+  }
+}

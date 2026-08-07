@@ -7,6 +7,7 @@ import { CostsPage } from "./pages/costs/CostsPage";
 import { BudgetsPage } from "./pages/budgets/BudgetsPage";
 import { ModelsPage } from "./pages/models/ModelsPage";
 import { AlertsPage } from "./pages/alerts/AlertsPage";
+import { PetPage } from "./pages/pet/PetPage";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { SystemPage } from "./pages/system/SystemPage";
 
@@ -27,6 +28,7 @@ function App() {
         <Route path="budgets" element={<BudgetsPage />} />
         <Route path="models" element={<ModelsPage />} />
         <Route path="alerts" element={<AlertsPage />} />
+        <Route path="pet" element={<PetPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="system" element={<SystemPage />} />
       </Route>

@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { fetchPetSpritesheetUrl } from "../../lib/native";
 import { petMoodLabel, type PetMood, type PetReaction } from "./petState";
 import "./PetMascot.css";
 
@@ -12,13 +14,13 @@ export interface ImportedPet {
  * Animated robot pet for the floating widget's pet layout.
  *
  * Without an imported pet the stage shows the self-authored inline SVG robot.
- * With one, it shows the imported pet's spritesheet from the local
- * `petlocal://` store, animated by CSS `steps()` frame cycling — no remote
- * asset and no JavaScript animation loop. Either way the artwork is
- * decorative: the svg/atlas is hidden from assistive technology and the mood
- * is exposed as plain text in the status line. All animation is CSS on
- * transform/opacity/background-position, disabled wholesale under
- * `prefers-reduced-motion`.
+ * With one, it shows the imported pet's spritesheet loaded over IPC as a Blob
+ * object URL (custom URI schemes are blocked by WebView2 on http dev origins),
+ * animated by CSS `steps()` frame cycling — no remote asset and no JavaScript
+ * animation loop. Either way the artwork is decorative: the svg/atlas is
+ * hidden from assistive technology and the mood is exposed as plain text in
+ * the status line. All animation is CSS on transform/opacity/background,
+ * disabled wholesale under `prefers-reduced-motion`.
  *
  * While the widget is unlocked the stage doubles as a Tauri drag region so the
  * pet can be moved like the header. The stage contains no controls, so nothing
@@ -35,6 +37,24 @@ export function PetMascot({
   locked: boolean;
   imported: ImportedPet | null;
 }) {
+  const [spriteUrl, setSpriteUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSpriteUrl(null);
+    if (!imported) return undefined;
+    void fetchPetSpritesheetUrl(imported.id)
+      .then((url) => {
+        if (!cancelled) setSpriteUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setSpriteUrl(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [imported?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div
       className={`pet-stage pet-mood-${mood}${
@@ -44,15 +64,17 @@ export function PetMascot({
       title={imported ? imported.displayName : undefined}
       {...(locked ? {} : { "data-tauri-drag-region": "" })}
     >
-      {imported ? (
+      {imported && spriteUrl ? (
         <div
           className="pet-atlas"
-          data-sprite-version={imported.spriteVersionNumber}
+          data-sprite-version={imported.spriteVersionNumber || 1}
           style={{
-            backgroundImage: `url(petlocal://pets/${imported.id}/spritesheet.webp)`,
+            backgroundImage: `url(${spriteUrl})`,
           }}
           aria-hidden="true"
         />
+      ) : imported && !spriteUrl ? (
+        <div className="pet-atlas pet-atlas-missing" aria-hidden="true" />
       ) : (
         <svg
           className="pet-svg"

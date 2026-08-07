@@ -1,9 +1,22 @@
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
 import { PetMascot } from "./PetMascot";
 import type { PetMood } from "./petState";
 
+vi.mock("../../lib/native", () => ({
+  fetchPetSpritesheetUrl: vi.fn(),
+}));
+
+import * as native from "../../lib/native";
+
 describe("PetMascot", () => {
+  beforeEach(() => {
+    vi.mocked(native.fetchPetSpritesheetUrl).mockReset();
+    vi.mocked(native.fetchPetSpritesheetUrl).mockResolvedValue(
+      "blob:mock-sprout",
+    );
+  });
+
   it("marks the mascot svg as decorative and exposes the mood as text", () => {
     const { container } = render(
       <PetMascot mood="critical" reaction={null} locked={false} imported={null} />,
@@ -75,7 +88,7 @@ describe("PetMascot", () => {
     ).toHaveLength(0);
   });
 
-  it("renders an imported pet atlas from the local petlocal store", () => {
+  it("renders an imported pet atlas loaded over IPC as a Blob URL", async () => {
     const { container } = render(
       <PetMascot
         mood="happy"
@@ -88,12 +101,17 @@ describe("PetMascot", () => {
         }}
       />,
     );
+    await waitFor(() =>
+      expect(native.fetchPetSpritesheetUrl).toHaveBeenCalledWith("sprout"),
+    );
+    await waitFor(() =>
+      expect(container.querySelector(".pet-atlas")).not.toBeNull(),
+    );
     const atlas = container.querySelector(".pet-atlas");
-    expect(atlas).not.toBeNull();
     expect(atlas).toHaveAttribute("aria-hidden", "true");
     expect(atlas).toHaveAttribute("data-sprite-version", "2");
     expect((atlas as HTMLElement).style.backgroundImage).toContain(
-      "petlocal://pets/sprout/spritesheet.webp",
+      "blob:mock-sprout",
     );
     expect(container.querySelector(".pet-svg")).toBeNull();
     expect(screen.getByText("Quota mood: Happy")).toBeInTheDocument();

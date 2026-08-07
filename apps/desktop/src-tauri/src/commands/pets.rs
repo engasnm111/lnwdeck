@@ -74,10 +74,13 @@ pub fn set_widget_pet(app: tauri::AppHandle, pet_id: String) -> Result<String, S
         return Err(format!("pet {trimmed} is not installed"));
     }
     let state = app.state::<AppState>();
-    let guard = state.ensure_storage()?;
-    let storage = guard.as_ref().ok_or("storage not initialized")?;
-    let stored =
-        SettingsService::set_widget_pet_id(&storage.conn, trimmed).map_err(|e| e.to_string())?;
+    let stored = {
+        let guard = state.ensure_storage()?;
+        let storage = guard.as_ref().ok_or("storage not initialized")?;
+        SettingsService::set_widget_pet_id(&storage.conn, trimmed).map_err(|e| e.to_string())?
+    };
+    // Emit only after the storage guard is dropped: emitting reads the
+    // settings back and would deadlock on the storage mutex.
     crate::windows::emit_widget_settings(&app);
     Ok(stored)
 }
@@ -90,9 +93,11 @@ pub fn remove_widget_pet(app: tauri::AppHandle, pet_id: String) -> Result<(), St
     let settings = crate::windows::widget_settings(&app);
     if settings.pet_id == pet_id {
         let state = app.state::<AppState>();
-        let guard = state.ensure_storage()?;
-        let storage = guard.as_ref().ok_or("storage not initialized")?;
-        SettingsService::set_widget_pet_id(&storage.conn, "").map_err(|e| e.to_string())?;
+        {
+            let guard = state.ensure_storage()?;
+            let storage = guard.as_ref().ok_or("storage not initialized")?;
+            SettingsService::set_widget_pet_id(&storage.conn, "").map_err(|e| e.to_string())?;
+        }
         crate::windows::emit_widget_settings(&app);
     }
     Ok(())

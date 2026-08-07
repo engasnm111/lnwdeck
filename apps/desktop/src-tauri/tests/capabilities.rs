@@ -49,7 +49,7 @@ fn windows_of(capability: &serde_json::Value) -> Vec<String> {
 }
 
 /// Window labels created in `windows::setup_windows`.
-const APP_WINDOW_LABELS: [&str; 2] = ["main", "widget"];
+const APP_WINDOW_LABELS: [&str; 3] = ["main", "widget", "pet"];
 
 #[test]
 fn capability_directory_exists_and_is_not_empty() {
@@ -142,7 +142,7 @@ fn generated_acl_capabilities_are_not_empty_after_a_build() {
         !map.is_empty(),
         "generated ACL is empty: the webview would have no permissions at runtime"
     );
-    for identifier in ["main-window", "widget-window"] {
+    for identifier in ["main-window", "widget-window", "pet-window"] {
         assert!(
             map.contains_key(identifier),
             "generated ACL is missing capability {identifier}: {:?}",
