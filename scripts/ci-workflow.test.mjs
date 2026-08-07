@@ -19,17 +19,46 @@ const workflowFiles = [
   readFileSync(new URL(`../${file}`, import.meta.url), "utf8"),
 ]);
 
-function jobSection(name, nextJob = null) {
-  const start = workflow.indexOf(`  ${name}:\n`);
+function jobSectionFrom(source, name, nextJob = null) {
+  const normalizedSource = source.replace(/\r\n?/g, "\n");
+  const start = normalizedSource.indexOf(`  ${name}:\n`);
   assert.notEqual(start, -1, `CI job ${name} should exist`);
   const nextStart =
-    nextJob === null ? -1 : workflow.indexOf(`  ${nextJob}:\n`, start + 1);
-  return workflow.slice(start, nextStart === -1 ? workflow.length : nextStart);
+    nextJob === null
+      ? -1
+      : normalizedSource.indexOf(`  ${nextJob}:\n`, start + 1);
+  return normalizedSource.slice(
+    start,
+    nextStart === -1 ? normalizedSource.length : nextStart,
+  );
 }
+
+function jobSection(name, nextJob = null) {
+  return jobSectionFrom(workflow, name, nextJob);
+}
+
+test("CI workflow contract handles Windows line endings", () => {
+  const windowsLineEndingWorkflow = workflow.replace(/\n/g, "\r\n");
+  assert.match(
+    jobSectionFrom(windowsLineEndingWorkflow, "e2e-ui", "compile"),
+    /runs-on: windows-latest/,
+  );
+});
 
 test("build-heavy CI jobs use the runner proven by the release workflow", () => {
   assert.match(jobSection("e2e-ui", "compile"), /runs-on: windows-latest/);
   assert.match(jobSection("compile"), /runs-on: windows-latest/);
+});
+
+test("build jobs prepare the native messaging host before consuming it", () => {
+  const e2e = jobSection("e2e-ui", "compile");
+  assert.match(e2e, /cargo build -p lnwdeck-native-messaging-host --release/);
+
+  const compile = jobSection("compile");
+  assert.match(
+    compile,
+    /cargo build -p lnwdeck-native-messaging-host --target \$\{\{ matrix\.target \}\} --release/,
+  );
 });
 
 test("architecture compile checks do not build every test target", () => {

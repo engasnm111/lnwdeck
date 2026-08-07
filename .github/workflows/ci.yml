@@ -159,6 +159,13 @@ jobs:
           }
           echo "CC_aarch64_pc_windows_msvc=clang" >> $env:GITHUB_ENV
 
+      - name: Build native messaging host
+        shell: pwsh
+        run: |
+          pwsh scripts/ci-retry.ps1 -Command "cargo build -p lnwdeck-native-messaging-host --release" -Label "native messaging host"
+          Get-Item "target/release/lnwdeck-browser-host.exe" |
+            Select-Object FullName, Length
+
       - name: Build release app (no bundle)
         shell: pwsh
         run: |
@@ -218,6 +225,13 @@ jobs:
             $env:Path = "$env:ProgramFiles\LLVM\bin;" + $env:Path
           }
           echo "CC_aarch64_pc_windows_msvc=clang" >> $env:GITHUB_ENV
+
+      - name: Build native messaging host
+        shell: pwsh
+        run: |
+          pwsh scripts/ci-retry.ps1 -Command "cargo build -p lnwdeck-native-messaging-host --target ${{ matrix.target }} --release" -Label "native messaging host ${{ matrix.target }}"
+          Get-Item "target/${{ matrix.target }}/release/lnwdeck-browser-host.exe" |
+            Select-Object FullName, Length
 
       - name: Build frontend
         run: pnpm --filter @lnwdeck/desktop run build
