@@ -54,11 +54,14 @@ jobs:
 
       # Clippy is the heaviest step in this job; a silent mid-compile kill on
       # the hosted runner is retried with a clean artifact tree instead of
-      # failing the whole pipeline on a transient.
+      # failing the whole pipeline on a transient. Each command runs in its
+      # own invocation (PS 5.1 has no &&) and aborts the step on failure.
       - name: Run checks
         shell: pwsh
         run: |
-          pwsh scripts/ci-retry.ps1 -Command "cargo fmt --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && pnpm -r run typecheck" -Label "pnpm check"
+          pwsh scripts/ci-retry.ps1 -Command "cargo fmt --check" -Label "fmt"
+          pwsh scripts/ci-retry.ps1 -Command "cargo clippy --workspace --all-targets --all-features -- -D warnings" -Label "clippy"
+          pwsh scripts/ci-retry.ps1 -Command "pnpm -r run typecheck" -Label "typecheck"
 
   test:
     name: Test

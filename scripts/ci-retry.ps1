@@ -18,7 +18,10 @@ $ErrorActionPreference = "Continue"
 $joined = ""
 for ($i = 1; $i -le $Attempts; $i++) {
     Write-Output "=== $Label - attempt $i/$Attempts ==="
-    $output = & powershell -NoProfile -Command $Command 2>&1
+    # cmd /c: the commands come from the workflow (cargo/clippy/pnpm...), and
+    # cmd tolerates both plain commands and && chaining regardless of whether
+    # the runner's default PowerShell is 5.1 or 7.
+    $output = & cmd /c $Command 2>&1
     $code = $LASTEXITCODE
     if ($code -eq 0) {
         Write-Output "=== $Label passed on attempt $i ==="
