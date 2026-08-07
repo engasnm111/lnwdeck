@@ -88,10 +88,15 @@ jobs:
       - name: Rust tests
         shell: pwsh
         run: |
-          pnpm run test:rs *> rust-tests.log 2>&1
-          if ($LASTEXITCODE -ne 0) {
-            Get-Content rust-tests.log | Select-Object -Last 50 | ForEach-Object { Write-Output "::error::$_" }
-            exit 1
+          $crates = (cargo metadata --no-deps --format-version 1 | ConvertFrom-Json).packages.id
+          foreach ($c in $crates) {
+            Write-Output "::group::Testing $c"
+            cargo test -p $c *> test.log 2>&1
+            if ($LASTEXITCODE -ne 0) {
+              Get-Content test.log | Select-Object -Last 80 | ForEach-Object { Write-Output "::error::$_" }
+              exit 1
+            }
+            Write-Output "::endgroup::"
           }
 
       - name: Frontend tests
