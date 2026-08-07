@@ -26,15 +26,42 @@ body {
 }
 
 .w-root {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bg-panel);
-  backdrop-filter: blur(30px) saturate(1.3);
-  border: 1px solid var(--border-subtle);
+  /* The widget window is transparent over the desktop, so backdrop-filter
+     has nothing to blur: the card carries its own frosted navy glass. */
+  background: linear-gradient(
+    160deg,
+    rgba(22, 30, 56, 0.92) 0%,
+    rgba(9, 13, 26, 0.95) 55%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-top-color: rgba(255, 255, 255, 0.2);
   border-radius: 14px;
-  box-shadow: var(--shadow-popup);
+  box-shadow: var(--shadow-popup), 0 0 24px rgba(34, 211, 238, 0.12);
   overflow: hidden;
+}
+
+/* A soft cyan-to-violet accent line along the top edge, mirroring the
+   dashboard's metric cards. */
+.w-root::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 14%;
+  right: 14%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(34, 211, 238, 0.55) 35%,
+    rgba(139, 92, 246, 0.55) 75%,
+    transparent
+  );
+  opacity: 0.8;
+  pointer-events: none;
 }
 
 /* Header */
