@@ -90,17 +90,20 @@ jobs:
         run: |
           cargo test -p lnwdeck-native-messaging-host *> test.log 2>&1
           if ($LASTEXITCODE -ne 0) {
-            Get-Content test.log | Select-Object -Last 100 | ForEach-Object { Write-Output "::error::$_" }
+            $joined = (Get-Content test.log | Select-Object -Last 150) -join "`n"
+            Write-Output "::error::$joined"
             exit 1
           }
           cargo test -p lnwdeck-desktop *> test2.log 2>&1
           if ($LASTEXITCODE -ne 0) {
-            Get-Content test2.log | Select-Object -Last 100 | ForEach-Object { Write-Output "::error::$_" }
+            $joined = (Get-Content test2.log | Select-Object -Last 150) -join "`n"
+            Write-Output "::error::$joined"
             exit 1
           }
           cargo test --workspace --exclude lnwdeck-native-messaging-host --exclude lnwdeck-desktop *> test3.log 2>&1
           if ($LASTEXITCODE -ne 0) {
-            Get-Content test3.log | Select-Object -Last 100 | ForEach-Object { Write-Output "::error::$_" }
+            $joined = (Get-Content test3.log | Select-Object -Last 150) -join "`n"
+            Write-Output "::error::$joined"
             exit 1
           }
 
