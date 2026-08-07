@@ -45,20 +45,30 @@ describe("freshnessOf", () => {
 });
 
 describe("formatters", () => {
-  it("formats relative times without inventing precision", () => {
-    expect(formatRelativeTime(new Date(NOW - 5000).toISOString(), NOW)).toBe(
-      "just now",
-    );
+  it("formats relative times in the UI locale", () => {
+    expect(
+      formatRelativeTime(new Date(NOW - 5000).toISOString(), NOW),
+    ).toMatch(/5 seconds/);
     expect(
       formatRelativeTime(new Date(NOW - 4 * 60_000).toISOString(), NOW),
-    ).toBe("4 min ago");
+    ).toBe("4 minutes ago");
     expect(
       formatRelativeTime(new Date(NOW - 3 * 3_600_000).toISOString(), NOW),
-    ).toBe("3 h ago");
+    ).toBe("3 hours ago");
     expect(
       formatRelativeTime(new Date(NOW - 2 * 86_400_000).toISOString(), NOW),
-    ).toBe("2 d ago");
+    ).toBe("2 days ago");
     expect(formatRelativeTime("nonsense", NOW)).toBe("at an unknown time");
+  });
+
+  it("localizes relative time to the UI language", () => {
+    expect(
+      formatRelativeTime(
+        new Date(NOW - 4 * 60_000).toISOString(),
+        NOW,
+        "th-TH",
+      ),
+    ).toMatch(/4 นาทีที่/);
   });
 
   it("shows a dash rather than a fake timestamp", () => {
@@ -66,6 +76,24 @@ describe("formatters", () => {
     expect(formatTimestamp(undefined)).toBe("-");
     expect(formatTimestamp("nonsense")).toBe("-");
     expect(formatTimestamp("2026-08-04T00:00:00Z")).not.toBe("-");
+  });
+
+  it("uses 24-hour day/month/year format in the UI locale", () => {
+    const date = new Date("2026-08-04T15:30:45Z");
+    const local = new Intl.DateTimeFormat("th-TH", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }).format(date);
+    const formatted = formatTimestamp("2026-08-04T15:30:45Z", "th-TH");
+    expect(formatted).toBe(local);
+    expect(formatted).toMatch(/2569/);
+    expect(formatted).toMatch(/:30:45/);
+    expect(formatted).not.toMatch(/03:30|3:30/);
   });
 
   it("formats numbers and compact token counts", () => {

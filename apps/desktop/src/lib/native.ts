@@ -430,6 +430,15 @@ export interface AppSettingsData {
   pet_speed: string;
   pet_opacity: number;
   pet_auto_sleep: boolean;
+  pet_size: string;
+  pet_stay_in_place: boolean;
+  pet_pose_wave: boolean;
+  pet_pose_jump: boolean;
+  pet_pose_look_left: boolean;
+  pet_pose_look_right: boolean;
+  pet_pose_waiting: boolean;
+  pet_pose_review: boolean;
+  language: string;
 }
 
 export interface ProviderCredentialState {
@@ -583,7 +592,24 @@ export interface PetWindowSettingsData {
   autoSleep: boolean;
   /** Serialized camelCase by the backend (PetWindowSettings). */
   sizePreset: PetSizePreset;
+  /** Whether the pet stays in place instead of walking. */
+  stayInPlace: boolean;
+  poseWave: boolean;
+  poseJump: boolean;
+  poseLookLeft: boolean;
+  poseLookRight: boolean;
+  poseWaiting: boolean;
+  poseReview: boolean;
 }
+
+/** Ambient pose keys, matching the backend setting keys. */
+export type PetPoseKey =
+  | "pet_pose_wave"
+  | "pet_pose_jump"
+  | "pet_pose_look_left"
+  | "pet_pose_look_right"
+  | "pet_pose_waiting"
+  | "pet_pose_review";
 
 /** Fixed pet window sizes: chosen in Settings, never user-resized. */
 export type PetSizePreset = "small" | "medium" | "large";
@@ -648,6 +674,24 @@ export async function setPetSizePreset(
   preset: PetSizePreset,
 ): Promise<PetSizePreset> {
   return invoke<PetSizePreset>("set_pet_size_preset", { preset });
+}
+
+/** Sets whether the pet stays in place instead of walking. */
+export async function setPetStayInPlace(value: boolean): Promise<boolean> {
+  return invoke<boolean>("set_pet_stay_in_place", { value });
+}
+
+/** Enables or disables one ambient pose by its backend key. */
+export async function setPetPose(
+  key: PetPoseKey,
+  enabled: boolean,
+): Promise<boolean> {
+  return invoke<boolean>("set_pet_pose", { key, enabled });
+}
+
+/** Sets the UI language and returns what was stored. */
+export async function setLanguage(language: string): Promise<string> {
+  return invoke<string>("set_language", { language });
 }
 
 export async function showWidgetWindow(): Promise<void> {

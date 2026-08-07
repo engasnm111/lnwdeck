@@ -40,30 +40,42 @@ export function freshnessOf(
   return { label: "Outdated", tone: "danger" };
 }
 
-/** Compact relative time such as "4 min ago". */
-export function formatRelativeTime(value: string, now: number): string {
+/** Compact relative time such as "4 min ago", localized to the UI language. */
+export function formatRelativeTime(
+  value: string,
+  now: number,
+  locale = "en-US",
+): string {
   const timestamp = Date.parse(value);
   if (Number.isNaN(timestamp)) {
     return "at an unknown time";
   }
   const seconds = Math.max(0, Math.round((now - timestamp) / 1000));
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "always" });
   if (seconds < 60) {
-    return "just now";
+    return rtf.format(-seconds, "second");
   }
   const minutes = Math.round(seconds / 60);
   if (minutes < 60) {
-    return `${minutes} min ago`;
+    return rtf.format(-minutes, "minute");
   }
   const hours = Math.round(minutes / 60);
   if (hours < 24) {
-    return `${hours} h ago`;
+    return rtf.format(-hours, "hour");
   }
   const days = Math.round(hours / 24);
-  return `${days} d ago`;
+  return rtf.format(-days, "day");
 }
 
-/** Absolute local timestamp, or a dash when there is nothing to show. */
-export function formatTimestamp(value: string | null | undefined): string {
+/**
+ * Absolute local timestamp in 24-hour clock, localized to the UI language:
+ * day/month/year hours:minutes:seconds (e.g. 07/08/2569, 15:30:45 in Thai).
+ * Returns a dash when there is nothing to show.
+ */
+export function formatTimestamp(
+  value: string | null | undefined,
+  locale = "en-US",
+): string {
   if (!value) {
     return "-";
   }
@@ -71,7 +83,15 @@ export function formatTimestamp(value: string | null | undefined): string {
   if (Number.isNaN(date.getTime())) {
     return "-";
   }
-  return date.toLocaleString();
+  return new Intl.DateTimeFormat(locale, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
 }
 
 /** Thousands-separated integer. */
