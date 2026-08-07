@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+﻿import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SettingsPage } from "./SettingsPage";
@@ -17,6 +17,9 @@ vi.mock("../../lib/native", async (importOriginal) => {
     importWidgetPet: vi.fn(),
     setWidgetPet: vi.fn(),
     removeWidgetPet: vi.fn(),
+    fetchWidgetSettings: vi.fn(),
+    setWidgetView: vi.fn(),
+    setWidgetSizePreset: vi.fn(),
   };
 });
 
@@ -31,7 +34,13 @@ const view = (
     widget_opacity: 1,
     widget_locked: false,
     widget_visible: false,
+    widget_size: "medium",
     retention_days: 90,
+    pet_visible: false,
+    pet_character: "robot",
+    pet_speed: "normal",
+    pet_opacity: 1,
+    pet_auto_sleep: true,
   },
   startup_supported: true,
   startup_registered: false,
@@ -60,8 +69,21 @@ describe("SettingsPage", () => {
     vi.mocked(native.importWidgetPet).mockReset();
     vi.mocked(native.setWidgetPet).mockReset();
     vi.mocked(native.removeWidgetPet).mockReset();
+    vi.mocked(native.fetchWidgetSettings).mockReset();
+    vi.mocked(native.setWidgetView).mockReset();
+    vi.mocked(native.setWidgetSizePreset).mockReset();
+    vi.mocked(native.setWidgetSizePreset).mockResolvedValue("medium");
     vi.mocked(native.listWidgetPets).mockResolvedValue([]);
     vi.mocked(native.getWidgetPet).mockResolvedValue(null);
+    vi.mocked(native.fetchWidgetSettings).mockResolvedValue({
+      opacity: 1,
+      locked: false,
+      visible: true,
+      selected_providers: [],
+      view: "bars",
+      pet_id: "",
+      size_preset: "medium",
+    });
   });
 
   it("renders the stored state, not a default-checked form", async () => {

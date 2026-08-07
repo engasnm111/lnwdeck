@@ -3,6 +3,7 @@ import { Badge, Button, Card, DataState, Field, Toggle } from "@lnwdeck/ui";
 import {
   deleteProviderKey,
   fetchSettings,
+  fetchWidgetSettings,
   getWidgetPet,
   importWidgetPet,
   listWidgetPets,
@@ -10,9 +11,13 @@ import {
   saveSettings,
   setProviderKey,
   setWidgetPet,
+  setWidgetSizePreset,
+  setWidgetView,
   type AppSettingsData,
   type PetManifest,
   type SettingsViewData,
+  type WidgetSizePreset,
+  type WidgetView,
 } from "../../lib/native";
 
 function intervalLabel(seconds: number): string {
@@ -56,6 +61,53 @@ export function SettingsPage() {
   const [petImport, setPetImport] = useState("");
   const [petImporting, setPetImporting] = useState(false);
   const [petError, setPetError] = useState<string | null>(null);
+
+  // Widget layout (bars / rings / pet), applied immediately via its own
+  // command rather than through the saved-settings form.
+  const [widgetView, setWidgetViewState] = useState<WidgetView>("bars");
+  const [widgetViewError, setWidgetViewError] = useState<string | null>(null);
+
+  const loadWidgetView = useCallback(async () => {
+    try {
+      const settings = await fetchWidgetSettings();
+      setWidgetViewState(
+        settings.view === "rings" || settings.view === "pet"
+          ? settings.view
+          : "bars",
+      );
+    } catch {
+      // The stored view still applies; the select just shows the default.
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadWidgetView();
+  }, [loadWidgetView]);
+
+  const handleWidgetViewChange = useCallback(async (view: WidgetView) => {
+    setWidgetViewError(null);
+    try {
+      const stored = await setWidgetView(view);
+      setWidgetViewState(
+        stored === "rings" || stored === "pet" ? stored : "bars",
+      );
+    } catch (error_) {
+      setWidgetViewError(error_ instanceof Error ? error_.message : String(error_));
+    }
+  }, []);
+
+  const handleWidgetSizeChange = useCallback(async (preset: WidgetSizePreset) => {
+    setWidgetViewError(null);
+    try {
+      const stored = await setWidgetSizePreset(preset);
+      setDraft((current) =>
+        current ? { ...current, widget_size: stored } : current,
+      );
+      setSavedAt(null);
+    } catch (error_) {
+      setWidgetViewError(error_ instanceof Error ? error_.message : String(error_));
+    }
+  }, []);
 
   const loadPets = useCallback(async () => {
     try {
@@ -327,6 +379,49 @@ export function SettingsPage() {
                   checked={draft.widget_locked}
                   onChange={(checked) => update("widget_locked", checked)}
                 />
+                <Field
+                  label="Widget size"
+                  htmlFor="widget-size"
+                  hint="The widget is fixed-size; content scrolls inside it"
+                >
+                  <select
+                    id="widget-size"
+                    className="ui-select"
+                    value={draft.widget_size}
+                    onChange={(event) =>
+                      void handleWidgetSizeChange(
+                        event.target.value as WidgetSizePreset,
+                      )
+                    }
+                  >
+                    <option value="small">Small (300 x 300)</option>
+                    <option value="medium">Medium (400 x 420)</option>
+                    <option value="large">Large (500 x 500)</option>
+                  </select>
+                </Field>
+                <Field
+                  label="Widget layout"
+                  htmlFor="widget-layout"
+                  hint="Bars stack as rows; rings wrap to fit the size"
+                >
+                  <select
+                    id="widget-layout"
+                    className="ui-select"
+                    value={widgetView}
+                    onChange={(event) =>
+                      void handleWidgetViewChange(event.target.value as WidgetView)
+                    }
+                  >
+                    <option value="bars">Bars</option>
+                    <option value="rings">Rings</option>
+                    <option value="pet">Pet</option>
+                  </select>
+                  {widgetViewError && (
+                    <p className="ui-field-error" role="alert">
+                      {widgetViewError}
+                    </p>
+                  )}
+                </Field>
                 <Field
                   label={`Widget opacity: ${Math.round(draft.widget_opacity * 100)}%`}
                   htmlFor="widget-opacity"

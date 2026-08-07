@@ -19,7 +19,14 @@ pub const KEY_WIDGET_VISIBLE: &str = "widget_visible";
 pub const KEY_WIDGET_PROVIDERS: &str = "widget_providers";
 pub const KEY_WIDGET_VIEW: &str = "widget_view";
 pub const KEY_WIDGET_PET: &str = "widget_pet_id";
+pub const KEY_WIDGET_SIZE: &str = "widget_size_preset";
 pub const KEY_RETENTION_DAYS: &str = "retention_days";
+pub const KEY_PET_VISIBLE: &str = "pet_visible";
+pub const KEY_PET_CHARACTER: &str = "pet_character";
+pub const KEY_PET_SPEED: &str = "pet_speed";
+pub const KEY_PET_OPACITY: &str = "pet_opacity";
+pub const KEY_PET_AUTO_SLEEP: &str = "pet_auto_sleep";
+pub const KEY_PET_SIZE: &str = "pet_size_preset";
 
 /// Refresh intervals the UI offers. Zero disables the background loop.
 pub const ALLOWED_REFRESH_INTERVALS: &[u64] = &[0, 30, 60, 300, 900, 3600];
@@ -29,11 +36,25 @@ pub const ALLOWED_THEMES: &[&str] = &["dark", "light", "system"];
 pub const ALLOWED_RETENTION_DAYS: &[u64] = &[7, 30, 90, 365, 0];
 /// Widget layouts: horizontal bars, compact rings, or the animated pet.
 pub const ALLOWED_WIDGET_VIEWS: &[&str] = &["bars", "rings", "pet"];
+/// Widget size presets: the widget window is fixed-size, never user-resized.
+pub const ALLOWED_WIDGET_SIZES: &[&str] = &["small", "medium", "large"];
+/// Desktop pet walk speeds.
+pub const ALLOWED_PET_SPEEDS: &[&str] = &["slow", "normal", "fast"];
+/// Desktop pet size presets: the pet window is fixed-size, never resized by
+/// the user; the preset scales both the window and the sprite.
+pub const ALLOWED_PET_SIZES: &[&str] = &["small", "medium", "large"];
+/// Built-in desktop pet characters.
+pub const BUILTIN_PET_CHARACTERS: &[&str] = &["robot", "cat", "ghost", "dragon", "crab", "blob"];
 
 /// Defaults used when a key has never been written.
 const DEFAULT_REFRESH_INTERVAL: u64 = 300;
 const DEFAULT_RETENTION_DAYS: u64 = 90;
 const DEFAULT_WIDGET_OPACITY: f64 = 1.0;
+const DEFAULT_WIDGET_SIZE: &str = "medium";
+const DEFAULT_PET_OPACITY: f64 = 1.0;
+const DEFAULT_PET_CHARACTER: &str = "robot";
+const DEFAULT_PET_SPEED: &str = "normal";
+const DEFAULT_PET_SIZE: &str = "medium";
 /// Upper bound on pinned widget providers, matching the built-in adapter count
 /// with room to spare.
 const MAX_WIDGET_PROVIDERS: usize = 32;
@@ -47,7 +68,14 @@ pub struct AppSettings {
     pub widget_opacity: f64,
     pub widget_locked: bool,
     pub widget_visible: bool,
+    pub widget_size: String,
     pub retention_days: u64,
+    pub pet_visible: bool,
+    pub pet_character: String,
+    pub pet_speed: String,
+    pub pet_opacity: f64,
+    pub pet_auto_sleep: bool,
+    pub pet_size: String,
 }
 
 impl Default for AppSettings {
@@ -60,7 +88,14 @@ impl Default for AppSettings {
             widget_opacity: DEFAULT_WIDGET_OPACITY,
             widget_locked: false,
             widget_visible: false,
+            widget_size: DEFAULT_WIDGET_SIZE.to_string(),
             retention_days: DEFAULT_RETENTION_DAYS,
+            pet_visible: false,
+            pet_character: DEFAULT_PET_CHARACTER.to_string(),
+            pet_speed: DEFAULT_PET_SPEED.to_string(),
+            pet_opacity: DEFAULT_PET_OPACITY,
+            pet_auto_sleep: true,
+            pet_size: DEFAULT_PET_SIZE.to_string(),
         }
     }
 }
@@ -141,10 +176,34 @@ impl SettingsService {
             widget_visible: read(KEY_WIDGET_VISIBLE)?
                 .map(|value| value == "true")
                 .unwrap_or(defaults.widget_visible),
+            widget_size: read(KEY_WIDGET_SIZE)?
+                .filter(|value| ALLOWED_WIDGET_SIZES.contains(&value.as_str()))
+                .unwrap_or_else(|| defaults.widget_size.clone()),
             retention_days: read(KEY_RETENTION_DAYS)?
                 .and_then(|value| value.parse().ok())
                 .filter(|value| ALLOWED_RETENTION_DAYS.contains(value))
                 .unwrap_or(defaults.retention_days),
+            pet_visible: read(KEY_PET_VISIBLE)?
+                .map(|value| value == "true")
+                .unwrap_or(defaults.pet_visible),
+            pet_character: read(KEY_PET_CHARACTER)?
+                .filter(|value| {
+                    BUILTIN_PET_CHARACTERS.contains(&value.as_str()) || is_pet_id_slug(value)
+                })
+                .unwrap_or_else(|| defaults.pet_character.clone()),
+            pet_speed: read(KEY_PET_SPEED)?
+                .filter(|value| ALLOWED_PET_SPEEDS.contains(&value.as_str()))
+                .unwrap_or_else(|| defaults.pet_speed.clone()),
+            pet_opacity: read(KEY_PET_OPACITY)?
+                .and_then(|value| value.parse::<f64>().ok())
+                .filter(|value| (0.1..=1.0).contains(value))
+                .unwrap_or(defaults.pet_opacity),
+            pet_auto_sleep: read(KEY_PET_AUTO_SLEEP)?
+                .map(|value| value == "true")
+                .unwrap_or(defaults.pet_auto_sleep),
+            pet_size: read(KEY_PET_SIZE)?
+                .filter(|value| ALLOWED_PET_SIZES.contains(&value.as_str()))
+                .unwrap_or_else(|| defaults.pet_size.clone()),
         })
     }
 
@@ -188,7 +247,14 @@ impl SettingsService {
         )?;
         write(KEY_WIDGET_LOCKED, settings.widget_locked.to_string())?;
         write(KEY_WIDGET_VISIBLE, settings.widget_visible.to_string())?;
+        write(KEY_WIDGET_SIZE, settings.widget_size.clone())?;
         write(KEY_RETENTION_DAYS, settings.retention_days.to_string())?;
+        write(KEY_PET_VISIBLE, settings.pet_visible.to_string())?;
+        write(KEY_PET_CHARACTER, settings.pet_character.clone())?;
+        write(KEY_PET_SPEED, settings.pet_speed.clone())?;
+        write(KEY_PET_OPACITY, format!("{:.2}", settings.pet_opacity))?;
+        write(KEY_PET_AUTO_SLEEP, settings.pet_auto_sleep.to_string())?;
+        write(KEY_PET_SIZE, settings.pet_size.clone())?;
 
         // Read back so the caller reports stored state, not the request.
         Self::load(conn)
@@ -217,6 +283,30 @@ impl SettingsService {
             .set(KEY_WIDGET_VISIBLE, &visible.to_string())
             .map_err(|e| SettingsError::Storage(e.to_string()))?;
         Ok(Self::load(conn)?.widget_visible)
+    }
+
+    /// The widget size preset, defaulting to `medium`.
+    pub fn widget_size_preset(conn: &Connection) -> Result<String, SettingsError> {
+        let stored = AppSettingsRepository::new(conn)
+            .get(KEY_WIDGET_SIZE)
+            .map_err(|e| SettingsError::Storage(e.to_string()))?;
+        Ok(stored
+            .filter(|value| ALLOWED_WIDGET_SIZES.contains(&value.as_str()))
+            .unwrap_or_else(|| DEFAULT_WIDGET_SIZE.to_string()))
+    }
+
+    /// Stores the widget size preset and returns what was stored.
+    pub fn set_widget_size_preset(
+        conn: &Connection,
+        preset: &str,
+    ) -> Result<String, SettingsError> {
+        if !ALLOWED_WIDGET_SIZES.contains(&preset) {
+            return Err(SettingsError::InvalidWidgetView(preset.to_string()));
+        }
+        AppSettingsRepository::new(conn)
+            .set(KEY_WIDGET_SIZE, preset)
+            .map_err(|e| SettingsError::Storage(e.to_string()))?;
+        Self::widget_size_preset(conn)
     }
 
     /// Provider ids the widget is pinned to.
@@ -311,6 +401,76 @@ impl SettingsService {
             .map_err(|e| SettingsError::Storage(e.to_string()))?;
         Self::widget_providers(conn)
     }
+
+    // ── Desktop pet settings ──────────────────────────────────────────────
+
+    pub fn set_pet_visible(conn: &Connection, visible: bool) -> Result<bool, SettingsError> {
+        AppSettingsRepository::new(conn)
+            .set(KEY_PET_VISIBLE, &visible.to_string())
+            .map_err(|e| SettingsError::Storage(e.to_string()))?;
+        Ok(Self::load(conn)?.pet_visible)
+    }
+
+    pub fn set_pet_character(conn: &Connection, character: &str) -> Result<String, SettingsError> {
+        let trimmed = character.trim();
+        if trimmed.is_empty()
+            || !(BUILTIN_PET_CHARACTERS.contains(&trimmed) || is_pet_id_slug(trimmed))
+        {
+            return Err(SettingsError::InvalidPetId(trimmed.to_string()));
+        }
+        AppSettingsRepository::new(conn)
+            .set(KEY_PET_CHARACTER, trimmed)
+            .map_err(|e| SettingsError::Storage(e.to_string()))?;
+        Ok(Self::load(conn)?.pet_character)
+    }
+
+    pub fn set_pet_speed(conn: &Connection, speed: &str) -> Result<String, SettingsError> {
+        if !ALLOWED_PET_SPEEDS.contains(&speed) {
+            return Err(SettingsError::InvalidWidgetView(speed.to_string()));
+        }
+        AppSettingsRepository::new(conn)
+            .set(KEY_PET_SPEED, speed)
+            .map_err(|e| SettingsError::Storage(e.to_string()))?;
+        Ok(Self::load(conn)?.pet_speed)
+    }
+
+    pub fn set_pet_opacity(conn: &Connection, opacity: f64) -> Result<f64, SettingsError> {
+        if !(0.1..=1.0).contains(&opacity) {
+            return Err(SettingsError::InvalidOpacity(opacity));
+        }
+        AppSettingsRepository::new(conn)
+            .set(KEY_PET_OPACITY, &format!("{opacity:.2}"))
+            .map_err(|e| SettingsError::Storage(e.to_string()))?;
+        Ok(Self::load(conn)?.pet_opacity)
+    }
+
+    pub fn set_pet_auto_sleep(conn: &Connection, auto_sleep: bool) -> Result<bool, SettingsError> {
+        AppSettingsRepository::new(conn)
+            .set(KEY_PET_AUTO_SLEEP, &auto_sleep.to_string())
+            .map_err(|e| SettingsError::Storage(e.to_string()))?;
+        Ok(Self::load(conn)?.pet_auto_sleep)
+    }
+
+    /// The pet size preset, defaulting to `medium`.
+    pub fn pet_size_preset(conn: &Connection) -> Result<String, SettingsError> {
+        let stored = AppSettingsRepository::new(conn)
+            .get(KEY_PET_SIZE)
+            .map_err(|e| SettingsError::Storage(e.to_string()))?;
+        Ok(stored
+            .filter(|value| ALLOWED_PET_SIZES.contains(&value.as_str()))
+            .unwrap_or_else(|| DEFAULT_PET_SIZE.to_string()))
+    }
+
+    /// Stores the pet size preset and returns what was stored.
+    pub fn set_pet_size_preset(conn: &Connection, preset: &str) -> Result<String, SettingsError> {
+        if !ALLOWED_PET_SIZES.contains(&preset) {
+            return Err(SettingsError::InvalidWidgetView(preset.to_string()));
+        }
+        AppSettingsRepository::new(conn)
+            .set(KEY_PET_SIZE, preset)
+            .map_err(|e| SettingsError::Storage(e.to_string()))?;
+        Self::pet_size_preset(conn)
+    }
 }
 
 /// A lowercase URL-safe slug, mirroring the codex-pets.net pet id format.
@@ -362,7 +522,14 @@ mod tests {
             widget_opacity: 0.7,
             widget_locked: true,
             widget_visible: true,
+            widget_size: "large".to_string(),
             retention_days: 30,
+            pet_visible: true,
+            pet_character: "cat".to_string(),
+            pet_speed: "fast".to_string(),
+            pet_opacity: 0.8,
+            pet_auto_sleep: false,
+            pet_size: "large".to_string(),
         };
 
         let stored = SettingsService::save(&storage.conn, &desired).expect("save");
