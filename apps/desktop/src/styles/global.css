@@ -188,7 +188,8 @@ button {
 
 .ui-button:active:not(:disabled) {
   background: var(--bg-active);
-  transform: translateY(0.5px);
+  /* Tactile press: the button physically pushes down. */
+  transform: translateY(1px);
 }
 
 .ui-button:disabled {

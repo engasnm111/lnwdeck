@@ -51,8 +51,8 @@ export function TrayPopup() {
                   x2="100%"
                   y2="100%"
                 >
-                  <stop offset="0%" stopColor="#c084fc" />
-                  <stop offset="50%" stopColor="#818cf8" />
+                  <stop offset="0%" stopColor="#34d399" />
+                  <stop offset="55%" stopColor="#2dd4bf" />
                   <stop offset="100%" stopColor="#38bdf8" />
                 </linearGradient>
               </defs>

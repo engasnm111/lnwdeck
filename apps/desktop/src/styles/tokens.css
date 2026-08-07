@@ -1,10 +1,16 @@
 /*
- * Design tokens — Graphite & Indigo.
+ * Design tokens — Carbon & Emeralds.
  *
  * Dark is the default; light is applied when the user picks it or when the
  * system prefers light and the user chose "system". The theme is set as
  * data-theme on the document element by the shell, so the value always
  * reflects a real stored setting.
+ *
+ * Palette rules (enforced by docs/DESIGN.md):
+ *   - Absolute zinc neutrals: one hue family, no warm/cool drift.
+ *   - A single emerald accent (saturation < 80%). No purple, no neon.
+ *   - Never pure black: every surface sits on Carbon Ink (#0B0B0F).
+ *   - Status hues share the fresh family: emerald / amber / rose / sky.
  *
  * Variable names are the public contract of this file: components and pages
  * reference them, so a redesign changes values, never names.
@@ -13,50 +19,50 @@
 :root {
   color-scheme: dark;
 
-  /* Surfaces: deep graphite-blue layers, like a quiet command deck. */
-  --bg-app: #0d1015;
+  /* Surfaces: layered carbon, lit by a faint emerald atmosphere. */
+  --bg-app: #0b0b0f;
   --bg-app-gradient: radial-gradient(
       1100px 620px at 12% -8%,
-      rgba(108, 132, 255, 0.16),
+      rgba(52, 211, 153, 0.14),
       transparent 55%
     ),
-    radial-gradient(900px 540px at 100% 0%, rgba(150, 110, 255, 0.1), transparent 55%),
-    linear-gradient(180deg, #10131a 0%, #0d1015 100%);
-  --bg-sidebar: rgba(19, 23, 31, 0.86);
-  --bg-panel: rgba(26, 30, 39, 0.9);
-  --bg-panel-elevated: rgba(32, 37, 48, 0.95);
+    radial-gradient(900px 540px at 100% 0%, rgba(56, 189, 248, 0.08), transparent 55%),
+    linear-gradient(180deg, #0e0e13 0%, #0b0b0f 100%);
+  --bg-sidebar: rgba(17, 17, 23, 0.88);
+  --bg-panel: rgba(24, 24, 31, 0.92);
+  --bg-panel-elevated: rgba(31, 31, 40, 0.96);
   --bg-hover: rgba(255, 255, 255, 0.055);
   --bg-active: rgba(255, 255, 255, 0.095);
-  --bg-input: rgba(13, 16, 21, 0.85);
+  --bg-input: rgba(9, 9, 12, 0.85);
 
   --border-subtle: rgba(255, 255, 255, 0.075);
-  --border-strong: rgba(255, 255, 255, 0.15);
-  --border-focus: #8ba0ff;
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --border-focus: #34d399;
 
-  --text-primary: #f3f5f9;
-  --text-secondary: #b8bfcc;
-  --text-muted: #8992a3;
-  --text-inverse: #0d1015;
+  --text-primary: #f4f4f5;
+  --text-secondary: #b6b6bf;
+  --text-muted: #82828d;
+  --text-inverse: #0b0b0f;
 
-  --accent-primary: #7d96ff;
-  --accent-primary-hover: #95aaff;
-  --accent-subtle: rgba(125, 150, 255, 0.15);
+  --accent-primary: #34d399;
+  --accent-primary-hover: #4ade80;
+  --accent-subtle: rgba(52, 211, 153, 0.14);
 
-  --success: #4fd19a;
-  --success-subtle: rgba(79, 209, 154, 0.14);
-  --warning: #edb95f;
-  --warning-subtle: rgba(237, 185, 95, 0.15);
-  --danger: #f47b88;
-  --danger-subtle: rgba(244, 123, 136, 0.15);
-  --info: #6fb1f8;
-  --info-subtle: rgba(111, 177, 248, 0.14);
-  --neutral-subtle: rgba(255, 255, 255, 0.07);
+  --success: #34d399;
+  --success-subtle: rgba(52, 211, 153, 0.13);
+  --warning: #fbbf24;
+  --warning-subtle: rgba(251, 191, 36, 0.13);
+  --danger: #fb7185;
+  --danger-subtle: rgba(251, 113, 133, 0.13);
+  --info: #38bdf8;
+  --info-subtle: rgba(56, 189, 248, 0.13);
+  --neutral-subtle: rgba(255, 255, 255, 0.06);
 
-  --chart-1: #7d96ff;
-  --chart-2: #4fd19a;
-  --chart-3: #edb95f;
-  --chart-4: #c99bff;
-  --chart-5: #6fb1f8;
+  --chart-1: #34d399;
+  --chart-2: #38bdf8;
+  --chart-3: #fbbf24;
+  --chart-4: #fb7185;
+  --chart-5: #2dd4bf;
 
   /* 4px spacing scale. */
   --space-1: 0.25rem;
@@ -73,9 +79,9 @@
   --radius-card: 12px;
   --radius-pill: 999px;
 
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.24);
-  --shadow-popup: 0 12px 40px rgba(0, 0, 0, 0.5);
-  --shadow-lifted: 0 2px 4px rgba(0, 0, 0, 0.28), 0 14px 36px rgba(0, 0, 0, 0.32);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 20px rgba(0, 0, 0, 0.28);
+  --shadow-popup: 0 12px 40px rgba(0, 0, 0, 0.55);
+  --shadow-lifted: 0 2px 4px rgba(0, 0, 0, 0.32), 0 14px 36px rgba(0, 0, 0, 0.36);
 
   /* Type: Segoe UI Variable first, a monospace for data. */
   --font-family: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui,
@@ -102,47 +108,47 @@
 [data-theme="light"] {
   color-scheme: light;
 
-  --bg-app: #f4f5f9;
+  --bg-app: #f5f5f7;
   --bg-app-gradient: radial-gradient(
       1100px 620px at 12% -8%,
-      rgba(125, 150, 255, 0.12),
+      rgba(52, 211, 153, 0.12),
       transparent 55%
     ),
-    radial-gradient(900px 540px at 100% 0%, rgba(150, 110, 255, 0.08), transparent 55%),
-    linear-gradient(180deg, #f7f8fb 0%, #f4f5f9 100%);
-  --bg-sidebar: rgba(255, 255, 255, 0.84);
-  --bg-panel: rgba(255, 255, 255, 0.92);
+    radial-gradient(900px 540px at 100% 0%, rgba(56, 189, 248, 0.07), transparent 55%),
+    linear-gradient(180deg, #f8f8fa 0%, #f5f5f7 100%);
+  --bg-sidebar: rgba(255, 255, 255, 0.85);
+  --bg-panel: rgba(255, 255, 255, 0.93);
   --bg-panel-elevated: #ffffff;
-  --bg-hover: rgba(15, 22, 36, 0.05);
-  --bg-active: rgba(15, 22, 36, 0.09);
+  --bg-hover: rgba(12, 12, 16, 0.05);
+  --bg-active: rgba(12, 12, 16, 0.09);
   --bg-input: #ffffff;
 
-  --border-subtle: rgba(15, 22, 36, 0.1);
-  --border-strong: rgba(15, 22, 36, 0.2);
-  --border-focus: #4a68e0;
+  --border-subtle: rgba(12, 12, 16, 0.09);
+  --border-strong: rgba(12, 12, 16, 0.18);
+  --border-focus: #059669;
 
-  --text-primary: #161a24;
-  --text-secondary: #464f61;
-  --text-muted: #626d80;
+  --text-primary: #16161a;
+  --text-secondary: #47474f;
+  --text-muted: #64646d;
   --text-inverse: #ffffff;
 
-  --accent-primary: #4a68e0;
-  --accent-primary-hover: #3a56cc;
-  --accent-subtle: rgba(74, 104, 224, 0.11);
+  --accent-primary: #059669;
+  --accent-primary-hover: #047857;
+  --accent-subtle: rgba(5, 150, 105, 0.11);
 
-  --success: #1f8b57;
-  --success-subtle: rgba(31, 139, 87, 0.11);
-  --warning: #9a6a10;
-  --warning-subtle: rgba(154, 106, 16, 0.13);
-  --danger: #c33742;
-  --danger-subtle: rgba(195, 55, 66, 0.11);
-  --info: #1f6fbf;
-  --info-subtle: rgba(31, 111, 191, 0.11);
-  --neutral-subtle: rgba(15, 22, 36, 0.06);
+  --success: #059669;
+  --success-subtle: rgba(5, 150, 105, 0.11);
+  --warning: #b45309;
+  --warning-subtle: rgba(180, 83, 9, 0.12);
+  --danger: #e11d48;
+  --danger-subtle: rgba(225, 29, 72, 0.1);
+  --info: #0369a1;
+  --info-subtle: rgba(3, 105, 161, 0.1);
+  --neutral-subtle: rgba(12, 12, 16, 0.06);
 
-  --shadow-card: 0 1px 2px rgba(15, 22, 36, 0.06), 0 6px 18px rgba(15, 22, 36, 0.07);
-  --shadow-popup: 0 12px 36px rgba(15, 22, 36, 0.18);
-  --shadow-lifted: 0 2px 4px rgba(15, 22, 36, 0.07), 0 14px 32px rgba(15, 22, 36, 0.11);
+  --shadow-card: 0 1px 2px rgba(12, 12, 16, 0.05), 0 6px 18px rgba(12, 12, 16, 0.06);
+  --shadow-popup: 0 12px 36px rgba(12, 12, 16, 0.16);
+  --shadow-lifted: 0 2px 4px rgba(12, 12, 16, 0.06), 0 14px 32px rgba(12, 12, 16, 0.1);
 }
 
 /* Users who chose "system" follow the OS preference. */
@@ -150,47 +156,47 @@
   [data-theme="system"] {
     color-scheme: light;
 
-    --bg-app: #f4f5f9;
+    --bg-app: #f5f5f7;
     --bg-app-gradient: radial-gradient(
         1100px 620px at 12% -8%,
-        rgba(125, 150, 255, 0.12),
+        rgba(52, 211, 153, 0.12),
         transparent 55%
       ),
-      radial-gradient(900px 540px at 100% 0%, rgba(150, 110, 255, 0.08), transparent 55%),
-      linear-gradient(180deg, #f7f8fb 0%, #f4f5f9 100%);
-    --bg-sidebar: rgba(255, 255, 255, 0.84);
-    --bg-panel: rgba(255, 255, 255, 0.92);
+      radial-gradient(900px 540px at 100% 0%, rgba(56, 189, 248, 0.07), transparent 55%),
+      linear-gradient(180deg, #f8f8fa 0%, #f5f5f7 100%);
+    --bg-sidebar: rgba(255, 255, 255, 0.85);
+    --bg-panel: rgba(255, 255, 255, 0.93);
     --bg-panel-elevated: #ffffff;
-    --bg-hover: rgba(15, 22, 36, 0.05);
-    --bg-active: rgba(15, 22, 36, 0.09);
+    --bg-hover: rgba(12, 12, 16, 0.05);
+    --bg-active: rgba(12, 12, 16, 0.09);
     --bg-input: #ffffff;
 
-    --border-subtle: rgba(15, 22, 36, 0.1);
-    --border-strong: rgba(15, 22, 36, 0.2);
-    --border-focus: #4a68e0;
+    --border-subtle: rgba(12, 12, 16, 0.09);
+    --border-strong: rgba(12, 12, 16, 0.18);
+    --border-focus: #059669;
 
-    --text-primary: #161a24;
-    --text-secondary: #464f61;
-    --text-muted: #626d80;
+    --text-primary: #16161a;
+    --text-secondary: #47474f;
+    --text-muted: #64646d;
     --text-inverse: #ffffff;
 
-    --accent-primary: #4a68e0;
-    --accent-primary-hover: #3a56cc;
-    --accent-subtle: rgba(74, 104, 224, 0.11);
+    --accent-primary: #059669;
+    --accent-primary-hover: #047857;
+    --accent-subtle: rgba(5, 150, 105, 0.11);
 
-    --success: #1f8b57;
-    --success-subtle: rgba(31, 139, 87, 0.11);
-    --warning: #9a6a10;
-    --warning-subtle: rgba(154, 106, 16, 0.13);
-    --danger: #c33742;
-    --danger-subtle: rgba(195, 55, 66, 0.11);
-    --info: #1f6fbf;
-    --info-subtle: rgba(31, 111, 191, 0.11);
-    --neutral-subtle: rgba(15, 22, 36, 0.06);
+    --success: #059669;
+    --success-subtle: rgba(5, 150, 105, 0.11);
+    --warning: #b45309;
+    --warning-subtle: rgba(180, 83, 9, 0.12);
+    --danger: #e11d48;
+    --danger-subtle: rgba(225, 29, 72, 0.1);
+    --info: #0369a1;
+    --info-subtle: rgba(3, 105, 161, 0.1);
+    --neutral-subtle: rgba(12, 12, 16, 0.06);
 
-    --shadow-card: 0 1px 2px rgba(15, 22, 36, 0.06), 0 6px 18px rgba(15, 22, 36, 0.07);
-    --shadow-popup: 0 12px 36px rgba(15, 22, 36, 0.18);
-    --shadow-lifted: 0 2px 4px rgba(15, 22, 36, 0.07), 0 14px 32px rgba(15, 22, 36, 0.11);
+    --shadow-card: 0 1px 2px rgba(12, 12, 16, 0.05), 0 6px 18px rgba(12, 12, 16, 0.06);
+    --shadow-popup: 0 12px 36px rgba(12, 12, 16, 0.16);
+    --shadow-lifted: 0 2px 4px rgba(12, 12, 16, 0.06), 0 14px 32px rgba(12, 12, 16, 0.1);
   }
 }
 
