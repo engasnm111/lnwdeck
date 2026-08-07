@@ -8,6 +8,7 @@ import {
 } from "../../lib/native";
 import { formatTimestamp } from "../../lib/freshness";
 import { useI18n } from "../../lib/i18n";
+import { emitAlertsUpdated } from "../../lib/ui-events";
 
 function severityTone(severity: AlertRowData["severity"]) {
   switch (severity) {
@@ -57,6 +58,7 @@ export function AlertsPage() {
       setActionError(null);
       try {
         await acknowledgeAlert(id);
+        emitAlertsUpdated();
         await load();
       } catch (ackError) {
         setActionError(

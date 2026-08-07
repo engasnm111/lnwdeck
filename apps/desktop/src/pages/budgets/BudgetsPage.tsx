@@ -163,103 +163,111 @@ export function BudgetsPage() {
 
       <div className="stack">
         <Card title={t("budgets.addTitle")}>
-          <div className="form-grid">
-            <Field label={t("budgets.scope")} htmlFor="budget-scope">
-              <select
-                id="budget-scope"
-                className="ui-select"
-                value={scope}
-                onChange={(event) =>
-                  setScope(event.target.value as "global" | "provider")
-                }
-              >
-                <option value="global">{t("budgets.allProviders")}</option>
-                <option value="provider">{t("budgets.oneProvider")}</option>
-              </select>
-            </Field>
-            {scope === "provider" && (
-              <Field label={t("models.providerLabel")} htmlFor="budget-provider">
+          <div className="budget-form">
+            <div className="budget-form-fields">
+              <Field label={t("budgets.scope")} htmlFor="budget-scope">
                 <select
-                  id="budget-provider"
+                  id="budget-scope"
                   className="ui-select"
-                  value={providerId}
-                  onChange={(event) => setProviderId(event.target.value)}
+                  value={scope}
+                  onChange={(event) =>
+                    setScope(event.target.value as "global" | "provider")
+                  }
                 >
-                  {providers.map((provider) => (
-                    <option
-                      key={provider.provider_id}
-                      value={provider.provider_id}
-                    >
-                      {provider.display_name}
+                  <option value="global">{t("budgets.allProviders")}</option>
+                  <option value="provider">{t("budgets.oneProvider")}</option>
+                </select>
+              </Field>
+              {scope === "provider" && (
+                <Field label={t("models.providerLabel")} htmlFor="budget-provider">
+                  <select
+                    id="budget-provider"
+                    className="ui-select"
+                    value={providerId}
+                    onChange={(event) => setProviderId(event.target.value)}
+                  >
+                    {providers.map((provider) => (
+                      <option
+                        key={provider.provider_id}
+                        value={provider.provider_id}
+                      >
+                        {provider.display_name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              )}
+              <Field label={t("budgets.period")} htmlFor="budget-period">
+                <select
+                  id="budget-period"
+                  className="ui-select"
+                  value={period}
+                  onChange={(event) =>
+                    setPeriod(event.target.value as BudgetPeriod)
+                  }
+                >
+                  {PERIODS.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
                     </option>
                   ))}
                 </select>
               </Field>
-            )}
-            <Field label={t("budgets.period")} htmlFor="budget-period">
-              <select
-                id="budget-period"
-                className="ui-select"
-                value={period}
-                onChange={(event) =>
-                  setPeriod(event.target.value as BudgetPeriod)
-                }
+              <Field
+                label={t("budgets.costLimit")}
+                htmlFor="budget-cost"
+                hint={t("budgets.costLimitHint")}
               >
-                {PERIODS.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field
-              label={t("budgets.costLimit")}
-              htmlFor="budget-cost"
-              hint={t("budgets.costLimitHint")}
-            >
-              <input
-                id="budget-cost"
-                className="ui-input"
-                inputMode="decimal"
-                value={costLimit}
-                onChange={(event) => setCostLimit(event.target.value)}
+                <input
+                  id="budget-cost"
+                  className="ui-input"
+                  inputMode="decimal"
+                  value={costLimit}
+                  onChange={(event) => setCostLimit(event.target.value)}
+                />
+              </Field>
+              <Field
+                label={t("budgets.tokenLimit")}
+                htmlFor="budget-tokens"
+                hint={t("budgets.tokenLimitHint")}
+              >
+                <input
+                  id="budget-tokens"
+                  className="ui-input"
+                  inputMode="numeric"
+                  value={tokenLimit}
+                  onChange={(event) => setTokenLimit(event.target.value)}
+                />
+              </Field>
+              <Field
+                label={t("budgets.warnAt")}
+                htmlFor="budget-warn"
+                hint={t("budgets.warnAtHint")}
+              >
+                <input
+                  id="budget-warn"
+                  className="ui-input"
+                  inputMode="numeric"
+                  value={warnPercent}
+                  onChange={(event) => setWarnPercent(event.target.value)}
+                />
+              </Field>
+            </div>
+            <div className="budget-form-actions">
+              <Toggle
+                id="budget-enabled"
+                label={t("budgets.enabled")}
+                checked={enabled}
+                onChange={setEnabled}
               />
-            </Field>
-            <Field
-              label={t("budgets.tokenLimit")}
-              htmlFor="budget-tokens"
-              hint={t("budgets.tokenLimitHint")}
-            >
-              <input
-                id="budget-tokens"
-                className="ui-input"
-                inputMode="numeric"
-                value={tokenLimit}
-                onChange={(event) => setTokenLimit(event.target.value)}
-              />
-            </Field>
-            <Field label={t("budgets.warnAt")} htmlFor="budget-warn" hint={t("budgets.warnAtHint")}>
-              <input
-                id="budget-warn"
-                className="ui-input"
-                inputMode="numeric"
-                value={warnPercent}
-                onChange={(event) => setWarnPercent(event.target.value)}
-              />
-            </Field>
-            <Toggle
-              id="budget-enabled"
-              label={t("budgets.enabled")}
-              checked={enabled}
-              onChange={setEnabled}
-            />
-            <Button
-              variant="primary"
-              onClick={() => void handleSave()}
-              disabled={saving}
-            >
-              {saving ? t("common.saving") : t("budgets.save")}
-            </Button>
+              <Button
+                variant="primary"
+                onClick={() => void handleSave()}
+                disabled={saving}
+              >
+                {saving ? t("common.saving") : t("budgets.save")}
+              </Button>
+            </div>
           </div>
           {formError && (
             <p className="ui-field-error" role="alert">

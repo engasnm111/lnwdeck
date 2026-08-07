@@ -81,7 +81,7 @@ const alerts = (openCount: number): native.AlertsViewData => ({
   history: [],
   open_count: openCount,
   critical_count: 0,
-  unacknowledged_count: 0,
+  unacknowledged_count: openCount,
 });
 
 function renderShell() {
@@ -148,6 +148,9 @@ describe("AppShell", () => {
         screen.getByText("Refresh failed: storage not initialized"),
       ).toBeInTheDocument(),
     );
+    expect(
+      screen.getByRole("button", { name: "Refresh all providers" }),
+    ).toBeEnabled();
   });
 
   it("applies the stored theme to the document", async () => {
@@ -162,7 +165,30 @@ describe("AppShell", () => {
     vi.mocked(native.fetchAlerts).mockResolvedValue(alerts(3));
     renderShell();
     await waitFor(() =>
-      expect(screen.getByLabelText("3 open alerts")).toBeInTheDocument(),
+      expect(
+        screen.getByLabelText("3 unacknowledged alerts"),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("removes the alert badge when another page acknowledges an alert", async () => {
+    vi.mocked(native.fetchAlerts)
+      .mockResolvedValueOnce(alerts(3))
+      .mockResolvedValueOnce(alerts(0));
+    renderShell();
+
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText("3 unacknowledged alerts"),
+      ).toBeInTheDocument(),
+    );
+
+    window.dispatchEvent(new Event("lnwdeck:alerts-updated"));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByLabelText("3 unacknowledged alerts"),
+      ).not.toBeInTheDocument(),
     );
   });
 });

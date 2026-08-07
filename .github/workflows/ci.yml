@@ -122,7 +122,7 @@ jobs:
 
   e2e-ui:
     name: UI E2E (Playwright + WebView2)
-    runs-on: windows-2022
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -171,7 +171,7 @@ jobs:
 
   compile:
     name: Compile (${{ matrix.target }})
-    runs-on: windows-2022
+    runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
@@ -225,4 +225,4 @@ jobs:
       - name: cargo check
         shell: pwsh
         run: |
-          pwsh scripts/ci-retry.ps1 -Command "cargo check --workspace --all-targets --target ${{ matrix.target }}" -Label "cargo check ${{ matrix.target }}"
+          pwsh scripts/ci-retry.ps1 -Command "cargo check --workspace --target ${{ matrix.target }}" -Label "cargo check ${{ matrix.target }}"

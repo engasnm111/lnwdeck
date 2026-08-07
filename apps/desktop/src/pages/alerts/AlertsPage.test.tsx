@@ -89,8 +89,12 @@ describe("AlertsPage", () => {
         screen.getByRole("button", { name: "Acknowledge" }),
       ).toBeInTheDocument(),
     );
+    const alertsUpdated = vi.fn();
+    window.addEventListener("lnwdeck:alerts-updated", alertsUpdated);
     await userEvent.click(screen.getByRole("button", { name: "Acknowledge" }));
     expect(native.acknowledgeAlert).toHaveBeenCalledWith(1);
+    expect(alertsUpdated).toHaveBeenCalledTimes(1);
+    window.removeEventListener("lnwdeck:alerts-updated", alertsUpdated);
   });
 
   it("shows a failed acknowledgement instead of hiding it", async () => {

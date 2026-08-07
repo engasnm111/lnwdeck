@@ -19,6 +19,7 @@ import { UpdateNotification } from "../components/UpdateNotification";
 import { fetchAlerts, fetchSettings, refreshAll } from "../lib/native";
 import { formatRelativeTime, freshnessOf } from "../lib/freshness";
 import { useI18n } from "../lib/i18n";
+import { ALERTS_UPDATED_EVENT } from "../lib/ui-events";
 
 const navItems = [
   { to: "/", key: "nav.overview", icon: OverviewIcon },
@@ -47,7 +48,7 @@ export function AppShell() {
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [appVersion, setAppVersion] = useState<string | null>(null);
-  const [openAlerts, setOpenAlerts] = useState<number | null>(null);
+  const [unacknowledgedAlerts, setUnacknowledgedAlerts] = useState<number | null>(null);
   const [theme, setTheme] = useState<string>("system");
   const [now, setNow] = useState(() => Date.now());
   const location = useLocation();
@@ -59,9 +60,9 @@ export function AppShell() {
     // Both calls are independent: a failure in one must not hide the other.
     try {
       const alerts = await fetchAlerts();
-      setOpenAlerts(alerts.open_count);
+      setUnacknowledgedAlerts(alerts.unacknowledged_count);
     } catch {
-      setOpenAlerts(null);
+      setUnacknowledgedAlerts(null);
     }
     try {
       const view = await fetchSettings();
@@ -88,10 +89,15 @@ export function AppShell() {
     const unlisten = listen<string>("settings-changed", (event) => {
       setTheme(event.payload);
     });
+    const onAlertsUpdated = () => {
+      void loadStatus();
+    };
+    window.addEventListener(ALERTS_UPDATED_EVENT, onAlertsUpdated);
     const tick = setInterval(() => setNow(Date.now()), 30_000);
     return () => {
       clearInterval(tick);
       void unlisten.then((fn) => fn());
+      window.removeEventListener(ALERTS_UPDATED_EVENT, onAlertsUpdated);
     };
   }, [loadStatus, loadFreshness]);
 
@@ -158,7 +164,9 @@ export function AppShell() {
             {navItems.map((item) => {
               const Icon = item.icon;
               const badgeCount =
-                item.to === "/alerts" && openAlerts ? openAlerts : null;
+                item.to === "/alerts" && unacknowledgedAlerts
+                  ? unacknowledgedAlerts
+                  : null;
               return (
                 <li key={item.to}>
                   <NavLink

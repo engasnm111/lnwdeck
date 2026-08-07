@@ -149,4 +149,29 @@ describe("BudgetsPage", () => {
       }),
     );
   });
+
+  it("keeps budget fields and actions in separate aligned rows", async () => {
+    vi.mocked(native.fetchBudgets).mockResolvedValue({
+      generated_at: "2026-08-04T00:00:00Z",
+      budgets: [],
+    });
+    render(<BudgetsPage />);
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Cost limit")).toBeInTheDocument(),
+    );
+
+    const fields = document.querySelector(".budget-form-fields");
+    const actions = document.querySelector(".budget-form-actions");
+    expect(fields).not.toBeNull();
+    expect(actions).not.toBeNull();
+    expect(fields).toContainElement(screen.getByLabelText("Cost limit"));
+    expect(fields).toContainElement(screen.getByLabelText("Warn at"));
+    expect(actions).toContainElement(
+      screen.getByRole("switch", { name: "Enabled" }),
+    );
+    expect(actions).toContainElement(
+      screen.getByRole("button", { name: "Save budget" }),
+    );
+  });
 });

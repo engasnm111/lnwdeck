@@ -29,6 +29,16 @@ pub struct PipelineDiagnostics {
     pub runs: Vec<CollectorRunRow>,
 }
 
+const MANUAL_REFRESH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
+struct RefreshRunningGuard<'a>(&'a std::sync::atomic::AtomicBool);
+
+impl Drop for RefreshRunningGuard<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
 pub fn load_or_create_hash_key(conn: &rusqlite::Connection) -> Result<Vec<u8>, String> {
     let settings = AppSettingsRepository::new(conn);
     if let Some(stored) = settings.get("hash_key").map_err(|e| e.to_string())? {
@@ -154,9 +164,10 @@ pub async fn refresh_all(app: tauri::AppHandle) -> Result<RefreshCycleOutcome, S
     // hangs.
     let app_work = app.clone();
     let cycle = match tokio::time::timeout(
-        std::time::Duration::from_secs(300),
+        MANUAL_REFRESH_TIMEOUT,
         tauri::async_runtime::spawn_blocking(move || -> Result<RefreshCycleOutcome, String> {
             let state = app_work.state::<AppState>();
+            let _running_guard = RefreshRunningGuard(&state.refresh_running);
             refresh_now(&state)
         }),
     )
@@ -164,14 +175,11 @@ pub async fn refresh_all(app: tauri::AppHandle) -> Result<RefreshCycleOutcome, S
     {
         Ok(Ok(inner)) => inner,
         Ok(Err(e)) => Err(format!("refresh task failed: {e}")),
-        Err(_) => Err("refresh timed out after 5 minutes".to_string()),
+        Err(_) => Err(format!(
+            "refresh timed out after {} seconds",
+            MANUAL_REFRESH_TIMEOUT.as_secs()
+        )),
     };
-    {
-        let state = app.state::<AppState>();
-        state
-            .refresh_running
-            .store(false, std::sync::atomic::Ordering::SeqCst);
-    }
     let cycle = cycle?;
     crate::record_sync_time(&app);
     crate::tray::update_sync_label(&app);
@@ -399,6 +407,11 @@ mod tests {
         let second = load_or_create_hash_key(&storage.conn).expect("second");
         assert_eq!(first, second);
         assert_eq!(first.len(), 32);
+    }
+
+    #[test]
+    fn manual_refresh_timeout_is_bounded_for_ui_responsiveness() {
+        assert_eq!(MANUAL_REFRESH_TIMEOUT.as_secs(), 60);
     }
 
     #[test]
