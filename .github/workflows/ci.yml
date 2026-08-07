@@ -1,4 +1,4 @@
-name: CI
+﻿name: CI
 
 on:
   push:
@@ -23,7 +23,7 @@ env:
 jobs:
   check:
     name: Check (fmt, clippy, typecheck)
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
 
@@ -58,7 +58,7 @@ jobs:
 
   test:
     name: Test
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
 
@@ -130,7 +130,7 @@ jobs:
 
   e2e-ui:
     name: UI E2E (Playwright + WebView2)
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
 
@@ -184,7 +184,7 @@ jobs:
 
   compile:
     name: Compile (${{ matrix.target }})
-    runs-on: windows-latest
+    runs-on: windows-2022
     strategy:
       fail-fast: false
       matrix:
