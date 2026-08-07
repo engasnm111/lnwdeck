@@ -354,39 +354,65 @@
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
-  padding: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border-subtle);
-  border-left: 3px solid var(--border-strong);
+  border-left: 4px solid var(--border-strong);
   border-radius: var(--radius-control);
   background: var(--bg-panel-elevated);
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    border-color 120ms ease;
+}
+
+.alert-row:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
 }
 
 .alert-row-critical {
   border-left-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 6%, var(--bg-panel-elevated));
 }
 
 .alert-row-warning {
   border-left-color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 6%, var(--bg-panel-elevated));
 }
 
 .alert-row-info {
   border-left-color: var(--info);
+  background: color-mix(in srgb, var(--info) 6%, var(--bg-panel-elevated));
+}
+
+.alert-row .row {
+  flex-shrink: 0;
+  gap: var(--space-2);
 }
 
 .alert-body {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
 }
 
 .alert-title {
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-primary);
+  line-height: 1.4;
 }
 
 .alert-detail {
   font-size: 0.75rem;
   color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.alert-detail + .alert-detail {
+  opacity: 0.85;
 }
 
 .settings-grid {
@@ -470,4 +496,53 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+}
+
+/* Pet pose toggles: two compact columns under one fieldset. */
+.ui-fieldset {
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md, 8px);
+  padding: var(--space-3);
+  margin: 0;
+}
+
+.ui-fieldset-legend {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0 var(--space-1);
+  color: var(--text-secondary, rgba(255, 255, 255, 0.65));
+}
+
+.settings-pose-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-2);
+}
+
+/* Pet import: full-width input with its button below, plus step guidance. */
+.settings-import {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.settings-import-input {
+  width: 100%;
+  min-height: 44px;
+  font-size: 0.95rem;
+}
+
+.settings-import .ui-btn {
+  align-self: flex-start;
+}
+
+.settings-import-steps {
+  margin: 0;
+  padding-left: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 0.85rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.65));
+  line-height: 1.5;
 }

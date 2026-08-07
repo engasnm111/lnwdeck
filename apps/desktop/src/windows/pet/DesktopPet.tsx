@@ -4,6 +4,7 @@ import { currentMonitor } from "@tauri-apps/api/window";
 import {
   fetchPetSpritesheetUrl,
   fetchPetWindowSettings,
+  fetchQuotaDashboard,
   hidePetWindow,
   listWidgetPets,
   movePetWindow,
@@ -14,11 +15,35 @@ import {
 import {
   tickMovement,
   pickNextPhase,
+  AMBIENT_POSES,
   type PetMovementState,
   type PetSpeed,
 } from "./petMovement";
+import { pickPetQuip } from "./petQuips";
 import { PetTooltip } from "./PetTooltip";
 import "./DesktopPet.css";
+
+/** Ambient poses the current settings enable, as movement states. */
+function enabledPosesOf(s: PetWindowSettingsData): PetMovementState[] {
+  const poses: Array<{ key: string; state: PetMovementState }> = [
+    { key: "pet_pose_wave", state: "wave" },
+    { key: "pet_pose_jump", state: "jump" },
+    { key: "pet_pose_look_left", state: "look-left" },
+    { key: "pet_pose_look_right", state: "look-right" },
+    { key: "pet_pose_waiting", state: "waiting" },
+    { key: "pet_pose_review", state: "review" },
+  ];
+  const enabled = new Set<string>();
+  if (s.poseWave) enabled.add("pet_pose_wave");
+  if (s.poseJump) enabled.add("pet_pose_jump");
+  if (s.poseLookLeft) enabled.add("pet_pose_look_left");
+  if (s.poseLookRight) enabled.add("pet_pose_look_right");
+  if (s.poseWaiting) enabled.add("pet_pose_waiting");
+  if (s.poseReview) enabled.add("pet_pose_review");
+  return AMBIENT_POSES.filter((pose) =>
+    enabled.has(poses.find((entry) => entry.state === pose)?.key ?? ""),
+  );
+}
 
 /**
  * Desktop pet window.
@@ -76,6 +101,13 @@ export function DesktopPet() {
     opacity: 1.0,
     autoSleep: true,
     sizePreset: "medium",
+    stayInPlace: false,
+    poseWave: true,
+    poseJump: true,
+    poseLookLeft: true,
+    poseLookRight: true,
+    poseWaiting: true,
+    poseReview: true,
   });
   const [pets, setPets] = useState<PetManifest[]>([]);
   const [scale, setScale] = useState(1);
@@ -87,10 +119,13 @@ export function DesktopPet() {
   const [hovering, setHovering] = useState(false);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [spriteUrl, setSpriteUrl] = useState<string | null>(null);
+  const [speech, setSpeech] = useState<string | null>(null);
+  const speechTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const phaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleSince = useRef(Date.now());
   const dragging = useRef(false);
+  const didDrag = useRef(false);
   const dragStart = useRef({ winX: 0, winY: 0, clientX: 0, clientY: 0 });
   const posRef = useRef(pos);
   posRef.current = pos;
@@ -118,12 +153,15 @@ export function DesktopPet() {
     if (phaseTimer.current) clearTimeout(phaseTimer.current);
     const bounds = boundsRef.current;
     const view = viewRef.current;
+    const s = settingsRef.current;
     const config = {
       petWidth: view.w,
       screenW: bounds.w,
       screenH: bounds.h,
-      speed: settingsRef.current.speed as PetSpeed,
-      autoSleep: settingsRef.current.autoSleep,
+      speed: s.speed as PetSpeed,
+      autoSleep: s.autoSleep,
+      stayInPlace: s.stayInPlace,
+      enabledPoses: enabledPosesOf(s),
     };
     const next = pickNextPhase(
       movementStateRef.current,
@@ -291,7 +329,9 @@ export function DesktopPet() {
 
   // Drag: press + move picks the pet up. The pet stops walking immediately:
   // the phase timer is cancelled and the pose settles to idle, so the drag
-  // never fights the movement loop.
+  // never fights the movement loop. Deltas are tracked in SCREEN coordinates:
+  // client coordinates shift whenever the window itself moves, which would
+  // feed the drag's own motion back into it and make the pet jitter.
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -304,19 +344,20 @@ export function DesktopPet() {
     dragStart.current = {
       winX: posRef.current.x,
       winY: posRef.current.y,
-      clientX: e.clientX,
-      clientY: e.clientY,
+      clientX: e.screenX,
+      clientY: e.screenY,
     };
   }, []);
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragging.current) return;
     const start = dragStart.current;
-    const dx = e.clientX - start.clientX;
-    const dy = e.clientY - start.clientY;
+    const dx = e.screenX - start.clientX;
+    const dy = e.screenY - start.clientY;
     if (Math.abs(dx) < DRAG_THRESHOLD_PX && Math.abs(dy) < DRAG_THRESHOLD_PX) {
       return;
     }
+    didDrag.current = true;
     const bounds = boundsRef.current;
     const view = viewRef.current;
     const next = clampWindow(
@@ -334,16 +375,59 @@ export function DesktopPet() {
     setPos(next);
   }, [scale]);
 
+  // A click without dragging makes the pet say something: a quip built from
+  // the live quota dashboard, held for a few seconds.
+  const triggerTap = useCallback(() => {
+    void fetchQuotaDashboard()
+      .then((dashboard) => {
+        let lowest: number | null = null;
+        let plan: string | null = null;
+        let tokens = 0;
+        let cost = 0;
+        for (const provider of dashboard.providers) {
+          if (provider.plan) plan = provider.plan;
+          for (const window of provider.windows) {
+            if (window.used_percent !== null) {
+              const remaining = window.remaining_percent;
+              if (remaining !== null && (lowest === null || remaining < lowest)) {
+                lowest = remaining;
+              }
+            }
+            tokens += window.used;
+            cost += window.used_percent !== null ? 0 : 0;
+          }
+        }
+        return pickPetQuip({
+          todayTokens: tokens,
+          costUsd: cost,
+          currencySymbol: "$",
+          lowestRemainingPercent: lowest,
+          plan,
+        });
+      })
+      .catch(() => pickPetQuip({ todayTokens: 0, costUsd: 0, currencySymbol: "$", lowestRemainingPercent: null, plan: null }))
+      .then((quip) => {
+        if (speechTimer.current) clearTimeout(speechTimer.current);
+        setSpeech(quip);
+        speechTimer.current = setTimeout(() => setSpeech(null), 3200);
+      });
+  }, []);
+
   const onPointerUp = useCallback(() => {
     dragging.current = false;
     idleSince.current = Date.now();
+    // A plain click (no drag) makes the pet say something.
+    if (!didDrag.current) {
+      triggerTap();
+    }
+    didDrag.current = false;
     // Resume normal behaviour after the drag settles.
     setTimeout(() => {
       if (!dragging.current && !phaseTimer.current) {
         scheduleRef.current();
       }
     }, 120);
-  }, []);
+  }, [triggerTap]);
 
   // Right-click: small context menu with Close / Settings.
   const onContextMenu = useCallback((e: React.MouseEvent) => {
@@ -433,13 +517,22 @@ export function DesktopPet() {
           )}
         </div>
 
-        {hovering && !menu && activePet && (
+        {(speech || (hovering && !menu && activePet)) && (
           <div
             className="pet-tooltip-anchor"
             onMouseEnter={() => setHovering(true)}
             onMouseLeave={() => setHovering(false)}
           >
-            <PetTooltip visible={hovering} />
+            {speech ? (
+              <div className="pet-tooltip" role="status" aria-live="polite">
+                <div className="pet-tooltip-inner pet-tooltip-speech">
+                  <span className="pet-tooltip-empty">{speech}</span>
+                </div>
+                <span className="pet-tooltip-arrow" />
+              </div>
+            ) : (
+              <PetTooltip visible={hovering} />
+            )}
           </div>
         )}
       </div>

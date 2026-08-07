@@ -63,6 +63,10 @@ export interface MovementConfig {
   speed: PetSpeed;
   /** Whether auto-sleep is enabled. */
   autoSleep: boolean;
+  /** Whether the pet stays in place instead of walking. */
+  stayInPlace?: boolean;
+  /** Ambient poses the user enabled; empty means no poses. */
+  enabledPoses?: readonly PetMovementState[];
 }
 
 export interface MovementResult {
@@ -120,6 +124,8 @@ export function pickNextPhase(
   idleContinuity: number,
   config: MovementConfig,
 ): { state: PetMovementState; direction: "left" | "right"; duration: number } {
+  const enabledPoses = config.enabledPoses ?? AMBIENT_POSES;
+
   // If we've been idle long enough and auto-sleep is on, go to sleep.
   if (
     config.autoSleep &&
@@ -151,14 +157,22 @@ export function pickNextPhase(
     };
   }
 
-  // After idle, sometimes play an ambient pose, otherwise walk.
-  if (Math.random() < AMBIENT_CHANCE) {
-    const pose = pick(AMBIENT_POSES);
+  // After idle, sometimes play an ambient pose; otherwise walk when allowed,
+  // or stay idle when the pet is set to stay in place.
+  if (Math.random() < AMBIENT_CHANCE && enabledPoses.length > 0) {
+    const pose = pick(enabledPoses);
     return {
       state: pose,
       direction:
         pose === "look-left" ? "left" : pose === "look-right" ? "right" : Math.random() > 0.5 ? "left" : "right",
       duration: rand(...POSE_MS),
+    };
+  }
+  if (config.stayInPlace || enabledPoses.length === 0) {
+    return {
+      state: "idle",
+      direction: Math.random() > 0.5 ? "left" : "right",
+      duration: rand(...IDLE_MS),
     };
   }
   const dir: "left" | "right" = Math.random() > 0.5 ? "left" : "right";

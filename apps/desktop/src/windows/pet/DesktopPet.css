@@ -349,6 +349,18 @@
   color: rgba(255, 255, 255, 0.5);
 }
 
+/* Random quip bubble (tap on the pet). */
+.pet-tooltip-speech {
+  min-width: 0;
+  max-width: 220px;
+}
+
+.pet-tooltip-speech .pet-tooltip-empty {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.92);
+  font-weight: 600;
+}
+
 .pet-tooltip-arrow {
   position: absolute;
   left: 50%;
