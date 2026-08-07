@@ -215,13 +215,19 @@ against the built artifacts and asserts that a tampered installer is rejected.
 - OpenCode usage events are cumulative session snapshots; per-update delta
   accounting is not implemented.
 
-## Documentation
+## Credits
 
-- `docs/02_SYSTEM_ARCHITECTURE.md` - architecture and data flow
-- `docs/03_PROVIDER_ADAPTER_SDK.md` - adapter descriptors and the contract suite
-- `docs/05_SECURITY_PRIVACY.md` - privacy rules and the guard
-- `docs/07_WINDOWS_BUILD_RELEASE.md` - build, sign and release
-- `docs/audits/2026-08-04-audit.md` - source audit behind this release
+lnwdeck builds on the work of great open-source projects and communities:
+
+- [TokenTracker](https://github.com/xiufengsun/TokenTracker) - reference for
+  the community pet package format (`pet.json` + WebP spritesheet), the
+  codex-pets.net import validation rules, and the floating desktop pet
+  window approach.
+- [tokscale](https://github.com/junhoyoe/tokscale) - reference for reading
+  Codex CLI usage records.
+- [codex-pets.net](https://codex-pets.net) - the community pet catalog that
+  ships the six bundled default pets and powers the pet import feature.
+- The [Tauri](https://tauri.app) project and its plugin ecosystem.
 
 ## License
 
