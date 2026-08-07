@@ -2,6 +2,32 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [0.7.1] - 2026-08-08
+
+### Fixed
+
+- **Budget form alignment.** Budget fields now share a stable five-column grid
+  with aligned labels and hints, while the enabled toggle and save action live
+  in a dedicated action row that collapses cleanly on smaller screens.
+- **Refresh All responsiveness.** Manual refresh now returns after a bounded
+  60-second timeout, reports the failure, and keeps the in-flight worker guard
+  until the blocking collector actually exits so a timed-out cycle cannot
+  overlap a new one.
+- **Alert acknowledgement state.** The navigation badge now counts
+  unacknowledged alerts and updates immediately when the Alerts page
+  acknowledges one.
+
+### CI/CD
+
+- Build-heavy CI jobs use the Windows runner proven by the release workflow.
+- Per-architecture compile checks no longer build every test target; the
+  dedicated test job remains responsible for test-target coverage.
+
+### Verification
+
+- Workspace check, frontend tests, desktop Rust tests, release script tests and
+  pipeline E2E tests pass locally.
+
 ## [0.7.0] - 2026-08-07
 
 ### Highlights
@@ -258,5 +284,6 @@ Requirements: Windows 10 22H2 or later, WebView2 Runtime.
 - **E2E privacy tests**: 7 scenarios covering provider config, logs, profiles, hooks, browser messages, exports, tray data
 - **Privacy scanner**: 10 forbidden patterns across all source artifacts
 
+[0.7.1]: https://github.com/engasnm111/lnwdeck/compare/v0.7.0...v0.7.1
 [0.2.1]: https://github.com/engasnm111/lnwdeck/compare/v0.1.0...v0.2.1
 [0.1.0]: https://github.com/engasnm111/lnwdeck/releases/tag/v0.1.0

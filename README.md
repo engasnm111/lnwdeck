@@ -213,7 +213,7 @@ pnpm tauri:build
 pwsh ./scripts/package-portable.ps1
 
 # Updater manifest from the built, signed artifacts
-node scripts/generate-updater-json.mjs v0.7.0 <assets-dir>
+node scripts/generate-updater-json.mjs v0.7.1 <assets-dir>
 ```
 
 The bundler writes `*-setup.exe` next to a `*.sig` signature. The updater
