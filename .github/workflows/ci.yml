@@ -88,15 +88,20 @@ jobs:
       - name: Rust tests
         shell: pwsh
         run: |
-          $crates = (cargo metadata --no-deps --format-version 1 | ConvertFrom-Json).packages.id
-          foreach ($c in $crates) {
-            Write-Output "::group::Testing $c"
-            cargo test -p $c *> test.log 2>&1
-            if ($LASTEXITCODE -ne 0) {
-              Get-Content test.log | Select-Object -Last 80 | ForEach-Object { Write-Output "::error::$_" }
-              exit 1
-            }
-            Write-Output "::endgroup::"
+          cargo test -p lnwdeck-native-messaging-host *> test.log 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content test.log | Select-Object -Last 100 | ForEach-Object { Write-Output "::error::$_" }
+            exit 1
+          }
+          cargo test -p lnwdeck-desktop *> test2.log 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content test2.log | Select-Object -Last 100 | ForEach-Object { Write-Output "::error::$_" }
+            exit 1
+          }
+          cargo test --workspace --exclude lnwdeck-native-messaging-host --exclude lnwdeck-desktop *> test3.log 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content test3.log | Select-Object -Last 100 | ForEach-Object { Write-Output "::error::$_" }
+            exit 1
           }
 
       - name: Frontend tests
