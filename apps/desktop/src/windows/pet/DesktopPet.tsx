@@ -2,12 +2,14 @@
 import { listen } from "@tauri-apps/api/event";
 import { currentMonitor } from "@tauri-apps/api/window";
 import {
+  applyPetClickThrough,
   fetchPetSpritesheetUrl,
   fetchPetWindowSettings,
   fetchQuotaDashboard,
   hidePetWindow,
   listWidgetPets,
   movePetWindow,
+  setPetHitRect,
   showMainWindow,
   type PetManifest,
   type PetWindowSettingsData,
@@ -20,6 +22,7 @@ import {
   type PetSpeed,
 } from "./petMovement";
 import { pickPetQuip } from "./petQuips";
+import { useI18n } from "../../lib/i18n";
 import { PetTooltip } from "./PetTooltip";
 import "./DesktopPet.css";
 
@@ -66,6 +69,8 @@ const SPRITE_ASPECT = 208 / 192;
 const TICK_MS = 50;
 /** Pressed distance (px) before a press becomes a drag instead of a click. */
 const DRAG_THRESHOLD_PX = 6;
+/** How much space above the sprite stays clickable for tooltips/quips. */
+const TOOLTIP_ZONE_H = 260;
 
 interface ContextMenuState {
   x: number;
@@ -94,6 +99,7 @@ function clampWindow(
  * left-press + drag picks the pet up and moves it anywhere on screen.
  */
 export function DesktopPet() {
+  const { t, language } = useI18n();
   const [settings, setSettings] = useState<PetWindowSettingsData>({
     visible: true,
     character: "",
@@ -285,6 +291,12 @@ export function DesktopPet() {
     setPos(start);
   }, [screenSize.w, screenSize.h, viewSize.w, viewSize.h]);
 
+  // Sprite size follows the size preset, shrinking only when the window
+  // viewport is too small for it.
+  const base = SPRITE_BASE[settings.sizePreset] ?? SPRITE_BASE.medium;
+  const spriteW = Math.max(48, Math.min(base, viewSize.w - 12));
+  const spriteH = Math.round(spriteW * SPRITE_ASPECT);
+
   // Push the window position to the backend whenever it changes (physical).
   useEffect(() => {
     void movePetWindow(
@@ -292,6 +304,31 @@ export function DesktopPet() {
       Math.round(pos.y * scale),
     ).catch(() => {});
   }, [pos, scale]);
+
+  // Report the clickable rectangle (sprite + tooltip, in logical screen
+  // pixels) so the backend makes the transparent window click-through
+  // everywhere else. The rect grows while a tooltip or quip is showing so it
+  // stays interactive.
+  useEffect(() => {
+    const tooltipShown = speech !== null || hovering;
+    const rect: [number, number, number, number] = [
+      pos.x + (viewSize.w - spriteW) / 2,
+      pos.y + viewSize.h - spriteH - 6 - (tooltipShown ? TOOLTIP_ZONE_H : 0),
+      spriteW,
+      spriteH + 6 + (tooltipShown ? TOOLTIP_ZONE_H : 0),
+    ];
+    void setPetHitRect(rect).catch(() => {});
+  }, [pos, viewSize, spriteW, spriteH, speech, hovering]);
+
+  // Periodically apply the click-through state the backend computed from the
+  // cursor position. Window APIs must be called from this (UI) thread, so the
+  // backend's polling thread only stores the result.
+  useEffect(() => {
+    const poll = setInterval(() => {
+      void applyPetClickThrough().catch(() => {});
+    }, 200);
+    return () => clearInterval(poll);
+  }, []);
 
   // Movement loop: advance the window and bounce off screen edges.
   useEffect(() => {
@@ -397,15 +434,29 @@ export function DesktopPet() {
             cost += window.used_percent !== null ? 0 : 0;
           }
         }
-        return pickPetQuip({
-          todayTokens: tokens,
-          costUsd: cost,
-          currencySymbol: "$",
-          lowestRemainingPercent: lowest,
-          plan,
-        });
+        return pickPetQuip(
+          {
+            todayTokens: tokens,
+            costUsd: cost,
+            currencySymbol: "$",
+            lowestRemainingPercent: lowest,
+            plan,
+          },
+          language,
+        );
       })
-      .catch(() => pickPetQuip({ todayTokens: 0, costUsd: 0, currencySymbol: "$", lowestRemainingPercent: null, plan: null }))
+      .catch(() =>
+        pickPetQuip(
+          {
+            todayTokens: 0,
+            costUsd: 0,
+            currencySymbol: "$",
+            lowestRemainingPercent: null,
+            plan: null,
+          },
+          language,
+        ),
+      )
       .then((quip) => {
         if (speechTimer.current) clearTimeout(speechTimer.current);
         setSpeech(quip);
@@ -478,12 +529,6 @@ export function DesktopPet() {
                       ? "pet-state-review"
                       : "pet-state-idle";
 
-  // Sprite size follows the size preset, shrinking only when the window
-  // viewport is too small for it.
-  const base = SPRITE_BASE[settings.sizePreset] ?? SPRITE_BASE.medium;
-  const spriteW = Math.max(48, Math.min(base, viewSize.w - 12));
-  const spriteH = Math.round(spriteW * SPRITE_ASPECT);
-
   return (
     <div
       className="pet-window"
@@ -551,7 +596,7 @@ export function DesktopPet() {
             role="menuitem"
             onClick={handleOpenSettings}
           >
-            Pet settings
+            {t("pet.menu.settings")}
           </button>
           <button
             type="button"
@@ -559,7 +604,7 @@ export function DesktopPet() {
             role="menuitem"
             onClick={handleClosePet}
           >
-            Close pet
+            {t("pet.menu.close")}
           </button>
         </div>
       )}

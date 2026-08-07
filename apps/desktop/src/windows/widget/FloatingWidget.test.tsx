@@ -2,6 +2,7 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { FloatingWidget, hasFetchedQuota, statusChip } from "./FloatingWidget";
+import { translate } from "../../lib/i18n";
 import * as native from "../../lib/native";
 
 vi.mock("../../lib/native", async (importOriginal) => {
@@ -871,30 +872,34 @@ describe("FloatingWidget pet view", () => {
 });
 
 describe("statusChip", () => {
+  // The default (English) translator maps keys to their English strings.
+  const en = (key: string, vars?: Record<string, string>) =>
+    translate("en", key, vars);
+
   it("names each provider state exactly once", () => {
-    expect(statusChip("fresh", null).label).toBe("Live");
-    expect(statusChip("stale", null).label).toBe("Stale");
-    expect(statusChip("rate_limited", "RATE_LIMITED").label).toBe(
+    expect(statusChip("fresh", null, en).label).toBe("Live");
+    expect(statusChip("stale", null, en).label).toBe("Stale");
+    expect(statusChip("rate_limited", "RATE_LIMITED", en).label).toBe(
       "Rate limited",
     );
-    expect(statusChip("auth_expired", "AUTH_EXPIRED").label).toBe(
+    expect(statusChip("auth_expired", "AUTH_EXPIRED", en).label).toBe(
       "Not authenticated",
     );
-    expect(statusChip("unavailable", null).label).toBe("Unavailable");
-    expect(statusChip("error", "BOOM").label).toBe("Error");
+    expect(statusChip("unavailable", null, en).label).toBe("Unavailable");
+    expect(statusChip("error", "BOOM", en).label).toBe("Error");
   });
 
   it("explains a provider that is only waiting for a key", () => {
-    expect(statusChip("unavailable", "NOT_CONFIGURED").detail).toContain(
+    expect(statusChip("unavailable", "NOT_CONFIGURED", en).detail).toContain(
       "Add an API key",
     );
-    expect(statusChip("unavailable", "SOURCE_UNAVAILABLE").detail).toContain(
+    expect(statusChip("unavailable", "SOURCE_UNAVAILABLE", en).detail).toContain(
       "No source",
     );
   });
 
   it("uses a non-alarming tone for a provider that is merely unconfigured", () => {
-    expect(statusChip("unavailable", "NOT_CONFIGURED").tone).toBe("muted");
+    expect(statusChip("unavailable", "NOT_CONFIGURED", en).tone).toBe("muted");
     expect(statusChip("auth_expired", "AUTH_EXPIRED").tone).toBe("error");
   });
 });

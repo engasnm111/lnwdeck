@@ -10,6 +10,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { fetchQuotaDashboard, type QuotaDashboardData } from "../../lib/native";
+import { useI18n } from "../../lib/i18n";
 
 function formatCompact(n: number): string {
   if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
@@ -33,6 +34,7 @@ interface UsageRow {
 }
 
 export function PetTooltip({ visible }: { visible: boolean }) {
+  const { t } = useI18n();
   const [data, setData] = useState<QuotaDashboardData | null>(null);
   const [totalTokens, setTotalTokens] = useState(0);
 
@@ -110,7 +112,7 @@ export function PetTooltip({ visible }: { visible: boolean }) {
         {totalTokens > 0 && (
           <div className="pet-tooltip-tokens">
             <span className="pet-tooltip-token-count">
-              {formatCompact(totalTokens)} tokens
+              {t("petTooltip.tokens", { count: formatCompact(totalTokens) })}
             </span>
           </div>
         )}
@@ -142,7 +144,7 @@ export function PetTooltip({ visible }: { visible: boolean }) {
                 </span>
                 <span className="pet-tooltip-bar-track pet-tooltip-bar-track-unknown" />
                 <span className="pet-tooltip-bar-pct">
-                  {formatCompact(row.used)} {row.kind}
+                  {t("petTooltip.used", { used: formatCompact(row.used), kind: row.kind })}
                 </span>
               </div>
             ))}

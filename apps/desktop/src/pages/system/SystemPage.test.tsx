@@ -3,14 +3,18 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SystemPage } from "./SystemPage";
 import {
+  exportDiagnostics,
   fetchPipelineDiagnostics,
   refreshAll,
+  revealInExplorer,
   type PipelineDiagnostics,
 } from "../../lib/native";
 
 vi.mock("../../lib/native", () => ({
   fetchPipelineDiagnostics: vi.fn(),
   refreshAll: vi.fn(),
+  exportDiagnostics: vi.fn(),
+  revealInExplorer: vi.fn(),
 }));
 
 const fixture: PipelineDiagnostics = {
@@ -80,6 +84,8 @@ describe("SystemPage Data Pipeline", () => {
   beforeEach(() => {
     vi.mocked(fetchPipelineDiagnostics).mockReset();
     vi.mocked(refreshAll).mockReset();
+    vi.mocked(exportDiagnostics).mockReset();
+    vi.mocked(revealInExplorer).mockReset();
   });
 
   it("renders the data pipeline section with database status", async () => {
@@ -180,8 +186,11 @@ describe("SystemPage Data Pipeline", () => {
     expect(fetchPipelineDiagnostics).toHaveBeenCalledTimes(2);
   });
 
-  it("export button reveals sanitized diagnostics JSON", async () => {
+  it("export button downloads a sanitized diagnostics JSON file", async () => {
     vi.mocked(fetchPipelineDiagnostics).mockResolvedValue(fixture);
+    vi.mocked(exportDiagnostics).mockResolvedValue(
+      "C:\\Users\\tester\\Downloads\\lnwdeck-diagnostics-20260807-160000.json",
+    );
     const user = userEvent.setup();
     render(<SystemPage />);
     await screen.findByRole("heading", { name: "Data Pipeline" });
@@ -190,15 +199,15 @@ describe("SystemPage Data Pipeline", () => {
       screen.getByRole("button", { name: /export sanitized diagnostics/i }),
     );
 
+    await waitFor(() =>
+      expect(exportDiagnostics).toHaveBeenCalledOnce(),
+    );
     expect(
-      screen.getByRole("region", { name: /exported diagnostics/i }),
-    ).toBeVisible();
-    const text = screen.getByRole("region", { name: /exported diagnostics/i })
-      .textContent ?? "";
-    expect(text).toContain("opencode_cli");
-    expect(text).toContain("0.2.0");
-    expect(text.toLowerCase()).not.toContain("prompt");
-    expect(text.toLowerCase()).not.toContain("response");
+      screen.getByText(/lnwdeck-diagnostics-20260807-160000\.json/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /show in folder/i }),
+    ).toBeInTheDocument();
   });
 
   it("shows the collector error state with retry information", async () => {

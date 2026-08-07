@@ -1,5 +1,6 @@
 use lnwdeck_storage::Storage;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
 use std::sync::Mutex;
 
 use lnwdeck_provider_runtime::AdapterRegistry;
@@ -10,6 +11,16 @@ pub struct AppState {
     /// Provider registry, built once on first use. It is the single source of
     /// provider identity for every read model.
     pub registry: Mutex<AdapterRegistry>,
+    /// Screen rectangle (logical px: x, y, width, height) the pet sprite and
+    /// its tooltip currently occupy. Outside it the pet window is click-through
+    /// so it never blocks the desktop underneath.
+    pub pet_hit_rect: Mutex<Option<[f64; 4]>>,
+    /// Whether the pet window should ignore cursor events, computed by the
+    /// background cursor-polling thread and applied by the webview.
+    pub pet_click_through: AtomicBool,
+    /// True while a refresh cycle is running (manual or background). Prevents
+    /// overlapping cycles that pile up and freeze the machine.
+    pub refresh_running: AtomicBool,
 }
 
 impl AppState {
@@ -18,6 +29,9 @@ impl AppState {
             storage: Mutex::new(None),
             db_path,
             registry: Mutex::new(AdapterRegistry::new()),
+            pet_hit_rect: Mutex::new(None),
+            pet_click_through: AtomicBool::new(true),
+            refresh_running: AtomicBool::new(false),
         }
     }
 

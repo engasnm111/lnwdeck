@@ -47,7 +47,7 @@ describe("UpdateNotification", () => {
     });
 
     await waitFor(() =>
-      expect(screen.getByText("Version 0.2.1")).toBeInTheDocument(),
+      expect(screen.getByText(/Version 0\.2\.1/)).toBeInTheDocument(),
     );
     expect(screen.getByText(/quota fixes/)).toBeInTheDocument();
   });

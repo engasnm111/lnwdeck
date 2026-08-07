@@ -85,6 +85,36 @@ jobs:
       - name: Release version consistency
         run: node scripts/check-release-version.mjs "v$(node -p "require('./installer/package-config.json').version")"
 
+  e2e-ui:
+    name: UI E2E (Playwright + WebView2)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: e2e-ui
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build release app (no bundle)
+        run: pnpm --filter @lnwdeck/desktop run tauri build --no-bundle
+
+      - name: Run Playwright UI smoke tests
+        run: pnpm --filter @lnwdeck/desktop run e2e:run
+
   compile:
     name: Compile (${{ matrix.target }})
     runs-on: windows-latest

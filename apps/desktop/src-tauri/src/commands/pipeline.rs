@@ -15,7 +15,7 @@ use lnwdeck_storage::repositories::{
     AppSettingsRepository, CollectorRunRow, DiagnosticsRepository, PipelineTotals, ProviderStateRow,
 };
 use serde::Serialize;
-use tauri::{Emitter, State};
+use tauri::{Emitter, Manager, State};
 
 #[derive(Debug, Serialize)]
 pub struct PipelineDiagnostics {
@@ -88,11 +88,18 @@ pub fn ensure_registry<'a>(
 
 /// Runs detection and collection for every registered adapter, then
 /// returns the sanitized usage and quota outcomes.
+///
+/// Collection can take many seconds (network calls, transcript reads). It runs
+/// on its own SQLite connection from a worker thread, so the shared storage
+/// mutex — which every UI command locks — is never held during a cycle.
 pub fn refresh_now(state: &AppState) -> Result<RefreshCycleOutcome, String> {
-    let storage_guard = state.ensure_storage()?;
-    let storage = storage_guard.as_ref().ok_or("storage not initialized")?;
-    let hash_key = load_or_create_hash_key(&storage.conn)?;
-
+    let hash_key = {
+        let guard = state.ensure_storage()?;
+        let storage = guard.as_ref().ok_or("storage not initialized")?;
+        load_or_create_hash_key(&storage.conn)?
+    };
+    let storage =
+        lnwdeck_storage::Storage::open(&state.db_path).map_err(|e| format!("storage open: {e}"))?;
     let registry = ensure_registry(state, &hash_key)?;
     Ok(lnwdeck_application::refresh::RefreshAll::execute(
         &storage.conn,
@@ -121,11 +128,53 @@ pub fn evaluate_alerts_now(state: &AppState) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn refresh_all(
-    app: tauri::AppHandle,
-    state: State<'_, AppState>,
-) -> Result<RefreshCycleOutcome, String> {
-    let cycle = refresh_now(&state)?;
+pub async fn refresh_all(app: tauri::AppHandle) -> Result<RefreshCycleOutcome, String> {
+    // Never run two cycles at once: overlapping collection (network reads,
+    // transcript scans) piles up and can freeze the machine. A busy cycle
+    // reports immediately instead of queueing.
+    {
+        let state = app.state::<AppState>();
+        if state
+            .refresh_running
+            .compare_exchange(
+                false,
+                true,
+                std::sync::atomic::Ordering::SeqCst,
+                std::sync::atomic::Ordering::SeqCst,
+            )
+            .is_err()
+        {
+            return Err("refresh already in progress".to_string());
+        }
+    }
+    // Collection touches the network and reads tool transcripts: it must never
+    // run on the UI thread or the window freezes and Windows reports it as
+    // unresponsive. The blocking work runs on the async runtime's pool, and a
+    // hard timeout guarantees the command always answers even if a collector
+    // hangs.
+    let app_work = app.clone();
+    let cycle = match tokio::time::timeout(
+        std::time::Duration::from_secs(300),
+        tauri::async_runtime::spawn_blocking(move || -> Result<RefreshCycleOutcome, String> {
+            let state = app_work.state::<AppState>();
+            refresh_now(&state)
+        }),
+    )
+    .await
+    {
+        Ok(Ok(inner)) => inner,
+        Ok(Err(e)) => Err(format!("refresh task failed: {e}")),
+        Err(_) => Err("refresh timed out after 5 minutes".to_string()),
+    };
+    {
+        let state = app.state::<AppState>();
+        state
+            .refresh_running
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+    let cycle = cycle?;
+    crate::record_sync_time(&app);
+    crate::tray::update_sync_label(&app);
     let _ = app.emit("quota-updated", ());
     Ok(cycle)
 }
@@ -133,20 +182,36 @@ pub fn refresh_all(
 /// Refreshes a single provider by id (detection + usage + quota channels).
 /// Returns an error for unknown provider ids.
 #[tauri::command]
-pub fn refresh_provider(
+pub async fn refresh_provider(
     provider_id: String,
     app: tauri::AppHandle,
-    state: State<'_, AppState>,
 ) -> Result<RefreshCycleOutcome, String> {
-    let storage_guard = state.ensure_storage()?;
-    let storage = storage_guard.as_ref().ok_or("storage not initialized")?;
-    let hash_key = load_or_create_hash_key(&storage.conn)?;
-
-    let registry = ensure_registry(&state, &hash_key)?;
-    let adapter = registry
-        .find(&provider_id)
-        .ok_or_else(|| format!("unknown provider: {provider_id}"))?;
-    let cycle = lnwdeck_application::refresh::RefreshAll::refresh_provider(&storage.conn, adapter);
+    let app_work = app.clone();
+    let cycle = match tauri::async_runtime::spawn_blocking(
+        move || -> Result<RefreshCycleOutcome, String> {
+            let state = app_work.state::<AppState>();
+            let hash_key = {
+                let guard = state.ensure_storage()?;
+                let storage = guard.as_ref().ok_or("storage not initialized")?;
+                load_or_create_hash_key(&storage.conn)?
+            };
+            let storage = lnwdeck_storage::Storage::open(&state.db_path)
+                .map_err(|e| format!("storage open: {e}"))?;
+            let registry = ensure_registry(&state, &hash_key)?;
+            let adapter = registry
+                .find(&provider_id)
+                .ok_or_else(|| format!("unknown provider: {provider_id}"))?;
+            Ok(lnwdeck_application::refresh::RefreshAll::refresh_provider(
+                &storage.conn,
+                adapter,
+            ))
+        },
+    )
+    .await
+    {
+        Ok(inner) => inner?,
+        Err(e) => return Err(format!("refresh task failed: {e}")),
+    };
     let _ = app.emit("quota-updated", ());
     Ok(cycle)
 }
@@ -176,6 +241,56 @@ pub fn get_pipeline_diagnostics(state: State<'_, AppState>) -> Result<PipelineDi
         providers,
         runs,
     })
+}
+
+/// The user's Downloads folder, or the profile directory as a fallback.
+fn downloads_dir() -> Result<std::path::PathBuf, String> {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::System::Com::CoTaskMemFree;
+        use windows_sys::Win32::UI::Shell::SHGetKnownFolderPath;
+        // FOLDERID_Downloads = {374DE290-123F-4565-9164-39C4925E467B}
+        const FOLDERID_DOWNLOADS: windows_sys::core::GUID =
+            windows_sys::core::GUID::from_u128(0x374de290_123f_4565_9164_39c4925e467b);
+        let mut ptr: *mut u16 = std::ptr::null_mut();
+        let hr =
+            unsafe { SHGetKnownFolderPath(&FOLDERID_DOWNLOADS, 0, std::ptr::null_mut(), &mut ptr) };
+        if hr == 0 && !ptr.is_null() {
+            let len = (0..).take_while(|&i| unsafe { *ptr.add(i) } != 0).count();
+            let wide = unsafe { std::slice::from_raw_parts(ptr, len) };
+            let path = std::path::PathBuf::from(String::from_utf16_lossy(wide));
+            unsafe { CoTaskMemFree(ptr as *mut _) };
+            if path.is_dir() {
+                return Ok(path);
+            }
+        }
+    }
+    std::env::var("USERPROFILE")
+        .map(|profile| std::path::PathBuf::from(profile).join("Downloads"))
+        .map_err(|_| "could not locate the Downloads folder".to_string())
+}
+
+/// Writes a sanitized diagnostics snapshot as JSON to the user's Downloads
+/// folder and returns the file path.
+#[tauri::command]
+pub fn export_diagnostics(state: State<'_, AppState>) -> Result<String, String> {
+    let diagnostics = get_pipeline_diagnostics(state)?;
+    let json = serde_json::to_string_pretty(&diagnostics).map_err(|e| e.to_string())?;
+    let downloads = downloads_dir()?;
+    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+    let path = downloads.join(format!("lnwdeck-diagnostics-{stamp}.json"));
+    std::fs::write(&path, json).map_err(|e| format!("write diagnostics: {e}"))?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+/// Opens the file explorer with the given file selected.
+#[tauri::command]
+pub fn reveal_in_explorer(path: String) -> Result<(), String> {
+    std::process::Command::new("explorer")
+        .arg(format!("/select,{path}"))
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

@@ -1,4 +1,5 @@
-import type { ProviderQuotaCard } from "../../lib/native";
+﻿import type { ProviderQuotaCard } from "../../lib/native";
+import { translate } from "../../lib/i18n";
 
 /**
  * Pet mood derivation for the floating widget.
@@ -81,19 +82,22 @@ export function derivePetMood(visibleProviders: ProviderQuotaCard[]): PetMood {
 }
 
 /** Plain-text name of a mood, shown next to the decorative mascot. */
-export function petMoodLabel(mood: PetMood): string {
+export function petMoodLabel(
+  mood: PetMood,
+  t: (key: string) => string = (key) => translate("en", key),
+): string {
   switch (mood) {
     case "happy":
-      return "Happy";
+      return t("widget.mood.happy");
     case "worried":
-      return "Worried";
+      return t("widget.mood.worried");
     case "critical":
-      return "Critical";
+      return t("widget.mood.critical");
     case "stale":
-      return "Stale";
+      return t("widget.mood.stale");
     case "error":
-      return "Error";
+      return t("widget.mood.error");
     case "sleeping":
-      return "Sleeping";
+      return t("widget.mood.sleeping");
   }
 }

@@ -41,6 +41,34 @@ pub fn record_tray_event(code: &str, detail: &str, app: &tauri::AppHandle) {
     record_event(app, "tray", AppEventLevel::Warning, code, detail);
 }
 
+/// Last successful full refresh, local time; `None` when never synced.
+pub fn last_sync_time(app: &tauri::AppHandle) -> Option<chrono::DateTime<chrono::Local>> {
+    let state = app.state::<AppState>();
+    let guard = state.ensure_storage().ok()?;
+    let storage = guard.as_ref()?;
+    let stored = lnwdeck_storage::repositories::AppSettingsRepository::new(&storage.conn)
+        .get("last_sync_time")
+        .ok()
+        .flatten()?;
+    chrono::DateTime::parse_from_rfc3339(&stored)
+        .ok()
+        .map(|time| time.with_timezone(&chrono::Local))
+}
+
+/// Marks a successful full refresh at the current time.
+pub fn record_sync_time(app: &tauri::AppHandle) {
+    let state = app.state::<AppState>();
+    let Ok(guard) = state.ensure_storage() else {
+        return;
+    };
+    let Some(storage) = guard.as_ref() else {
+        return;
+    };
+    let now = chrono::Utc::now().to_rfc3339();
+    let _ = lnwdeck_storage::repositories::AppSettingsRepository::new(&storage.conn)
+        .set("last_sync_time", &now);
+}
+
 /// Refresh interval configured by the user. `None` disables the loop.
 fn configured_interval(app: &tauri::AppHandle) -> Option<Duration> {
     let state = app.state::<AppState>();
@@ -80,9 +108,26 @@ fn spawn_refresh_loop(app: tauri::AppHandle) {
 }
 
 /// One refresh cycle plus alert evaluation, with every failure recorded.
+/// Skips the cycle when a manual refresh is already running.
 fn run_refresh_cycle(app: &tauri::AppHandle) {
     let state = app.state::<AppState>();
-    match commands::pipeline::refresh_now(&state) {
+    if state
+        .refresh_running
+        .compare_exchange(
+            false,
+            true,
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+        )
+        .is_err()
+    {
+        return;
+    }
+    let result = commands::pipeline::refresh_now(&state);
+    state
+        .refresh_running
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+    match result {
         Ok(cycle) => {
             let failed: Vec<&str> = cycle
                 .usage
@@ -256,9 +301,13 @@ pub fn run() {
             windows::set_pet_size_preset,
             windows::set_pet_stay_in_place,
             windows::set_pet_pose,
+            windows::set_pet_hit_rect,
+            windows::apply_pet_click_through,
             windows::set_language,
             updater::check_for_update,
             updater::install_update,
+            commands::pipeline::export_diagnostics,
+            commands::pipeline::reveal_in_explorer,
         ])
         // Serves installed pet assets to the widget over petlocal:// so the
         // webview never loads a remote asset.

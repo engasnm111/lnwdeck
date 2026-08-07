@@ -56,7 +56,9 @@ export function SystemPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportPath, setExportPath] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,6 +76,31 @@ export function SystemPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    setExportError(null);
+    setExportPath(null);
+    try {
+      const { exportDiagnostics } = await import("../../lib/native");
+      const path = await exportDiagnostics();
+      setExportPath(path);
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setExporting(false);
+    }
+  }, []);
+
+  const handleReveal = useCallback(async () => {
+    if (!exportPath) return;
+    try {
+      const { revealInExplorer } = await import("../../lib/native");
+      await revealInExplorer(exportPath);
+    } catch {
+      // The file was still written; the path stays visible for manual access.
+    }
+  }, [exportPath]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -121,13 +148,34 @@ export function SystemPage() {
           </Button>
           <Button
             variant="secondary"
-            onClick={() => setExportOpen((open) => !open)}
+            onClick={() => void handleExport()}
+            disabled={exporting}
             aria-label={t("system.exportAria")}
           >
-            {t("system.export")}
+            {exporting ? t("common.saving") : t("system.export")}
           </Button>
         </div>
       </div>
+
+      {exportPath && (
+        <div
+          className="banner"
+          role="status"
+          style={{ marginBottom: "1rem", justifyContent: "space-between" }}
+        >
+          <span>
+            {t("system.exportSaved", { path: exportPath })}
+          </span>
+          <Button size="small" variant="secondary" onClick={() => void handleReveal()}>
+            {t("system.exportReveal")}
+          </Button>
+        </div>
+      )}
+      {exportError && (
+        <p className="ui-field-error" role="alert">
+          {t("system.exportFailed", { error: exportError })}
+        </p>
+      )}
 
       <DataState
         loading={loading}
@@ -258,27 +306,6 @@ export function SystemPage() {
                     })}
                   </tbody>
                 </table>
-              </Card>
-            )}
-
-            {/* Export Diagnostics Panel */}
-            {exportOpen && diagnostics && (
-              <Card title={t("system.export.title")}>
-                <pre
-                  role="region"
-                  aria-label={t("system.export.aria")}
-                  data-testid="exported-diagnostics"
-                  style={{
-                    backgroundColor: "var(--bg-app)",
-                    padding: "1rem",
-                    borderRadius: "var(--radius-control)",
-                    overflowX: "auto",
-                    color: "var(--text-secondary)",
-                    fontSize: "0.8125rem",
-                  }}
-                >
-                  {JSON.stringify(diagnostics, null, 2)}
-                </pre>
               </Card>
             )}
           </div>

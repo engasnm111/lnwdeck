@@ -108,9 +108,13 @@ export function AppShell() {
       await loadStatus();
       setNow(Date.now());
     } catch (error) {
-      setRefreshError(
-        error instanceof Error ? error.message : "refresh failed",
-      );
+      const message = error instanceof Error ? error.message : "refresh failed";
+      // A cycle is already running (background or a previous click): the UI
+      // stays responsive and keeps showing the refresh state instead of an
+      // error that would invite more clicking.
+      if (!/already in progress/i.test(message)) {
+        setRefreshError(message);
+      }
     } finally {
       setRefreshing(false);
     }
@@ -217,7 +221,10 @@ export function AppShell() {
               variant="secondary"
               onClick={() => void handleGlobalRefresh()}
               disabled={refreshing}
-              aria-label={t("topbar.refresh")}
+              aria-label={
+                refreshing ? t("topbar.refreshing") : t("topbar.refresh")
+              }
+              data-refreshing={refreshing || undefined}
             >
               <RefreshIcon />
               {refreshing ? t("topbar.refreshing") : t("topbar.refresh")}

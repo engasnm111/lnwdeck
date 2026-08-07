@@ -72,6 +72,13 @@ jobs:
           }
           Write-Output "signing key is configured"
 
+      - name: Build the native messaging host
+        shell: pwsh
+        run: |
+          cargo build -p lnwdeck-native-messaging-host --target ${{ matrix.target }} --release
+          Get-Item "target/${{ matrix.target }}/release/lnwdeck-browser-host.exe" |
+            Select-Object FullName, Length
+
       - name: Build signed bundles (no publish)
         uses: tauri-apps/tauri-action@v1
         env:

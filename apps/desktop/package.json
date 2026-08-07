@@ -11,7 +11,9 @@
     "test:watch": "vitest",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "e2e": "playwright test",
+    "e2e:run": "powershell -ExecutionPolicy Bypass -File ../../scripts/run-e2e-ui.ps1"
   },
   "dependencies": {
     "@lnwdeck/ui": "workspace:*",
@@ -31,6 +33,7 @@
     "jsdom": "^26",
     "typescript": "~5.7",
     "vite": "^6",
-    "vitest": "^3"
+    "vitest": "^3",
+    "@playwright/test": "^1"
   }
 }

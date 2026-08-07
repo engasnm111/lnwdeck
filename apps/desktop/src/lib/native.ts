@@ -145,6 +145,16 @@ export async function fetchPipelineDiagnostics(): Promise<PipelineDiagnostics> {
   return invoke<PipelineDiagnostics>("get_pipeline_diagnostics");
 }
 
+/** Writes a sanitized diagnostics snapshot to Downloads and returns its path. */
+export async function exportDiagnostics(): Promise<string> {
+  return invoke<string>("export_diagnostics");
+}
+
+/** Opens the file explorer with the given file selected. */
+export async function revealInExplorer(path: string): Promise<void> {
+  return invoke<void>("reveal_in_explorer", { path });
+}
+
 export interface AppEventRow {
   id: number;
   occurred_at: string;
@@ -629,6 +639,22 @@ export async function hidePetWindow(): Promise<void> {
 /** Moves the pet window so it follows the pet as it walks (screen coords). */
 export async function movePetWindow(x: number, y: number): Promise<void> {
   return invoke<void>("move_pet_window", { x, y });
+}
+
+/**
+ * Tells the backend which screen rectangle (logical px) the pet sprite and
+ * its tooltip occupy; the pet window is click-through everywhere else.
+ */
+export async function setPetHitRect(rect: [number, number, number, number] | null): Promise<void> {
+  return invoke<void>("set_pet_hit_rect", { rect });
+}
+
+/**
+ * Applies the click-through state computed by the backend's cursor poller.
+ * Called periodically from the pet window so window APIs stay on the UI thread.
+ */
+export async function applyPetClickThrough(): Promise<void> {
+  return invoke<void>("apply_pet_click_through");
 }
 
 const spritesheetCache = new Map<string, string>();

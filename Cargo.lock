@@ -1981,7 +1981,7 @@ dependencies = [
 
 [[package]]
 name = "lnwdeck-desktop"
-version = "0.6.1"
+version = "0.6.3"
 dependencies = [
  "chrono",
  "getrandom 0.3.4",
@@ -2014,6 +2014,8 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-updater",
  "tempfile",
+ "tokio",
+ "windows-sys 0.61.2",
  "zip",
 ]
 
@@ -2058,6 +2060,8 @@ name = "lnwdeck-native-messaging-host"
 version = "0.2.0"
 dependencies = [
  "chrono",
+ "lnwdeck-storage",
+ "rusqlite",
  "serde",
  "serde_json",
  "thiserror 2.0.19",

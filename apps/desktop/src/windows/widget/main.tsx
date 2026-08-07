@@ -1,10 +1,13 @@
-import React from "react";
+﻿import React from "react";
 import ReactDOM from "react-dom/client";
 import { FloatingWidget } from "./FloatingWidget";
+import { I18nProvider } from "../../app/I18nProvider";
 import "./FloatingWidget.css";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <FloatingWidget />
+    <I18nProvider>
+      <FloatingWidget />
+    </I18nProvider>
   </React.StrictMode>,
 );

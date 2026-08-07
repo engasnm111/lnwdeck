@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchPetSpritesheetUrl } from "../../lib/native";
 import { petMoodLabel, type PetMood, type PetReaction } from "./petState";
+import { useI18n } from "../../lib/i18n";
 import "./PetMascot.css";
 
 /** A community pet installed locally and selected for the widget. */
@@ -37,6 +38,7 @@ export function PetMascot({
   locked: boolean;
   imported: ImportedPet | null;
 }) {
+  const { t } = useI18n();
   const [spriteUrl, setSpriteUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -133,7 +135,7 @@ export function PetMascot({
         </svg>
       )}
       <p className="pet-status" role="status">
-        Quota mood: {petMoodLabel(mood)}
+        {t("widget.quotaMood", { mood: petMoodLabel(mood, t) })}
       </p>
     </div>
   );

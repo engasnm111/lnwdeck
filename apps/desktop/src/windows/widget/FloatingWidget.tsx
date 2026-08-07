@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   fetchQuotaDashboard,
@@ -29,6 +29,7 @@ import {
 } from "./widgetTime";
 import { PetMascot, type ImportedPet } from "./PetMascot";
 import { derivePetMood, type PetReaction } from "./petState";
+import { translate, useI18n } from "../../lib/i18n";
 import {
   BarsIcon,
   CalendarIcon,
@@ -63,42 +64,44 @@ interface StatusChip {
 export function statusChip(
   status: QuotaStatus,
   errorCode: string | null,
+  t: (key: string, vars?: Record<string, string>) => string = (key, vars) =>
+    translate("en", key, vars),
 ): StatusChip {
   switch (status) {
     case "fresh":
-      return { label: "Live", tone: "ok", detail: null };
+      return { label: t("widget.status.live"), tone: "ok", detail: null };
     case "stale":
       return {
-        label: "Stale",
+        label: t("widget.status.stale"),
         tone: "stale",
-        detail: "This reading is older than the provider freshness window.",
+        detail: t("widget.status.staleDetail"),
       };
     case "rate_limited":
       return {
-        label: "Rate limited",
+        label: t("widget.status.rateLimited"),
         tone: "error",
-        detail: "The provider refused further requests for now.",
+        detail: t("widget.status.rateLimitedDetail"),
       };
     case "auth_expired":
       return {
-        label: "Not authenticated",
+        label: t("widget.status.notAuthenticated"),
         tone: "error",
-        detail: "The stored credential was rejected.",
+        detail: t("widget.status.notAuthenticatedDetail"),
       };
     case "unavailable":
       return {
-        label: "Unavailable",
+        label: t("widget.status.unavailable"),
         tone: "muted",
         detail:
           errorCode === "NOT_CONFIGURED"
-            ? "Add an API key in Settings to read this provider."
-            : "No source was available for this provider.",
+            ? t("widget.status.notConfigured")
+            : t("widget.status.noSource"),
       };
     default:
       return {
-        label: "Error",
+        label: t("widget.status.error"),
         tone: "error",
-        detail: "The last collection failed.",
+        detail: t("widget.status.errorDetail"),
       };
   }
 }
@@ -292,7 +295,8 @@ function ProviderCard({
   view: WidgetView;
   now: number;
 }) {
-  const chip = statusChip(provider.status, provider.error_code);
+  const { t } = useI18n();
+  const chip = statusChip(provider.status, provider.error_code, t);
   return (
     <li className="w-card">
       <div className="w-card-head">
@@ -301,7 +305,7 @@ function ProviderCard({
       </div>
 
       {provider.windows.length === 0 ? (
-        <p className="w-card-note">{chip.detail ?? "No quota was reported."}</p>
+        <p className="w-card-note">{chip.detail ?? t("widget.noQuota")}</p>
       ) : view === "rings" ? (
         <div className="w-rings">
           {provider.windows.map((window) => (
@@ -341,6 +345,7 @@ function ProviderCard({
  * window and the dashboard cannot disagree.
  */
 export function FloatingWidget() {
+  const { t } = useI18n();
   const [dashboard, setDashboard] = useState<QuotaDashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -626,9 +631,9 @@ export function FloatingWidget() {
             aria-label="Widget layout"
             title="Choose the widget layout"
           >
-            <option value="bars">Bars</option>
-            <option value="rings">Rings</option>
-            <option value="pet">Pet</option>
+            <option value="bars">{t("widget.viewBars")}</option>
+            <option value="rings">{t("widget.viewRings")}</option>
+            <option value="pet">{t("widget.viewPet")}</option>
           </select>
           <button
             type="button"
@@ -714,35 +719,33 @@ export function FloatingWidget() {
       <main className="w-body">
         {error ? (
           <div className="w-message w-message-error" role="alert">
-            <span className="w-message-title">Quota unavailable</span>
+            <span className="w-message-title">{t("widget.quotaUnavailable")}</span>
             <span className="w-message-detail">{error}</span>
           </div>
         ) : loading ? (
           <div className="w-message" role="status" aria-live="polite">
-            <span className="w-message-title">Loading</span>
-            <span className="w-message-detail">Reading stored quota</span>
+            <span className="w-message-title">{t("widget.loading")}</span>
+            <span className="w-message-detail">{t("widget.loadingDetail")}</span>
           </div>
         ) : allProviders.length === 0 ? (
           <div className="w-message" role="status">
-            <span className="w-message-title">No quota data yet</span>
+            <span className="w-message-title">{t("widget.noQuotaYet")}</span>
             <span className="w-message-detail">
-              Refresh, or open the dashboard to see which collectors found a
-              source.
+              {t("widget.noQuotaYetDetail")}
             </span>
           </div>
         ) : fetchedProviders.length === 0 ? (
           <div className="w-message" role="status">
-            <span className="w-message-title">No quota data available</span>
+            <span className="w-message-title">{t("widget.noQuotaAvailable")}</span>
             <span className="w-message-detail">
-              Every provider failed to fetch quota. Open the dashboard to see
-              why.
+              {t("widget.noQuotaAvailableDetail")}
             </span>
           </div>
         ) : visibleProviders.length === 0 ? (
           <div className="w-message" role="status">
-            <span className="w-message-title">No provider selected</span>
+            <span className="w-message-title">{t("widget.noProviderSelected")}</span>
             <span className="w-message-detail">
-              Every reporting provider is hidden by the current selection.
+              {t("widget.noProviderSelectedDetail")}
             </span>
           </div>
         ) : (

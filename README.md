@@ -135,6 +135,36 @@ quota data the dashboard reads.
 - **Pet page in the sidebar** manages everything: show/hide, character
   selection with live spritesheet previews, speed, size, opacity,
   auto-sleep, and codex-pets.net imports.
+- **Pose control and staying put**: each ambient pose (wave, jump, look
+  left/right, waiting, review) can be toggled independently from the Pet
+  page or Settings, and the pet can be set to stay in place instead of
+  walking.
+- **Talks back**: a tap shows a random quip built from live quota numbers
+  (tokens today, lowest remaining quota, plan), localized to the UI
+  language.
+- **Click-through window**: only the sprite and its tooltip intercept the
+  mouse; the rest of the window passes clicks to the desktop underneath.
+
+## Browser helper
+
+An optional Chromium extension (`apps/browser-extension`) detects quota usage
+on ChatGPT, Claude and Gemini pages and forwards it to a native messaging
+host that ships with the installer (`lnwdeck-browser-host.exe`). The host
+records sanitized detections into the app's event log. Setup:
+
+```powershell
+# 1. Build the extension, then load `apps/browser-extension` via
+#    chrome://extensions (Developer mode → Load unpacked).
+# 2. Register the host with the extension's real ID:
+pwsh ./scripts/register-native-host.ps1 -ChromeExtensionId <id> -EdgeExtensionId <id>
+```
+
+## Languages
+
+The UI ships in nine languages — English, Thai, Chinese, Japanese, Korean,
+German, French, Spanish and Russian — switchable instantly in Settings.
+Timestamps follow the selected language's calendar and use a 24-hour clock
+with seconds (e.g. `07/08/2569 15:45:32` in Thai).
 
 ## Design system
 
@@ -207,8 +237,8 @@ against the built artifacts and asserts that a tampered installer is rejected.
 - The SQLite database is not encrypted.
 - Installers carry updater signatures but are not Authenticode-signed, so
   Windows SmartScreen will warn on first run.
-- The browser extension and the native messaging host in this repository are not
-  part of the release.
+- The browser extension must be loaded manually (Developer mode); the native
+  messaging host binary itself ships with the installer.
 - Gemini, Cursor, Copilot and Kiro collectors read whatever token records their
   tools happen to write locally; if a version stops writing them, the adapter
   reports that it found no records rather than guessing.

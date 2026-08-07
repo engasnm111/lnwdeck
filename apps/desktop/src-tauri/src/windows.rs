@@ -14,7 +14,7 @@ use tauri::{Emitter, LogicalSize, Manager, PhysicalPosition, WebviewWindowBuilde
 
 const WIDGET_LABEL: &str = "widget";
 const MAIN_LABEL: &str = "main";
-const PET_LABEL: &str = "pet";
+pub const PET_LABEL: &str = "pet";
 /// Fixed widget sizes per preset. The widget is never user-resized; the
 /// preset is chosen in Settings and applied by the backend.
 pub const WIDGET_SIZE_PRESETS: &[(&str, f64, f64)] = &[
@@ -282,6 +282,101 @@ pub fn save_widget_position(app: &tauri::AppHandle) {
     write_setting(app, "widget_y", &position.y.to_string());
 }
 
+/// Stores the screen rectangle the pet sprite and its tooltip occupy, in
+/// logical pixels. The pet window is click-through everywhere else.
+#[tauri::command]
+pub fn set_pet_hit_rect(state: tauri::State<'_, crate::state::AppState>, rect: Option<[f64; 4]>) {
+    if let Ok(mut guard) = state.pet_hit_rect.lock() {
+        *guard = rect;
+    }
+}
+
+/// Applies the click-through behaviour when the cursor moves: the pet window
+/// only accepts clicks over the sprite/tooltip area.
+fn cursor_inside_hit_rect(app: &tauri::AppHandle) -> bool {
+    let state = app.state::<crate::state::AppState>();
+    let guard = state.pet_hit_rect.lock().ok();
+    let Some([rx, ry, rw, rh]) = guard.as_ref().and_then(|rect| rect.as_ref()).copied() else {
+        return false;
+    };
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Foundation::POINT;
+        use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
+        let mut point = POINT { x: 0, y: 0 };
+        if unsafe { GetCursorPos(&mut point) } == 0 {
+            return false;
+        }
+        // The hit rect is in logical pixels; the cursor is sampled in physical
+        // pixels, so divide by the monitor DPI scale.
+        let scale = monitor_scale();
+        let x = point.x as f64 / scale;
+        let y = point.y as f64 / scale;
+        x >= rx && x <= rx + rw && y >= ry && y <= ry + rh
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (rx, ry, rw, rh);
+        false
+    }
+}
+
+/// Primary monitor DPI scale; defaults to 1.0 when it cannot be read.
+fn monitor_scale() -> f64 {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Foundation::HWND;
+        use windows_sys::Win32::Graphics::Gdi::{GetDC, GetDeviceCaps, ReleaseDC, LOGPIXELSX};
+        unsafe {
+            let dc = GetDC(HWND::default());
+            if dc.is_null() {
+                return 1.0;
+            }
+            let dpi = GetDeviceCaps(dc, LOGPIXELSX as i32) as f64;
+            ReleaseDC(HWND::default(), dc);
+            if dpi <= 0.0 {
+                1.0
+            } else {
+                dpi / 96.0
+            }
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        1.0
+    }
+}
+
+/// Polls the cursor position on a plain thread (no window API calls — those
+/// must stay on the UI thread) and stores whether the pet window should be
+/// click-through. The webview applies the result via a command.
+fn run_pet_click_through_loop(app: tauri::AppHandle, window: tauri::Window) {
+    let _ = window;
+    std::thread::spawn(move || loop {
+        let inside = cursor_inside_hit_rect(&app);
+        if let Some(state) = app.try_state::<crate::state::AppState>() {
+            state
+                .pet_click_through
+                .store(!inside, std::sync::atomic::Ordering::Relaxed);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(120));
+    });
+}
+
+/// Applies the click-through state computed by the background thread. Called
+/// from the webview on the UI thread, where window APIs are safe.
+#[tauri::command]
+pub fn apply_pet_click_through(app: tauri::AppHandle) {
+    let Some(window) = app.get_webview_window(crate::windows::PET_LABEL) else {
+        return;
+    };
+    let state = app.state::<crate::state::AppState>();
+    let should_ignore = state
+        .pet_click_through
+        .load(std::sync::atomic::Ordering::Relaxed);
+    let _ = window.set_ignore_cursor_events(should_ignore);
+}
+
 pub fn setup_windows(app: &tauri::App) {
     let _main =
         WebviewWindowBuilder::new(app, MAIN_LABEL, tauri::WebviewUrl::App("index.html".into()))
@@ -313,7 +408,7 @@ pub fn setup_windows(app: &tauri::App) {
     // pet as it walks. It is never full-screen, so clicks outside the pet hit
     // the desktop normally. The webview background is explicitly transparent
     // so no square frame is visible around the pet.
-    let _pet = WebviewWindowBuilder::new(app, PET_LABEL, tauri::WebviewUrl::App("pet.html".into()))
+    let pet = WebviewWindowBuilder::new(app, PET_LABEL, tauri::WebviewUrl::App("pet.html".into()))
         .title("lnwdeck pet")
         .inner_size(PET_WINDOW_WIDTH, PET_WINDOW_HEIGHT)
         .always_on_top(true)
@@ -328,6 +423,12 @@ pub fn setup_windows(app: &tauri::App) {
         .background_color(tauri::window::Color(0, 0, 0, 0))
         .build()
         .expect("failed to build pet window");
+
+    // The transparent window starts click-through; a background thread only
+    // samples the cursor and stores the result, and the webview applies it on
+    // the UI thread via a command (window APIs are not thread-safe here).
+    let _ = pet.set_ignore_cursor_events(true);
+    run_pet_click_through_loop(app.handle().clone(), pet.as_ref().window());
 }
 
 pub fn handle_close_request(window: &tauri::Window, api: &tauri::CloseRequestApi) {
@@ -362,6 +463,7 @@ pub fn handle_close_request(window: &tauri::Window, api: &tauri::CloseRequestApi
                 }
             }
             emit_pet_window_settings(app);
+            crate::tray::update_pet_toggle_label(app);
         }
         _ => {}
     }
@@ -571,6 +673,7 @@ pub fn show_pet_window(app: tauri::AppHandle) -> Result<(), String> {
         }
     }
     emit_pet_window_settings(&app);
+    crate::tray::update_pet_toggle_label(&app);
     Ok(())
 }
 
@@ -621,6 +724,7 @@ pub fn hide_pet_window(app: tauri::AppHandle) -> Result<(), String> {
         }
     }
     emit_pet_window_settings(&app);
+    crate::tray::update_pet_toggle_label(&app);
     Ok(())
 }
 

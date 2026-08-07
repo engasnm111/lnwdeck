@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+﻿import { useCallback, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { Button } from "@lnwdeck/ui";
 import { checkForUpdate, installUpdate } from "../lib/native";
+import { useI18n } from "../lib/i18n";
 
 interface UpdateAvailable {
   version: string | null;
@@ -23,6 +24,7 @@ type Phase = "idle" | "available" | "installing" | "failed";
  * flow and no success message that is not backed by a completed install.
  */
 export function UpdateNotification() {
+  const { t } = useI18n();
   const [update, setUpdate] = useState<UpdateAvailable | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState<UpdateProgress | null>(null);
@@ -106,16 +108,16 @@ export function UpdateNotification() {
     return (
       <div className="banner banner-error" role="alert">
         <span className="banner-body">
-          The update check did not complete ({checkFailure}).
+          {t("update.checkFailed", { error: checkFailure })}
         </span>
         <Button size="small" onClick={() => void handleRetryCheck()}>
-          Check again
+          {t("update.checkAgain")}
         </Button>
         <button
           type="button"
           className="banner-dismiss"
           onClick={() => setDismissed(true)}
-          aria-label="Dismiss update check failure"
+          aria-label={t("update.dismiss")}
         >
           x
         </button>
@@ -140,15 +142,15 @@ export function UpdateNotification() {
     >
       <span className="banner-body">
         {phase === "failed" ? (
-          <>Update failed: {error}</>
+          <>{t("update.failed", { error: error ?? "" })}</>
         ) : phase === "installing" ? (
           <>
-            Installing version {update.version}
-            {percent !== null ? ` (${percent}%)` : " (downloading)"}
+            {t("update.installing", { version: update.version ?? "" })}
+            {percent !== null ? ` (${percent}%)` : ` ${t("update.downloading")}`}
           </>
         ) : (
           <>
-            <strong>Version {update.version}</strong> is available.
+            <strong>{t("update.available", { version: update.version ?? "" })}</strong>
             {update.notes ? ` ${update.notes.slice(0, 120)}` : ""}
           </>
         )}
@@ -159,14 +161,14 @@ export function UpdateNotification() {
           size="small"
           onClick={() => void handleInstall()}
         >
-          {phase === "failed" ? "Try again" : "Install and restart"}
+          {phase === "failed" ? t("update.retry") : t("update.installRestart")}
         </Button>
       )}
       <button
         type="button"
         className="banner-dismiss"
         onClick={() => setDismissed(true)}
-        aria-label="Dismiss update notification"
+        aria-label={t("update.dismiss")}
       >
         x
       </button>

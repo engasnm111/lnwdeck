@@ -181,7 +181,7 @@ describe("derivePetMood", () => {
 describe("petMoodLabel", () => {
   it("names every mood with plain text", () => {
     const moods: PetMood[] = ["happy", "worried", "critical", "stale", "error", "sleeping"];
-    const labels = moods.map(petMoodLabel);
+    const labels = moods.map((mood) => petMoodLabel(mood));
     expect(labels).toEqual(["Happy", "Worried", "Critical", "Stale", "Error", "Sleeping"]);
   });
 });

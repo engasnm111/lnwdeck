@@ -180,7 +180,18 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  margin-left: auto;
+}
+
+/* The refresh button spins its icon while a cycle is running, so the user
+   sees that a refresh is in progress instead of clicking again. */
+.app-topbar-actions .ui-btn[data-refreshing] svg {
+  animation: refresh-spin 0.9s linear infinite;
+}
+
+@keyframes refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .app-freshness {
