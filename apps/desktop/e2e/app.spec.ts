@@ -4,8 +4,8 @@ import { test, expect, chromium, type Browser, type Page } from "@playwright/tes
  * Main workflow smoke test for the desktop app.
  *
  * The app is started with WebView2 remote debugging enabled
- * (WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222) by the
- * `e2e:run` script. Playwright attaches to that CDP endpoint, so the tests
+ * (WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=<port>) by
+ * the e2e:run script. Playwright attaches to that CDP endpoint, so the tests
  * drive the real WebView2 frontend talking to the real Tauri backend.
  */
 
@@ -13,7 +13,8 @@ let browser: Browser;
 let page: Page;
 
 test.beforeAll(async () => {
-  browser = await chromium.connectOverCDP("http://127.0.0.1:9222");
+  const cdpPort = process.env.LNWD_E2E_CDP_PORT ?? "9222";
+  browser = await chromium.connectOverCDP("http://127.0.0.1:" + cdpPort);
   const context = browser.contexts()[0];
   const pages = context.pages();
   // The app runs three windows (main, pet, widget); pick the dashboard one.

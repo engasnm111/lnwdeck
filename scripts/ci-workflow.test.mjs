@@ -10,6 +10,14 @@ const retryScript = readFileSync(
   new URL("./ci-retry.ps1", import.meta.url),
   "utf8",
 );
+const e2eScript = readFileSync(
+  new URL("./run-e2e-ui.ps1", import.meta.url),
+  "utf8",
+);
+const e2eSpec = readFileSync(
+  new URL("../apps/desktop/e2e/app.spec.ts", import.meta.url),
+  "utf8",
+);
 const workflowFiles = [
   ".github/workflows/ci.yml",
   ".github/workflows/security.yml",
@@ -86,4 +94,19 @@ test("CI retry is limited to silent build-progress failures", () => {
     /\$canRetry\s*=\s*\$retryableFailure\s*-and\s*-not\s*\$hasDiagnostic\s*-and\s*-not\s*\$hasTestOutput/,
   );
   assert.match(retryScript, /\$attemptsUsed/);
+});
+
+test("UI smoke does not retry runtime startup failures", () => {
+  const e2e = jobSection("e2e-ui", "compile");
+  assert.match(e2e, /pnpm --filter @lnwdeck\/desktop run e2e:run/);
+  assert.doesNotMatch(e2e, /ci-retry\.ps1[^\r\n]*e2e:run/);
+});
+
+test("WebView2 smoke uses a dynamic endpoint and reports startup state", () => {
+  assert.ok(e2eScript.includes("TcpListener"));
+  assert.ok(e2eScript.includes("remote-debugging-port=$port"));
+  assert.ok(e2eScript.includes("-WorkingDirectory $repo"));
+  assert.ok(e2eScript.includes("$app.HasExited"));
+  assert.ok(e2eScript.includes("exit code"));
+  assert.ok(e2eSpec.includes("LNWD_E2E_CDP_PORT"));
 });

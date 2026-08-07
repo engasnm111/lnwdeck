@@ -173,8 +173,7 @@ jobs:
 
       - name: Run Playwright UI smoke tests
         shell: pwsh
-        run: |
-          pwsh scripts/ci-retry.ps1 -Command "pnpm --filter @lnwdeck/desktop run e2e:run" -Label "playwright ui smoke"
+        run: pnpm --filter @lnwdeck/desktop run e2e:run
 
   compile:
     name: Compile (${{ matrix.target }})
