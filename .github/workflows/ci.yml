@@ -43,7 +43,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run checks
-        run: pnpm check
+        shell: pwsh
+        run: |
+          pnpm check *> checks.log 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content checks.log | Select-Object -Last 60 | ForEach-Object { Write-Output "::error::$_" }
+            exit 1
+          }
 
   test:
     name: Test
@@ -70,20 +76,52 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # Run the suites one at a time so a failure names the suite that broke.
+      # Failures are echoed through ::error:: so the failing line appears in
+      # the check annotations, not only in the job logs.
       - name: Rust tests
-        run: pnpm run test:rs
+        shell: pwsh
+        run: |
+          pnpm run test:rs *> rust-tests.log 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content rust-tests.log | Select-Object -Last 50 | ForEach-Object { Write-Output "::error::$_" }
+            exit 1
+          }
 
       - name: Frontend tests
-        run: pnpm run test:ts
+        shell: pwsh
+        run: |
+          pnpm run test:ts *> frontend-tests.log 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content frontend-tests.log | Select-Object -Last 50 | ForEach-Object { Write-Output "::error::$_" }
+            exit 1
+          }
 
       - name: Release script tests
-        run: pnpm run release:test
+        shell: pwsh
+        run: |
+          pnpm run release:test *> release-tests.log 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content release-tests.log | Select-Object -Last 50 | ForEach-Object { Write-Output "::error::$_" }
+            exit 1
+          }
 
       - name: End-to-end pipeline test
-        run: pnpm run test:e2e
+        shell: pwsh
+        run: |
+          pnpm run test:e2e *> e2e-test.log 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content e2e-test.log | Select-Object -Last 50 | ForEach-Object { Write-Output "::error::$_" }
+            exit 1
+          }
 
       - name: Release version consistency
-        run: node scripts/check-release-version.mjs "v$(node -p "require('./installer/package-config.json').version")"
+        shell: pwsh
+        run: |
+          node scripts/check-release-version.mjs "v$(node -p "require('./installer/package-config.json').version")" *> version-check.log 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content version-check.log | Select-Object -Last 30 | ForEach-Object { Write-Output "::error::$_" }
+            exit 1
+          }
 
   e2e-ui:
     name: UI E2E (Playwright + WebView2)
@@ -109,11 +147,35 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Cross-compiling to aarch64 needs clang for ring/libsqlite3-sys (C
+      # build scripts); the GitHub runner does not expose it on PATH by
+      # default, and without it the custom build commands fail.
+      - name: Install LLVM for ARM64 cross-compilation
+        shell: pwsh
+        run: |
+          if (-not (Get-Command clang -ErrorAction SilentlyContinue)) {
+            choco install llvm -y --no-progress
+            $env:Path = "$env:ProgramFiles\LLVM\bin;" + $env:Path
+          }
+          echo "CC_aarch64_pc_windows_msvc=clang" >> $env:GITHUB_ENV
+
       - name: Build release app (no bundle)
-        run: pnpm --filter @lnwdeck/desktop run tauri build --no-bundle
+        shell: pwsh
+        run: |
+          pnpm --filter @lnwdeck/desktop run tauri build --no-bundle *> e2e-build.log 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content e2e-build.log | Select-Object -Last 60 | ForEach-Object { Write-Output "::error::$_" }
+            exit 1
+          }
 
       - name: Run Playwright UI smoke tests
-        run: pnpm --filter @lnwdeck/desktop run e2e:run
+        shell: pwsh
+        run: |
+          pnpm --filter @lnwdeck/desktop run e2e:run *> e2e-ui.log 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content e2e-ui.log | Select-Object -Last 60 | ForEach-Object { Write-Output "::error::$_" }
+            exit 1
+          }
 
   compile:
     name: Compile (${{ matrix.target }})
@@ -154,4 +216,10 @@ jobs:
         run: pnpm --filter @lnwdeck/desktop run build
 
       - name: cargo check
-        run: cargo check --workspace --all-targets --target ${{ matrix.target }}
+        shell: pwsh
+        run: |
+          cargo check --workspace --all-targets --target ${{ matrix.target }} *> cargo-check.log 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content cargo-check.log | Select-Object -Last 60 | ForEach-Object { Write-Output "::error::$_" }
+            exit 1
+          }
