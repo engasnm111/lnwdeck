@@ -14,11 +14,13 @@ env:
   CARGO_TERM_COLOR: always
   # Keep CI failures deterministic: a warning is an error.
   RUSTFLAGS: -D warnings
-  # The Windows runner has ~7 GB of RAM; clippy/check over the whole
-  # workspace with tests and all features can exceed that when parallel
-  # compile is left at the default (one job per core), killing cargo
-  # silently. Bound it so the run completes.
-  CARGO_BUILD_JOBS: 2
+  # The Windows runner has ~7 GB of RAM; whole-workspace clippy/test/check
+  # with full debug info can exceed that while linking, killing cargo
+  # silently. Serialize the build and keep only line tables.
+  CARGO_BUILD_JOBS: 1
+  CARGO_PROFILE_DEV_DEBUG: "line-tables-only"
+  CARGO_PROFILE_TEST_DEBUG: "line-tables-only"
+  CARGO_PROFILE_CHECK_DEBUG: "line-tables-only"
 
 jobs:
   check:
