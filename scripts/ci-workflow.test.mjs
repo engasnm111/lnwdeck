@@ -18,6 +18,10 @@ const e2eSpec = readFileSync(
   new URL("../apps/desktop/e2e/app.spec.ts", import.meta.url),
   "utf8",
 );
+const windowsSource = readFileSync(
+  new URL("../apps/desktop/src-tauri/src/windows.rs", import.meta.url),
+  "utf8",
+);
 const desktopBuildScript = readFileSync(
   new URL("../apps/desktop/src-tauri/build.rs", import.meta.url),
   "utf8",
@@ -164,15 +168,30 @@ test("UI smoke does not retry runtime startup failures", () => {
 
 test("WebView2 smoke uses a dynamic endpoint and reports startup state", () => {
   assert.ok(e2eScript.includes("TcpListener"));
-  assert.ok(e2eScript.includes("remote-debugging-port=$port"));
+  assert.ok(e2eScript.includes('LNWD_E2E_CDP_PORT = "$port"'));
   assert.ok(e2eScript.includes("-WorkingDirectory $repo"));
   assert.ok(e2eScript.includes("$app.HasExited"));
   assert.ok(e2eScript.includes("exit code"));
   assert.ok(e2eSpec.includes("LNWD_E2E_CDP_PORT"));
 });
 
-test("WebView2 smoke applies and restores an app-scoped CDP policy", () => {
-  assert.ok(e2eScript.includes("Policies\\Microsoft\\Edge\\WebView2\\AdditionalBrowserArguments"));
-  assert.ok(e2eScript.includes("New-ItemProperty"));
-  assert.ok(e2eScript.includes("Remove-ItemProperty"));
+test("WebView2 CDP is configured programmatically for every desktop webview", () => {
+  assert.match(windowsSource, /LNWD_E2E_CDP_PORT/);
+  assert.match(windowsSource, /additional_browser_args/);
+  assert.match(windowsSource, /remote-debugging-port/);
+  assert.equal(
+    (windowsSource.match(/additional_browser_args/g) ?? []).length,
+    3,
+    "main, widget, and pet must receive the same browser arguments",
+  );
+});
+
+test("WebView2 smoke passes only the CDP port and uses a real deadline", () => {
+  assert.ok(e2eScript.includes("LNWD_E2E_CDP_PORT"));
+  assert.ok(e2eScript.includes("AddSeconds(60)"));
+  assert.ok(e2eScript.includes("Start-Sleep -Milliseconds 250"));
+  assert.doesNotMatch(e2eScript, /WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS/);
+  assert.doesNotMatch(e2eScript, /AdditionalBrowserArguments/);
+  assert.doesNotMatch(e2eScript, /New-ItemProperty|Remove-ItemProperty/);
+  assert.doesNotMatch(e2eScript, /WEBVIEW2_USER_DATA_FOLDER/);
 });

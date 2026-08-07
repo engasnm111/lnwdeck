@@ -377,38 +377,68 @@ pub fn apply_pet_click_through(app: tauri::AppHandle) {
     let _ = window.set_ignore_cursor_events(should_ignore);
 }
 
+/// Returns the browser arguments used by the local UI smoke test.
+///
+/// WebView2 ignores process environment overrides when the host is elevated,
+/// so the E2E port must be passed through the Tauri/WRY builder itself. The
+/// variable is intentionally opt-in: release and normal local launches keep
+/// the default browser configuration.
+fn e2e_browser_args() -> Option<String> {
+    let port = std::env::var("LNWD_E2E_CDP_PORT")
+        .ok()?
+        .parse::<u16>()
+        .ok()?;
+    Some(format!(
+        "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={port}"
+    ))
+}
+
 pub fn setup_windows(app: &tauri::App) {
-    let _main =
-        WebviewWindowBuilder::new(app, MAIN_LABEL, tauri::WebviewUrl::App("index.html".into()))
-            .title("lnwdeck")
-            .inner_size(1280.0, 840.0)
-            .min_inner_size(960.0, 640.0)
-            .build()
-            .expect("failed to build main window");
+    let browser_args = e2e_browser_args();
+    let mut main_builder =
+        WebviewWindowBuilder::new(app, MAIN_LABEL, tauri::WebviewUrl::App("index.html".into()));
+    if let Some(args) = browser_args.as_deref() {
+        main_builder = main_builder.additional_browser_args(args);
+    }
+    let _main = main_builder
+        .title("lnwdeck")
+        .inner_size(1280.0, 840.0)
+        .min_inner_size(960.0, 640.0)
+        .build()
+        .expect("failed to build main window");
 
     let (width, height) = widget_size_dimensions(DEFAULT_WIDGET_SIZE);
-    let _widget = WebviewWindowBuilder::new(
+    let mut widget_builder = WebviewWindowBuilder::new(
         app,
         WIDGET_LABEL,
         tauri::WebviewUrl::App("widget.html".into()),
-    )
-    .title("lnwdeck quota")
-    .inner_size(width, height)
-    .always_on_top(true)
-    .decorations(false)
-    // Fixed size: the preset is chosen in Settings, never user-resized.
-    // Content scrolls inside the window.
-    .resizable(false)
-    .skip_taskbar(true)
-    .visible(false)
-    .build()
-    .expect("failed to build widget window");
+    );
+    if let Some(args) = browser_args.as_deref() {
+        widget_builder = widget_builder.additional_browser_args(args);
+    }
+    let _widget = widget_builder
+        .title("lnwdeck quota")
+        .inner_size(width, height)
+        .always_on_top(true)
+        .decorations(false)
+        // Fixed size: the preset is chosen in Settings, never user-resized.
+        // Content scrolls inside the window.
+        .resizable(false)
+        .skip_taskbar(true)
+        .visible(false)
+        .build()
+        .expect("failed to build widget window");
 
     // Desktop pet: a small transparent, always-on-top window that follows the
     // pet as it walks. It is never full-screen, so clicks outside the pet hit
     // the desktop normally. The webview background is explicitly transparent
     // so no square frame is visible around the pet.
-    let pet = WebviewWindowBuilder::new(app, PET_LABEL, tauri::WebviewUrl::App("pet.html".into()))
+    let mut pet_builder =
+        WebviewWindowBuilder::new(app, PET_LABEL, tauri::WebviewUrl::App("pet.html".into()));
+    if let Some(args) = browser_args.as_deref() {
+        pet_builder = pet_builder.additional_browser_args(args);
+    }
+    let pet = pet_builder
         .title("lnwdeck pet")
         .inner_size(PET_WINDOW_WIDTH, PET_WINDOW_HEIGHT)
         .always_on_top(true)

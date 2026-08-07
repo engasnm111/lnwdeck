@@ -81,6 +81,10 @@ Installer behavior:
 - Installer offers official bootstrapper when missing
 - Handle x64, ARM64 and x86 loader/runtime correctly
 - No bundling mismatched architecture binary
+- CI UI smoke sets `LNWD_E2E_CDP_PORT`; the desktop Tauri setup passes the
+  matching remote-debugging argument directly to every WebView2 window.
+- The browser-debugging argument is opt-in to the E2E environment and is not
+  enabled for normal or release launches.
 
 ## 6. Auto-update
 
