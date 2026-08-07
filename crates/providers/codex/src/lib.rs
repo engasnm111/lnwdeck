@@ -3,7 +3,7 @@ use lnwdeck_domain::{
     Confidence, QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope, UsageBatch,
     DEFAULT_FRESHNESS,
 };
-use lnwdeck_provider_runtime::token_scan::{scan_directory, usage_events, ScanBounds, TokenSample};
+use lnwdeck_provider_runtime::token_scan::{usage_events, TokenSample};
 use lnwdeck_provider_runtime::{
     AdapterDescriptor, AdapterHealth, AdapterHealthStatus, AuthKind, ChannelSupport,
     DetectionResult, Permission, ProviderAdapter, SourceKind,
@@ -13,16 +13,19 @@ use std::path::{Path, PathBuf};
 
 pub mod usage_api;
 
-const ADAPTER_VERSION: &str = "0.2.0";
-const MAX_FILES: usize = 400;
-const MAX_TOTAL_BYTES: u64 = 32 * 1024 * 1024;
+const ADAPTER_VERSION: &str = "0.3.0";
+const MAX_FILES: usize = 2000;
+const MAX_TOTAL_BYTES: u64 = 256 * 1024 * 1024;
 
 /// Codex CLI passive local collector.
 ///
 /// Reads token usage from the local Codex session JSONL files
-/// (`~/.codex/sessions/**/*.jsonl`) read-only. Only numeric token counts and
-/// timestamps are aggregated; raw transcripts are never normalized. Quota is
-/// a usage estimate with unknown limits, never a fabricated percentage.
+/// (`~/.codex/sessions/**/*.jsonl`) read-only. Modern Codex CLI rollouts
+/// publish one `event_msg/token_count` per turn with the session's CUMULATIVE
+/// token totals plus the real rate-limit windows; the adapter takes the last
+/// cumulative value per session (never summing, which would count every turn
+/// multiple times) and surfaces the published windows as native quota. Raw
+/// transcripts are never normalized.
 pub struct CodexAdapter {
     sessions_dir: PathBuf,
     auth_path: PathBuf,
@@ -89,6 +92,8 @@ impl CodexAdapter {
         }
     }
 
+    /// Scans the session files and returns the rolling token sums
+    /// (5h / 7d / 30d) computed from each session's final cumulative total.
     fn scan_session_files(&self) -> Result<Option<[u64; 3]>, String> {
         let now_ms = Utc::now().timestamp_millis();
         let buckets = [
@@ -98,34 +103,14 @@ impl CodexAdapter {
         ];
         let mut sums = [0u64; 3];
         let mut any = false;
-        let mut files = 0usize;
-        let mut total_bytes = 0u64;
 
-        for file in collect_jsonl_files(&self.sessions_dir)? {
-            files += 1;
-            if files > MAX_FILES {
-                break;
-            }
-            let Ok(meta) = file.metadata() else {
-                continue;
-            };
-            total_bytes += meta.len();
-            if total_bytes > MAX_TOTAL_BYTES {
-                break;
-            }
-            let Ok(content) = std::fs::read_to_string(&file) else {
-                continue;
-            };
-            for line in content.lines() {
-                let Some((ts_ms, input, output)) = parse_session_line(line) else {
-                    continue;
-                };
-                let tokens = input + output;
-                for (i, bucket_ms) in buckets.iter().enumerate() {
-                    if now_ms - ts_ms <= *bucket_ms {
-                        sums[i] = sums[i].saturating_add(tokens);
-                        any = true;
-                    }
+        for sample in self.scan_samples()? {
+            for (i, bucket_ms) in buckets.iter().enumerate() {
+                if now_ms - sample.timestamp.timestamp_millis() <= *bucket_ms {
+                    sums[i] = sums[i]
+                        .saturating_add(sample.input_tokens)
+                        .saturating_add(sample.output_tokens);
+                    any = true;
                 }
             }
         }
@@ -133,18 +118,57 @@ impl CodexAdapter {
         Ok(any.then_some(sums))
     }
 
-    /// Scans the bounded session files and returns every token sample found.
-    ///
-    /// The shared scanner is used so the sample shape, the bounds and the
-    /// privacy rules are identical across the local collectors.
+    /// One usage sample per session file: the last cumulative `token_count`
+    /// record of that session. Summing every `token_count` line would count
+    /// each turn's cumulative total multiple times.
     fn scan_samples(&self) -> Result<Vec<TokenSample>, String> {
-        let bounds = ScanBounds {
-            max_files: MAX_FILES,
-            max_total_bytes: MAX_TOTAL_BYTES,
-            ..ScanBounds::default()
-        };
-        let report = scan_directory(&self.sessions_dir, &bounds);
-        Ok(report.samples)
+        let mut samples = Vec::new();
+        for file in collect_jsonl_files(&self.sessions_dir)? {
+            let Ok(meta) = file.metadata() else {
+                continue;
+            };
+            if meta.len() > MAX_TOTAL_BYTES {
+                continue;
+            }
+            let Ok(content) = std::fs::read_to_string(&file) else {
+                continue;
+            };
+            // Track the largest cumulative totals and the newest timestamp.
+            let mut best: Option<(DateTime<Utc>, u64, u64)> = None;
+            for line in content.lines() {
+                let Some(record) = parse_token_count_line(line) else {
+                    continue;
+                };
+                match &mut best {
+                    Some((ts, input, output)) => {
+                        if record.input > *input {
+                            *input = record.input;
+                        }
+                        if record.output > *output {
+                            *output = record.output;
+                        }
+                        if record.timestamp > *ts {
+                            *ts = record.timestamp;
+                        }
+                    }
+                    None => {
+                        best = Some((record.timestamp, record.input, record.output));
+                    }
+                }
+            }
+            if let Some((timestamp, input, output)) = best {
+                if input > 0 || output > 0 {
+                    samples.push(TokenSample {
+                        timestamp,
+                        input_tokens: input,
+                        output_tokens: output,
+                        model: None,
+                    });
+                }
+            }
+        }
+        samples.sort_by_key(|sample| sample.timestamp);
+        Ok(samples)
     }
 
     fn local_quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
@@ -191,13 +215,61 @@ impl CodexAdapter {
         )))
     }
 
+    /// The real rate-limit windows Codex publishes into every `token_count`
+    /// record. The newest record wins; nothing is fetched over the network.
+    fn local_rate_limits(&self) -> Result<Option<QuotaReport>, String> {
+        let mut newest: Option<(DateTime<Utc>, Value)> = None;
+        for file in collect_jsonl_files(&self.sessions_dir)? {
+            let Ok(meta) = file.metadata() else {
+                continue;
+            };
+            if meta.len() > MAX_TOTAL_BYTES {
+                continue;
+            }
+            let Ok(content) = std::fs::read_to_string(&file) else {
+                continue;
+            };
+            for line in content.lines() {
+                let Some(record) = parse_token_count_line(line) else {
+                    continue;
+                };
+                let Some(limits) = record.rate_limits else {
+                    continue;
+                };
+                if limits.get("primary").is_none() {
+                    continue;
+                }
+                if newest.as_ref().is_none_or(|(ts, _)| record.timestamp > *ts) {
+                    newest = Some((record.timestamp, limits));
+                }
+            }
+        }
+        let Some((_, limits)) = newest else {
+            return Ok(None);
+        };
+        let windows = rate_limit_windows(&limits);
+        if windows.is_empty() {
+            return Ok(None);
+        }
+        let mut report =
+            QuotaReport::new("openai_codex", "provider_api", windows, DEFAULT_FRESHNESS);
+        if let Some(plan) = limits.get("plan_type").and_then(|v| v.as_str()) {
+            if !plan.is_empty() {
+                report.plan = Some(plan.to_string());
+            }
+        }
+        Ok(Some(report))
+    }
+
     /// Quota for the Codex subscription.
     ///
-    /// OpenAI publishes the used percentage of each rate-limit window to the
-    /// OAuth token the Codex CLI stores locally. Without a stored token, or
-    /// when no window is published, the local session scan provides usage-only
-    /// windows instead.
+    /// Order: the rate-limit windows the CLI itself publishes in local
+    /// session files (fresh, no credentials needed), then the OpenAI usage
+    /// API via the stored OAuth token, then a usage-only local estimate.
     fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
+        if let Ok(Some(report)) = self.local_rate_limits() {
+            return Ok(Some(report));
+        }
         match usage_api::fetch_windows(
             &self.auth_path,
             &usage_api::default_endpoint(),
@@ -222,46 +294,32 @@ impl Default for CodexAdapter {
     }
 }
 
-fn collect_jsonl_files(root: &Path) -> Result<Vec<PathBuf>, String> {
-    let mut files = Vec::new();
-    let mut dirs = Vec::new();
-    for entry in std::fs::read_dir(root).map_err(|_| "SOURCE_UNAVAILABLE")? {
-        let Ok(entry) = entry else {
-            continue;
-        };
-        let path = entry.path();
-        if path.is_dir() {
-            dirs.push(path);
-        } else if path.extension().map(|e| e == "jsonl").unwrap_or(false) {
-            files.push(path);
-        }
-    }
-    for dir in dirs {
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_file() && path.extension().map(|e| e == "jsonl").unwrap_or(false) {
-                files.push(path);
-            }
-        }
-    }
-    Ok(files)
+/// One parsed `token_count` record: the session's cumulative totals at that
+/// moment, plus the rate-limit windows when the CLI published them.
+struct TokenCountRecord {
+    timestamp: DateTime<Utc>,
+    input: u64,
+    output: u64,
+    rate_limits: Option<Value>,
 }
 
-/// Parses one Codex session JSONL line into (timestamp_ms, input, output).
-/// The timestamp and usage object are read defensively from the top level or
-/// the `payload` object; malformed or non-usage lines are skipped.
-fn parse_session_line(line: &str) -> Option<(i64, u64, u64)> {
+/// Parses one Codex session JSONL line carrying `event_msg/token_count`.
+/// Any other line shape is skipped.
+fn parse_token_count_line(line: &str) -> Option<TokenCountRecord> {
     let value: Value = serde_json::from_str(line).ok()?;
-    let payload = value.get("payload").unwrap_or(&value);
-    let timestamp = value
-        .get("timestamp")
-        .or_else(|| payload.get("timestamp"))
-        .and_then(|v| v.as_str())?;
-    let dt = DateTime::parse_from_rfc3339(timestamp).ok()?;
-    let usage = value.get("usage").or_else(|| payload.get("usage"))?;
+    if value.get("type").and_then(|v| v.as_str()) != Some("event_msg") {
+        return None;
+    }
+    let payload = value.get("payload")?;
+    if payload.get("type").and_then(|v| v.as_str()) != Some("token_count") {
+        return None;
+    }
+    let timestamp = value.get("timestamp").and_then(|v| v.as_str())?;
+    let dt = DateTime::parse_from_rfc3339(timestamp)
+        .ok()?
+        .with_timezone(&Utc);
+    let info = payload.get("info")?;
+    let usage = info.get("total_token_usage")?;
     let input = usage
         .get("input_tokens")
         .and_then(|v| v.as_u64())
@@ -273,7 +331,78 @@ fn parse_session_line(line: &str) -> Option<(i64, u64, u64)> {
     if input == 0 && output == 0 {
         return None;
     }
-    Some((dt.timestamp_millis(), input, output))
+    Some(TokenCountRecord {
+        timestamp: dt,
+        input,
+        output,
+        rate_limits: payload.get("rate_limits").cloned(),
+    })
+}
+
+/// Window duration classification from the minutes Codex publishes.
+fn classify_minutes(minutes: Option<u64>) -> (&'static str, &'static str, QuotaWindowScope) {
+    match minutes {
+        Some(300) => ("session", "Session", QuotaWindowScope::Rolling),
+        Some(10_080) => ("weekly", "Weekly", QuotaWindowScope::Weekly),
+        Some(43_200) => ("monthly", "Monthly", QuotaWindowScope::Monthly),
+        _ => ("window", "Rate limit", QuotaWindowScope::Other),
+    }
+}
+
+/// Converts the `rate_limits` object of a `token_count` record into quota
+/// windows. The primary slot always exists; the secondary slot is used when
+/// it declares a different duration.
+fn rate_limit_windows(limits: &Value) -> Vec<QuotaWindow> {
+    let mut windows = Vec::new();
+    for slot in ["primary", "secondary"] {
+        let Some(window) = limits.get(slot) else {
+            continue;
+        };
+        let Some(used_percent) = window.get("used_percent").and_then(|v| v.as_f64()) else {
+            continue;
+        };
+        let minutes = window.get("window_minutes").and_then(|v| v.as_u64());
+        let (key, label, scope) = classify_minutes(minutes);
+        let reset_at = window
+            .get("resets_at")
+            .and_then(|v| v.as_i64())
+            .and_then(|secs| DateTime::from_timestamp(secs, 0));
+        if windows
+            .iter()
+            .any(|existing: &QuotaWindow| existing.window_key == key)
+        {
+            continue;
+        }
+        windows.push(QuotaWindow::from_percent(
+            key,
+            label,
+            scope,
+            QuotaKind::Requests,
+            used_percent,
+            reset_at,
+            Confidence::High,
+        ));
+    }
+    windows
+}
+
+/// Collects every `.jsonl` session file under `root`, recursively.
+///
+/// Codex stores rollouts as `sessions/<year>/<month>/<day>/*.jsonl`, so a
+/// two-level walk would find nothing; the shared collector handles arbitrary
+/// depth with the adapter's file/byte bounds.
+fn collect_jsonl_files(root: &Path) -> Result<Vec<PathBuf>, String> {
+    if !root.is_dir() {
+        return Err("SOURCE_UNAVAILABLE".to_string());
+    }
+    let bounds = lnwdeck_provider_runtime::token_scan::ScanBounds {
+        max_files: MAX_FILES,
+        max_total_bytes: MAX_TOTAL_BYTES,
+        ..lnwdeck_provider_runtime::token_scan::ScanBounds::default()
+    };
+    Ok(lnwdeck_provider_runtime::token_scan::collect_files(
+        root, &bounds,
+    ))
 }
 
 impl ProviderAdapter for CodexAdapter {
@@ -284,7 +413,7 @@ impl ProviderAdapter for CodexAdapter {
             vendor: "OpenAI",
             source_kind: SourceKind::LocalJsonl,
             usage_support: ChannelSupport::LocalEstimate,
-            // OpenAI publishes real per-window usage to the local OAuth token.
+            // The CLI publishes real per-window usage into session files.
             quota_support: ChannelSupport::Native,
             auth: AuthKind::LocalFiles,
             adapter_version: ADAPTER_VERSION,
@@ -334,9 +463,20 @@ mod tests {
         std::fs::write(&file, lines.join("\n")).expect("write session");
     }
 
-    fn response_item(ts: &str, input: u64, output: u64) -> String {
+    /// A `token_count` record with cumulative totals and optional rate limits.
+    fn token_count(ts: &str, input: u64, output: u64, limits: Option<&str>) -> String {
+        let limits_part = limits
+            .map(|raw| format!(r#","rate_limits":{raw}"#))
+            .unwrap_or_default();
         format!(
-            r#"{{"type":"response_item","timestamp":"{ts}","payload":{{"type":"message","role":"assistant","usage":{{"input_tokens":{input},"output_tokens":{output}}}}}}}"#
+            r#"{{"timestamp":"{ts}","type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":{input},"output_tokens":{output},"total_tokens":{}}}}},"model_context_window":258400{limits_part}}}}}"#,
+            input + output
+        )
+    }
+
+    fn response_item(ts: &str) -> String {
+        format!(
+            r#"{{"type":"response_item","timestamp":"{ts}","payload":{{"type":"message","role":"assistant"}}}}"#
         )
     }
 
@@ -346,6 +486,12 @@ mod tests {
 
     fn now_minus(secs: i64) -> String {
         (Utc::now() - chrono::Duration::seconds(secs)).to_rfc3339()
+    }
+
+    fn rate_limits_json(used_percent: f64, minutes: u64, plan: &str) -> String {
+        format!(
+            r#"{{"limit_id":"codex","primary":{{"used_percent":{used_percent},"window_minutes":{minutes},"resets_at":4102444800}},"plan_type":"{plan}"}}"#
+        )
     }
 
     #[test]
@@ -361,30 +507,47 @@ mod tests {
     }
 
     #[test]
-    fn parse_session_line_extracts_usage() {
-        let line = response_item("2026-08-04T00:00:00Z", 120, 60);
-        let (ts_ms, input, output) = parse_session_line(&line).expect("parsed");
-        assert_eq!(input, 120);
-        assert_eq!(output, 60);
-        assert!(ts_ms > 0);
-        assert!(parse_session_line("not json").is_none());
-        assert!(
-            parse_session_line(r#"{"type":"response_item","payload":{"type":"reasoning"}}"#)
-                .is_none()
-        );
+    fn token_count_lines_are_parsed_and_other_lines_are_skipped() {
+        let record = parse_token_count_line(&token_count("2026-08-04T00:00:00Z", 8771, 84, None))
+            .expect("parsed");
+        assert_eq!(record.input, 8771);
+        assert_eq!(record.output, 84);
+        assert!(record.rate_limits.is_none());
+
+        assert!(parse_token_count_line("not json").is_none());
+        assert!(parse_token_count_line(&response_item("2026-08-04T00:00:00Z")).is_none());
+        assert!(parse_token_count_line(&token_count("2026-08-04T00:00:00Z", 0, 0, None)).is_none());
     }
 
     #[test]
-    fn quota_estimate_aggregates_rolling_windows() {
+    fn rate_limit_windows_come_from_the_published_record() {
+        let limits: Value =
+            serde_json::from_str(&rate_limits_json(98.0, 10_080, "plus")).expect("json");
+        let windows = rate_limit_windows(&limits);
+        assert_eq!(windows.len(), 1);
+        assert_eq!(windows[0].window_key, "weekly");
+        assert_eq!(windows[0].label, "Weekly");
+        assert_eq!(windows[0].used_percent, Some(98.0));
+        assert_eq!(windows[0].remaining_percent, Some(2.0));
+        assert_eq!(windows[0].scope, QuotaWindowScope::Weekly);
+        assert!(windows[0].reset_at.is_some());
+        windows[0].check_invariants().expect("consistent");
+    }
+
+    #[test]
+    fn cumulative_totals_are_never_summed_per_turn() {
         let dir = tempdir().expect("temp dir");
         let sessions = dir.path().join("sessions");
-        std::fs::create_dir_all(sessions.join("sub")).expect("create dirs");
+        std::fs::create_dir_all(&sessions).expect("create dirs");
+        // Three turns with cumulative totals: 1000, 1800, 2400. The session
+        // total is 2400 โ€” summing every record would give 5200.
         write_session(
-            &sessions.join("sub"),
+            &sessions,
             "sess_1.jsonl",
             &[
-                &response_item(&now_minus(3600), 800, 200),
-                &response_item(&now_minus(2 * 24 * 3600), 300, 100),
+                &token_count(&now_minus(3600), 800, 200, None),
+                &token_count(&now_minus(1800), 1500, 300, None),
+                &token_count(&now_minus(600), 2100, 300, None),
             ],
         );
 
@@ -393,23 +556,70 @@ mod tests {
             .collect_quota()
             .expect("quota call")
             .expect("report");
-        assert_eq!(report.provider_id, "openai_codex");
-        assert_eq!(report.source, "local_estimate");
-        assert_eq!(report.windows.len(), 3);
         let five_h = report
             .windows
             .iter()
             .find(|w| w.window_key == "5h")
             .unwrap();
-        let seven_d = report
+        assert_eq!(
+            five_h.used, 2400,
+            "only the final cumulative total counts, never the sum"
+        );
+        assert_eq!(
+            five_h.limit, None,
+            "usage-only windows have no fabricated limit"
+        );
+    }
+
+    #[test]
+    fn quota_estimate_prefers_the_published_rate_limits() {
+        let dir = tempdir().expect("temp dir");
+        let sessions = dir.path().join("sessions");
+        std::fs::create_dir_all(&sessions).expect("create dirs");
+        write_session(
+            &sessions,
+            "sess_1.jsonl",
+            &[&token_count(
+                &now_minus(60),
+                100,
+                20,
+                Some(&rate_limits_json(98.0, 10_080, "plus")),
+            )],
+        );
+
+        let adapter = adapter_for(&sessions);
+        let report = adapter
+            .collect_quota()
+            .expect("quota call")
+            .expect("report");
+        assert_eq!(report.source, "provider_api");
+        assert_eq!(report.plan.as_deref(), Some("plus"));
+        let weekly = report
             .windows
             .iter()
-            .find(|w| w.window_key == "7d")
+            .find(|w| w.window_key == "weekly")
             .unwrap();
-        assert_eq!(five_h.used, 1000, "only sessions in last 5h");
-        assert_eq!(seven_d.used, 1400, "both sessions within 7d");
-        assert_eq!(five_h.limit, None, "limit is unknown, never fabricated");
-        assert_eq!(five_h.remaining_percent, None);
+        assert_eq!(weekly.used_percent, Some(98.0));
+    }
+
+    #[test]
+    fn quota_estimate_falls_back_to_usage_only_without_rate_limits() {
+        let dir = tempdir().expect("temp dir");
+        let sessions = dir.path().join("sessions");
+        std::fs::create_dir_all(&sessions).expect("create dirs");
+        write_session(
+            &sessions,
+            "sess_1.jsonl",
+            &[&token_count(&now_minus(3600), 800, 200, None)],
+        );
+
+        let adapter = adapter_for(&sessions);
+        let report = adapter
+            .collect_quota()
+            .expect("quota call")
+            .expect("report");
+        assert_eq!(report.source, "local_estimate");
+        assert!(report.plan.is_none());
     }
 
     #[test]
@@ -428,11 +638,11 @@ mod tests {
     fn detection_classifies_auth_presence() {
         let dir = tempdir().expect("temp dir");
         let sessions = dir.path().join("sessions");
-        std::fs::create_dir_all(sessions.join("sub")).expect("create dirs");
+        std::fs::create_dir_all(&sessions).expect("create dirs");
         write_session(
-            &sessions.join("sub"),
+            &sessions,
             "sess_1.jsonl",
-            &[&response_item(&now_minus(60), 10, 5)],
+            &[&token_count(&now_minus(60), 10, 5, None)],
         );
 
         let adapter = adapter_for(&sessions);
@@ -458,30 +668,25 @@ mod tests {
     }
 
     #[test]
-    fn collect_usage_emits_real_events_from_local_sessions() {
+    fn collect_usage_emits_one_event_per_session_with_final_totals() {
         let dir = tempdir().expect("temp dir");
         let root = dir.path().join("sessions");
         std::fs::create_dir_all(&root).expect("create root");
-        let recent = (chrono::Utc::now() - chrono::Duration::minutes(10)).to_rfc3339();
-        std::fs::write(
-            root.join("session.jsonl"),
-            format!(
-                r#"{{"type":"assistant","timestamp":"{recent}","message":{{"id":"m1","role":"assistant","model":"codex-e2e","usage":{{"input_tokens":300,"output_tokens":100}}}}}}"#
-            ),
-        )
-        .expect("write session");
+        write_session(
+            &root,
+            "session.jsonl",
+            &[
+                &token_count(&now_minus(600), 300, 100, None),
+                &token_count(&now_minus(300), 700, 250, None),
+            ],
+        );
 
         let adapter = CodexAdapter::with_paths(root.clone(), root.join("auth.json"));
         let batch = adapter.collect_usage().expect("usage");
-        assert_eq!(
-            batch.events.len(),
-            1,
-            "a real session record must become a usage event, not an empty success"
-        );
+        assert_eq!(batch.events.len(), 1, "one session becomes one event");
         assert_eq!(batch.events[0].provider_id, "openai_codex");
-        assert_eq!(batch.events[0].tokens_input, 300);
-        assert_eq!(batch.events[0].tokens_output, 100);
-        assert_eq!(batch.events[0].model, "codex-e2e");
+        assert_eq!(batch.events[0].tokens_input, 700);
+        assert_eq!(batch.events[0].tokens_output, 250);
         assert!(
             batch.events[0].cost.is_empty(),
             "a collector must not invent a cost"
