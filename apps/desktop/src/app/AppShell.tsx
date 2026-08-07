@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+﻿import { useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
+import { listen } from "@tauri-apps/api/event";
 import { Badge, Button } from "@lnwdeck/ui";
 import {
   AlertsIcon,
@@ -17,18 +18,19 @@ import {
 import { UpdateNotification } from "../components/UpdateNotification";
 import { fetchAlerts, fetchSettings, refreshAll } from "../lib/native";
 import { formatRelativeTime, freshnessOf } from "../lib/freshness";
+import { useI18n } from "../lib/i18n";
 
 const navItems = [
-  { to: "/", label: "Overview", icon: OverviewIcon },
-  { to: "/providers", label: "Providers", icon: ProvidersIcon },
-  { to: "/analytics", label: "Analytics", icon: AnalyticsIcon },
-  { to: "/costs", label: "Costs", icon: CostsIcon },
-  { to: "/budgets", label: "Budgets", icon: BudgetsIcon },
-  { to: "/models", label: "Models", icon: ModelsIcon },
-  { to: "/alerts", label: "Alerts", icon: AlertsIcon },
-  { to: "/pet", label: "Pet", icon: PetIcon },
-  { to: "/settings", label: "Settings", icon: SettingsIcon },
-  { to: "/system", label: "System", icon: SystemIcon },
+  { to: "/", key: "nav.overview", icon: OverviewIcon },
+  { to: "/providers", key: "nav.providers", icon: ProvidersIcon },
+  { to: "/analytics", key: "nav.analytics", icon: AnalyticsIcon },
+  { to: "/costs", key: "nav.costs", icon: CostsIcon },
+  { to: "/budgets", key: "nav.budgets", icon: BudgetsIcon },
+  { to: "/models", key: "nav.models", icon: ModelsIcon },
+  { to: "/alerts", key: "nav.alerts", icon: AlertsIcon },
+  { to: "/pet", key: "nav.pet", icon: PetIcon },
+  { to: "/settings", key: "nav.settings", icon: SettingsIcon },
+  { to: "/system", key: "nav.system", icon: SystemIcon },
 ];
 
 /**
@@ -39,6 +41,7 @@ const navItems = [
  * a "Fresh" badge based on the time the window happened to open.
  */
 export function AppShell() {
+  const { t, language } = useI18n();
   const [collapsed, setCollapsed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
@@ -82,8 +85,14 @@ export function AppShell() {
   useEffect(() => {
     void loadStatus();
     void loadFreshness();
+    const unlisten = listen<string>("settings-changed", (event) => {
+      setTheme(event.payload);
+    });
     const tick = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(tick);
+    return () => {
+      clearInterval(tick);
+      void unlisten.then((fn) => fn());
+    };
   }, [loadStatus, loadFreshness]);
 
   useEffect(() => {
@@ -112,7 +121,7 @@ export function AppShell() {
   return (
     <div className="app-layout">
       <nav
-        aria-label="Main navigation"
+        aria-label={t("app.navAria")}
         className={`app-sidebar ${collapsed ? "app-sidebar-collapsed" : ""}`.trim()}
       >
         <div>
@@ -127,7 +136,9 @@ export function AppShell() {
               type="button"
               className="app-sidebar-collapse"
               onClick={() => setCollapsed((value) => !value)}
-              aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+              aria-label={
+                collapsed ? t("app.expandNav") : t("app.collapseNav")
+              }
               aria-expanded={!collapsed}
             >
               {collapsed ? "[+]" : "[-]"}
@@ -143,17 +154,19 @@ export function AppShell() {
                   <NavLink
                     to={item.to}
                     end={item.to === "/"}
-                    title={item.label}
+                    title={t(item.key)}
                     className={({ isActive }) =>
                       `app-sidebar-link ${isActive ? "active" : ""}`.trim()
                     }
                   >
                     <Icon />
-                    {!collapsed && <span>{item.label}</span>}
+                    {!collapsed && <span>{t(item.key)}</span>}
                     {badgeCount !== null && (
                       <span
                         className="app-sidebar-link-count"
-                        aria-label={`${badgeCount} open alerts`}
+                        aria-label={t("app.openAlerts", {
+                          count: String(badgeCount),
+                        })}
                       >
                         {badgeCount}
                       </span>
@@ -166,8 +179,8 @@ export function AppShell() {
         </div>
         <div className="app-sidebar-footer">
           {!collapsed && appVersion && <span>v{appVersion}</span>}
-          <Badge tone="neutral" title="All data stays on this machine">
-            Local
+          <Badge tone="neutral" title={t("app.localHint")}>
+            {t("app.local")}
           </Badge>
         </div>
       </nav>
@@ -176,25 +189,27 @@ export function AppShell() {
         <UpdateNotification />
         {refreshError && (
           <div className="banner banner-error" role="alert">
-            <span className="banner-body">Refresh failed: {refreshError}</span>
+            <span className="banner-body">
+              {t("app.refreshFailed", { error: refreshError })}
+            </span>
             <button
               type="button"
               className="banner-dismiss"
               onClick={() => setRefreshError(null)}
-              aria-label="Dismiss refresh error"
+              aria-label={t("app.dismiss")}
             >
               x
             </button>
           </div>
         )}
         <header className="app-topbar">
-          <h1 className="app-topbar-title">{currentNav.label}</h1>
+          <h1 className="app-topbar-title">{t(currentNav.key)}</h1>
           <div className="app-topbar-actions">
             <span className="app-freshness">
               <span>
                 {lastSync
-                  ? `Collected ${formatRelativeTime(lastSync, now)}`
-                  : "No collection has succeeded yet"}
+                  ? t("topbar.collected", { time: formatRelativeTime(lastSync, now, language) })
+                  : t("topbar.noCollection")}
               </span>
               <Badge tone={freshness.tone}>{freshness.label}</Badge>
             </span>
@@ -202,10 +217,10 @@ export function AppShell() {
               variant="secondary"
               onClick={() => void handleGlobalRefresh()}
               disabled={refreshing}
-              aria-label="Refresh all providers"
+              aria-label={t("topbar.refresh")}
             >
               <RefreshIcon />
-              {refreshing ? "Refreshing" : "Refresh all"}
+              {refreshing ? t("topbar.refreshing") : t("topbar.refresh")}
             </Button>
           </div>
         </header>

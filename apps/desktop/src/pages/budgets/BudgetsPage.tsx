@@ -19,6 +19,7 @@ import {
   type DetailedProviderInfo,
 } from "../../lib/native";
 import { formatCompact, formatTimestamp } from "../../lib/freshness";
+import { useI18n } from "../../lib/i18n";
 
 const PERIODS: BudgetPeriod[] = ["daily", "weekly", "monthly"];
 
@@ -49,9 +50,10 @@ function barTone(state: BudgetProgressData["state"]) {
 function scopeLabel(
   progress: BudgetProgressData,
   providers: DetailedProviderInfo[],
+  t: (key: string) => string,
 ): string {
   if (progress.budget.scope.kind === "global") {
-    return "All providers";
+    return t("budgets.allProviders");
   }
   const id = progress.budget.scope.provider_id ?? "";
   return providers.find((p) => p.provider_id === id)?.display_name ?? id;
@@ -63,6 +65,7 @@ function scopeLabel(
  * showing a reassuring status.
  */
 export function BudgetsPage() {
+  const { t, language } = useI18n();
   const [data, setData] = useState<BudgetOverviewData | null>(null);
   const [providers, setProviders] = useState<DetailedProviderInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -153,19 +156,15 @@ export function BudgetsPage() {
     <div>
       <div className="page-header">
         <div>
-          <h2 className="page-title">Budgets</h2>
-          <p className="page-subtitle">
-            Spending and token caps you configure. Progress is measured against
-            recorded usage for the period; usage that cannot be priced is
-            reported separately rather than counted as zero.
-          </p>
+          <h2 className="page-title">{t("nav.budgets")}</h2>
+          <p className="page-subtitle">{t("budgets.subtitle")}</p>
         </div>
       </div>
 
       <div className="stack">
-        <Card title="Add or update a budget">
+        <Card title={t("budgets.addTitle")}>
           <div className="form-grid">
-            <Field label="Scope" htmlFor="budget-scope">
+            <Field label={t("budgets.scope")} htmlFor="budget-scope">
               <select
                 id="budget-scope"
                 className="ui-select"
@@ -174,12 +173,12 @@ export function BudgetsPage() {
                   setScope(event.target.value as "global" | "provider")
                 }
               >
-                <option value="global">All providers</option>
-                <option value="provider">One provider</option>
+                <option value="global">{t("budgets.allProviders")}</option>
+                <option value="provider">{t("budgets.oneProvider")}</option>
               </select>
             </Field>
             {scope === "provider" && (
-              <Field label="Provider" htmlFor="budget-provider">
+              <Field label={t("models.providerLabel")} htmlFor="budget-provider">
                 <select
                   id="budget-provider"
                   className="ui-select"
@@ -197,7 +196,7 @@ export function BudgetsPage() {
                 </select>
               </Field>
             )}
-            <Field label="Period" htmlFor="budget-period">
+            <Field label={t("budgets.period")} htmlFor="budget-period">
               <select
                 id="budget-period"
                 className="ui-select"
@@ -214,9 +213,9 @@ export function BudgetsPage() {
               </select>
             </Field>
             <Field
-              label="Cost limit"
+              label={t("budgets.costLimit")}
               htmlFor="budget-cost"
-              hint="Decimal amount, for example 25.00"
+              hint={t("budgets.costLimitHint")}
             >
               <input
                 id="budget-cost"
@@ -227,9 +226,9 @@ export function BudgetsPage() {
               />
             </Field>
             <Field
-              label="Token limit"
+              label={t("budgets.tokenLimit")}
               htmlFor="budget-tokens"
-              hint="Optional; leave empty for none"
+              hint={t("budgets.tokenLimitHint")}
             >
               <input
                 id="budget-tokens"
@@ -239,7 +238,7 @@ export function BudgetsPage() {
                 onChange={(event) => setTokenLimit(event.target.value)}
               />
             </Field>
-            <Field label="Warn at" htmlFor="budget-warn" hint="Percent of limit">
+            <Field label={t("budgets.warnAt")} htmlFor="budget-warn" hint={t("budgets.warnAtHint")}>
               <input
                 id="budget-warn"
                 className="ui-input"
@@ -250,7 +249,7 @@ export function BudgetsPage() {
             </Field>
             <Toggle
               id="budget-enabled"
-              label="Enabled"
+              label={t("budgets.enabled")}
               checked={enabled}
               onChange={setEnabled}
             />
@@ -259,7 +258,7 @@ export function BudgetsPage() {
               onClick={() => void handleSave()}
               disabled={saving}
             >
-              {saving ? "Saving" : "Save budget"}
+              {saving ? t("common.saving") : t("budgets.save")}
             </Button>
           </div>
           {formError && (
@@ -275,10 +274,9 @@ export function BudgetsPage() {
           isEmpty={data !== null && data.budgets.length === 0}
           onRetry={() => void load()}
           emptyFallback={
-            <Card title="No budgets configured">
+            <Card title={t("budgets.empty.title")}>
               <p className="ui-inline-note">
-                No spending or token caps have been set, so nothing is being
-                tracked against a limit.
+                {t("budgets.empty.body")}
               </p>
             </Card>
           }
@@ -288,20 +286,20 @@ export function BudgetsPage() {
               {data.budgets.map((progress) => (
                 <Card
                   key={progress.budget.id}
-                  title={`${scopeLabel(progress, providers)} - ${progress.budget.period}`}
-                  subtitle={`Period started ${formatTimestamp(progress.period_start)}`}
+                  title={`${scopeLabel(progress, providers, t)} - ${t(`budgets.period${progress.budget.period.charAt(0).toUpperCase() + progress.budget.period.slice(1)}`)}`}
+                  subtitle={t("budgets.periodStarted", { time: formatTimestamp(progress.period_start, language) })}
                   action={
                     <div className="row">
                       <Badge tone={stateTone(progress.state)}>
-                        {progress.state}
+                        {t(`budgets.state.${progress.state}`)}
                       </Badge>
                       <Button
                         variant="danger"
                         size="small"
                         onClick={() => void handleDelete(progress.budget.id)}
-                        aria-label={`Delete budget ${progress.budget.id}`}
+                        aria-label={t("budgets.deleteAria", { id: String(progress.budget.id) })}
                       >
-                        Delete
+                        {t("common.remove")}
                       </Button>
                     </div>
                   }
@@ -309,44 +307,44 @@ export function BudgetsPage() {
                   <div className="stack-tight">
                     <div className="bar-row">
                       <div className="bar-row-head">
-                        <span>Cost</span>
+                        <span>{t("budgets.cost")}</span>
                         <span className="ui-mono">
                           {progress.cost_used}
                           {progress.budget.cost_limit
                             ? ` / ${progress.budget.cost_limit}`
-                            : " (no cost limit)"}
+                            : t("budgets.noCostLimit")}
                         </span>
                       </div>
                       <ProgressBar
                         percent={progress.cost_percent}
                         tone={barTone(progress.state)}
-                        label="Cost budget used"
+                        label={t("budgets.costUsed")}
                       />
                     </div>
                     <div className="bar-row">
                       <div className="bar-row-head">
-                        <span>Tokens</span>
+                        <span>{t("budgets.tokens")}</span>
                         <span className="ui-mono">
                           {formatCompact(progress.tokens_used)}
                           {progress.budget.token_limit
                             ? ` / ${formatCompact(progress.budget.token_limit)}`
-                            : " (no token limit)"}
+                            : t("budgets.noTokenLimit")}
                         </span>
                       </div>
                       <ProgressBar
                         percent={progress.token_percent}
                         tone={barTone(progress.state)}
-                        label="Token budget used"
+                        label={t("budgets.tokenUsed")}
                       />
                     </div>
                     <span className="ui-inline-note">
-                      {progress.request_count} request(s) in this period
+                      {t("budgets.requestsInPeriod", { count: String(progress.request_count) })}
                       {progress.unpriced_tokens > 0
-                        ? `; ${formatCompact(progress.unpriced_tokens)} tokens could not be priced`
+                        ? t("budgets.unpricedNote", { tokens: formatCompact(progress.unpriced_tokens) })
                         : ""}
                     </span>
                     {!progress.budget.enabled && (
-                      <Badge tone="neutral">Disabled</Badge>
+                      <Badge tone="neutral">{t("budgets.disabled")}</Badge>
                     )}
                   </div>
                 </Card>

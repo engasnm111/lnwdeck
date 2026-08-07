@@ -9,6 +9,7 @@ import {
   type QuotaDashboardData,
 } from "../lib/native";
 import { formatCompact, formatTimestamp } from "../lib/freshness";
+import { useI18n } from "../lib/i18n";
 
 function healthTone(status: string) {
   if (status.startsWith("Error")) {
@@ -42,6 +43,7 @@ function supportTone(support: string) {
  * healthy.
  */
 export function ProvidersPage() {
+  const { t, language } = useI18n();
   const [providers, setProviders] = useState<DetailedProviderInfo[]>([]);
   const [quota, setQuota] = useState<QuotaDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -100,12 +102,8 @@ export function ProvidersPage() {
     <div>
       <div className="page-header">
         <div>
-          <h2 className="page-title">Providers</h2>
-          <p className="page-subtitle">
-            Ten built-in adapters. Each one declares which channels it supports;
-            the runtime never records a successful collection for a channel that
-            is not implemented.
-          </p>
+          <h2 className="page-title">{t("nav.providers")}</h2>
+          <p className="page-subtitle">{t("providers.subtitle")}</p>
         </div>
       </div>
 
@@ -140,51 +138,51 @@ export function ProvidersPage() {
                         void handleRefreshProvider(provider.provider_id)
                       }
                       disabled={refreshingId === provider.provider_id}
-                      aria-label={`Refresh ${provider.display_name}`}
+                      aria-label={t("system.refreshProvider", { provider: provider.display_name })}
                     >
                       {refreshingId === provider.provider_id
-                        ? "Refreshing"
-                        : "Refresh"}
+                        ? t("topbar.refreshing")
+                        : t("system.refresh")}
                     </Button>
                   </div>
                 }
               >
                 <div className="row">
                   <Badge tone={supportTone(provider.usage_support)}>
-                    history: {provider.usage_support}
+                    {t("providers.historyLabel", { support: provider.usage_support })}
                   </Badge>
                   <Badge tone={supportTone(provider.quota_support)}>
-                    quota: {provider.quota_support}
+                    {t("providers.quotaLabel", { support: provider.quota_support })}
                   </Badge>
-                  <Badge tone="neutral">auth: {provider.auth_requirement}</Badge>
+                  <Badge tone="neutral">{t("providers.authLabel", { requirement: provider.auth_requirement })}</Badge>
                 </div>
 
                 <div className="channel-split">
                   <div className="channel-block">
                     <div className="channel-title">
-                      <span>Usage history (recorded)</span>
+                      <span>{t("providers.historyChannel")}</span>
                     </div>
                     <div className="provider-card-meta">
                       <div className="meta-item">
-                        <span className="meta-label">Events</span>
+                        <span className="meta-label">{t("providers.events")}</span>
                         <span className="meta-value">
                           {provider.event_count.toLocaleString()}
                         </span>
                       </div>
                       <div className="meta-item">
-                        <span className="meta-label">Tokens</span>
+                        <span className="meta-label">{t("overview.tokens")}</span>
                         <span className="meta-value">
                           {formatCompact(provider.total_tokens)}
                         </span>
                       </div>
                       <div className="meta-item">
-                        <span className="meta-label">Last activity</span>
+                        <span className="meta-label">{t("providers.lastActivity")}</span>
                         <span className="meta-value">
-                          {formatTimestamp(provider.last_sync)}
+                          {formatTimestamp(provider.last_sync, language)}
                         </span>
                       </div>
                       <div className="meta-item">
-                        <span className="meta-label">Pricing</span>
+                        <span className="meta-label">{t("providers.pricing")}</span>
                         <span className="meta-value">
                           {provider.cost_support}
                         </span>
@@ -194,7 +192,7 @@ export function ProvidersPage() {
 
                   <div className="channel-block">
                     <div className="channel-title">
-                      <span>Quota (reported)</span>
+                      <span>{t("providers.quotaChannel")}</span>
                       {card && <Badge tone="neutral">{card.source}</Badge>}
                     </div>
                     {!card ? (
@@ -213,19 +211,19 @@ export function ProvidersPage() {
                               <span>{window.label}</span>
                               <span className="ui-mono">
                                 {window.remaining_percent === null
-                                  ? `${formatCompact(window.used)} ${window.kind} used`
-                                  : `${Math.round(window.remaining_percent)}% left`}
+                                  ? t("providers.kindUsed", { used: formatCompact(window.used), kind: window.kind })
+                                  : t("providers.percentLeft", { percent: String(Math.round(window.remaining_percent)) })}
                               </span>
                             </div>
                             <ProgressBar
                               percent={window.remaining_percent}
-                              label={`${provider.display_name} ${window.label} remaining`}
+                              label={t("providers.remainingLabel", { provider: provider.display_name, label: window.label })}
                             />
                           </div>
                         ))}
                         <span className="ui-inline-note">
-                          Collected {formatTimestamp(card.collected_at)}
-                          {card.plan ? ` - plan ${card.plan}` : ""}
+                          {t("providers.collectedAt", { time: formatTimestamp(card.collected_at, language) })}
+                          {card.plan ? t("providers.planSuffix", { plan: card.plan }) : ""}
                         </span>
                       </div>
                     )}
@@ -234,7 +232,7 @@ export function ProvidersPage() {
 
                 {provider.last_error_code && (
                   <p className="ui-inline-note">
-                    Last collector error: {provider.last_error_code}
+                    {t("providers.lastError", { error: provider.last_error_code })}
                   </p>
                 )}
               </Card>

@@ -56,6 +56,15 @@ const settingsView = (theme: "dark" | "light" | "system"): native.SettingsViewDa
     pet_speed: "normal",
     pet_opacity: 1,
     pet_auto_sleep: true,
+    pet_size: "medium",
+    pet_stay_in_place: false,
+    pet_pose_wave: true,
+    pet_pose_jump: true,
+    pet_pose_look_left: true,
+    pet_pose_look_right: true,
+    pet_pose_waiting: true,
+    pet_pose_review: true,
+    language: "en",
   },
   startup_supported: true,
   startup_registered: false,
@@ -110,7 +119,7 @@ describe("AppShell", () => {
     );
     renderShell();
     await waitFor(() => expect(screen.getByText("Fresh")).toBeInTheDocument());
-    expect(screen.getByText(/Collected 1 min ago/)).toBeInTheDocument();
+    expect(screen.getByText(/Collected 1 minute ago/)).toBeInTheDocument();
   });
 
   it("marks old data as stale rather than fresh", async () => {

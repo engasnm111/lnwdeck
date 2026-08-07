@@ -13,6 +13,7 @@ import {
   formatNumber,
   formatTimestamp,
 } from "../lib/freshness";
+import { useI18n } from "../lib/i18n";
 
 function costTone(status: string) {
   switch (status) {
@@ -35,6 +36,7 @@ function costTone(status: string) {
  * quota is what a provider reported. Neither is derived from the other.
  */
 export function OverviewPage() {
+  const { t, language } = useI18n();
   const [overview, setOverview] = useState<OverviewData | null>(null);
   const [history, setHistory] = useState<UsageHistoryData | null>(null);
   const [quota, setQuota] = useState<QuotaDashboardData | null>(null);
@@ -99,11 +101,8 @@ export function OverviewPage() {
     <div>
       <div className="page-header">
         <div>
-          <h2 className="page-title">Overview</h2>
-          <p className="page-subtitle">
-            What lnwdeck recorded on this machine, and what your providers report
-            about remaining quota.
-          </p>
+          <h2 className="page-title">{t("overview.title")}</h2>
+          <p className="page-subtitle">{t("overview.subtitle")}</p>
         </div>
       </div>
 
@@ -113,12 +112,8 @@ export function OverviewPage() {
         isEmpty={overview !== null && overview.total_events === 0}
         onRetry={() => void load()}
         emptyFallback={
-          <Card title="No usage recorded yet">
-            <p className="ui-inline-note">
-              No provider artifacts have been ingested. Open the Providers page
-              to see which collectors found a source and which are waiting for
-              one.
-            </p>
+          <Card title={t("overview.empty.title")}>
+            <p className="ui-inline-note">{t("overview.empty.body")}</p>
           </Card>
         }
       >
@@ -126,17 +121,17 @@ export function OverviewPage() {
           <div className="stack">
             <div className="grid-metrics">
               <MetricCard
-                title="Recorded events"
+                title={t("overview.recordedEvents")}
                 value={formatNumber(overview.total_events)}
-                subtitle={`across ${overview.provider_count} provider(s)`}
+                subtitle={t("overview.acrossProviders", { count: String(overview.provider_count) })}
               />
               <MetricCard
-                title="Tokens"
+                title={t("overview.tokens")}
                 value={formatCompact(totalTokens)}
-                subtitle={`${formatCompact(overview.total_tokens_input)} in / ${formatCompact(overview.total_tokens_output)} out`}
+                subtitle={t("overview.tokensInOut", { input: formatCompact(overview.total_tokens_input), output: formatCompact(overview.total_tokens_output) })}
               />
               <MetricCard
-                title="Cost"
+                title={t("overview.cost")}
                 value={overview.cost_formatted}
                 badge={
                   <Badge tone={costTone(overview.cost_status)}>
@@ -145,75 +140,69 @@ export function OverviewPage() {
                 }
               />
               <MetricCard
-                title="High confidence"
+                title={t("overview.highConfidence")}
                 value={`${Math.round(overview.confidence_coverage * 100)}%`}
-                subtitle={`${formatNumber(overview.high_confidence_count)} of ${formatNumber(overview.total_events)} events`}
+                subtitle={t("overview.confidenceEvents", { count: formatNumber(overview.high_confidence_count), total: formatNumber(overview.total_events) })}
               />
             </div>
 
             <div className="channel-split">
               <div className="channel-block">
                 <div className="channel-title">
-                  <span>Usage history (recorded here)</span>
-                  <Badge tone="info">last 7 days</Badge>
+                  <span>{t("overview.historyChannel")}</span>
+                  <Badge tone="info">{t("overview.last7Days")}</Badge>
                 </div>
                 {history && history.request_count > 0 ? (
                   <div className="stack-tight">
                     <span className="meta-value">
-                      {formatNumber(history.request_count)} request(s),{" "}
-                      {formatCompact(history.tokens_input + history.tokens_output)}{" "}
-                      tokens
+                      {t("overview.requestCount", { count: formatNumber(history.request_count), tokens: formatCompact(history.tokens_input + history.tokens_output) })}
                     </span>
                     <span className="ui-inline-note">
-                      Oldest event {formatTimestamp(overview.oldest_event_at)},
-                      newest {formatTimestamp(overview.latest_event_at)}
+                      {t("overview.oldestNewest", { oldest: formatTimestamp(overview.oldest_event_at, language), newest: formatTimestamp(overview.latest_event_at, language) })}
                     </span>
                     <span className="ui-inline-note">
-                      {history.models.length} model(s) used
+                      {t("overview.modelsUsed", { count: String(history.models.length) })}
                     </span>
                   </div>
                 ) : (
                   <p className="ui-inline-note">
-                    Nothing was recorded in the last 7 days.
+                    {t("overview.nothingRecorded")}
                   </p>
                 )}
               </div>
 
               <div className="channel-block">
                 <div className="channel-title">
-                  <span>Quota (reported by providers)</span>
+                  <span>{t("overview.quotaChannel")}</span>
                   {quotaError ? (
-                    <Badge tone="danger">unavailable</Badge>
+                    <Badge tone="danger">{t("overview.unavailable")}</Badge>
                   ) : (
                     <Badge tone="neutral">
-                      {quotaProviders.length} provider(s)
+                      {t("overview.providerCount", { count: String(quotaProviders.length) })}
                     </Badge>
                   )}
                 </div>
                 {quotaError ? (
                   <p className="ui-inline-note">
-                    Quota could not be read: {quotaError}
+                    {t("overview.quotaReadFailed", { error: quotaError })}
                   </p>
                 ) : quotaProviders.length === 0 ? (
                   <p className="ui-inline-note">
-                    No provider has reported quota yet.
+                    {t("overview.noQuotaYet")}
                   </p>
                 ) : (
                   <div className="stack-tight">
                     {lowest ? (
                       <span className="meta-value">
-                        Lowest remaining: {lowest.provider} {lowest.label} at{" "}
-                        {Math.round(lowest.percent)}%
+                        {t("overview.lowestRemaining", { provider: lowest.provider, label: lowest.label, percent: String(Math.round(lowest.percent)) })}
                       </span>
                     ) : (
                       <span className="meta-value">
-                        No provider reports a real limit; quota is shown as usage
-                        estimates.
+                        {t("overview.noRealLimit")}
                       </span>
                     )}
                     <span className="ui-inline-note">
-                      {withRealLimit.length} of {quotaProviders.length} provider(s)
-                      report a limit that can be shown as a percentage
+                      {t("overview.limitReported", { count: String(withRealLimit.length), total: String(quotaProviders.length) })}
                     </span>
                   </div>
                 )}

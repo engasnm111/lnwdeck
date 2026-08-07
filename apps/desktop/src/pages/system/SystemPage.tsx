@@ -7,6 +7,7 @@ import {
   type PipelineDiagnostics,
   type ProviderStateRow,
 } from "../../lib/native";
+import { useI18n } from "../../lib/i18n";
 
 interface ProviderRow {
   provider: ProviderStateRow;
@@ -20,28 +21,37 @@ function joinRows(diagnostics: PipelineDiagnostics): ProviderRow[] {
   }));
 }
 
-function formatTimestamp(value: string | null | undefined): string {
+function formatTimestamp(value: string | null | undefined, locale = "en-US"): string {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString();
+  return new Intl.DateTimeFormat(locale, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
 }
 
-function healthLabel(row: ProviderRow): { label: string; tone: "success" | "warning" | "danger" } {
+function healthLabel(row: ProviderRow, t: (key: string) => string): { label: string; tone: "success" | "warning" | "danger" } {
   const { provider, run } = row;
   if (run && run.error_code) {
-    return { label: "Error", tone: "danger" };
+    return { label: t("system.health.error"), tone: "danger" };
   }
   if (provider.detected) {
-    return { label: "Detected", tone: "success" };
+    return { label: t("system.health.detected"), tone: "success" };
   }
   if (provider.source_exists) {
-    return { label: "Unreadable", tone: "warning" };
+    return { label: t("system.health.unreadable"), tone: "warning" };
   }
-  return { label: "Not detected", tone: "warning" };
+  return { label: t("system.health.notDetected"), tone: "warning" };
 }
 
 export function SystemPage() {
+  const { t, language } = useI18n();
   const [diagnostics, setDiagnostics] = useState<PipelineDiagnostics | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -95,9 +105,9 @@ export function SystemPage() {
         }}
       >
         <div>
-          <h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>System</h2>
+          <h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>{t("nav.system")}</h2>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>
-            Data pipeline diagnostics, storage health, and audit logs
+            {t("system.subtitle")}
           </p>
         </div>
         <div style={{ display: "flex", gap: "0.75rem" }}>
@@ -105,16 +115,16 @@ export function SystemPage() {
             variant="secondary"
             onClick={handleRefresh}
             disabled={refreshing}
-            aria-label="Refresh all providers"
+            aria-label={t("topbar.refresh")}
           >
-            {refreshing ? "Refreshing…" : "Refresh All"}
+            {refreshing ? t("topbar.refreshing") : t("system.refreshAll")}
           </Button>
           <Button
             variant="secondary"
             onClick={() => setExportOpen((open) => !open)}
-            aria-label="Export sanitized diagnostics"
+            aria-label={t("system.exportAria")}
           >
-            Export Sanitized Diagnostics
+            {t("system.export")}
           </Button>
         </div>
       </div>
@@ -124,18 +134,18 @@ export function SystemPage() {
         error={error}
         isEmpty={false}
         errorFallback={
-          <Card title="Diagnostics Error">
+          <Card title={t("system.error.title")}>
             <p role="alert" style={{ color: "var(--danger)" }}>
-              Failed to read pipeline diagnostics: {error?.message}
+              {t("system.error.body", { error: error?.message ?? "" })}
             </p>
           </Card>
         }
       >
         {diagnostics && (
-          <div role="region" aria-label="Data Pipeline" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-            <h3 role="heading" style={{ fontSize: "1.25rem", fontWeight: 600 }}>Data Pipeline</h3>
+          <div role="region" aria-label={t("system.pipeline")} style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+            <h3 role="heading" style={{ fontSize: "1.25rem", fontWeight: 600 }}>{t("system.pipeline")}</h3>
             {/* Database & Diagnostics Cards */}
-            <Card title="Database & Storage Health">
+            <Card title={t("system.db.title")}>
               <div
                 style={{
                   display: "grid",
@@ -144,84 +154,84 @@ export function SystemPage() {
                 }}
               >
                 <div>
-                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>App Version</span>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{t("system.db.appVersion")}</span>
                   <p style={{ fontWeight: 600 }}>{diagnostics.app_version}</p>
                 </div>
                 <div>
-                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Database Status</span>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{t("system.db.status")}</span>
                   <p>
                     <Badge tone={diagnostics.db_ok && diagnostics.integrity_ok ? "success" : "danger"}>
-                      {diagnostics.db_ok && diagnostics.integrity_ok ? "Healthy" : "Degraded"}
+                      {diagnostics.db_ok && diagnostics.integrity_ok ? t("system.db.healthy") : t("system.db.degraded")}
                     </Badge>
                   </p>
                 </div>
                 <div>
-                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Migration version</span>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{t("system.db.migrationVersion")}</span>
                   <p style={{ fontWeight: 600 }}>{diagnostics.migration_version}</p>
                 </div>
                 <div>
-                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Events stored</span>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{t("system.db.eventsStored")}</span>
                   <p style={{ fontWeight: 600 }}>{diagnostics.total_events}</p>
                 </div>
                 <div>
-                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Privacy Rejections</span>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{t("system.db.privacyRejections")}</span>
                   <p style={{ fontWeight: 600 }}>{diagnostics.totals.privacy_rejections}</p>
                 </div>
                 <div>
-                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Last Sync</span>
-                  <p style={{ fontSize: "0.875rem" }}>{formatTimestamp(diagnostics.totals.last_successful_sync)}</p>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{t("system.db.lastSync")}</span>
+                  <p style={{ fontSize: "0.875rem" }}>{formatTimestamp(diagnostics.totals.last_successful_sync, language)}</p>
                 </div>
               </div>
             </Card>
 
             {noProviders && (
-              <Card title="No Providers Detected">
+              <Card title={t("system.noProviders.title")}>
                 <p style={{ color: "var(--text-secondary)" }}>
-                  No supported AI tools were detected. Scan again or configure a provider manually.
+                  {t("system.noProviders.body")}
                 </p>
               </Card>
             )}
 
             {detectedButNoRecords && (
-              <Card title="Pending Data">
+              <Card title={t("system.pending.title")}>
                 <p style={{ color: "var(--text-secondary)" }}>
-                  Provider detected, but no usage records were found yet. Open provider diagnostics for collection details.
+                  {t("system.pending.body")}
                 </p>
               </Card>
             )}
 
             {/* Provider Collection Table */}
             {rows.length > 0 && (
-              <Card title="Provider Pipeline Diagnostics">
-                <table className="ui-table" aria-label="Provider collection health">
+              <Card title={t("system.table.title")}>
+                <table className="ui-table" aria-label={t("system.table.aria")}>
                   <thead>
                     <tr>
-                      <th scope="col">Provider</th>
-                      <th scope="col">Detected</th>
-                      <th scope="col">Source</th>
-                      <th scope="col">Mode</th>
-                      <th scope="col">Last sync</th>
-                      <th scope="col">Seen</th>
-                      <th scope="col">Parsed</th>
-                      <th scope="col">Inserted</th>
-                      <th scope="col">Duplicates</th>
-                      <th scope="col">Rejected</th>
-                      <th scope="col">Health</th>
-                      <th scope="col">Next retry</th>
-                      <th scope="col">Action</th>
+                      <th scope="col">{t("system.table.provider")}</th>
+                      <th scope="col">{t("system.table.detected")}</th>
+                      <th scope="col">{t("system.table.source")}</th>
+                      <th scope="col">{t("system.table.mode")}</th>
+                      <th scope="col">{t("system.table.lastSync")}</th>
+                      <th scope="col">{t("system.table.seen")}</th>
+                      <th scope="col">{t("system.table.parsed")}</th>
+                      <th scope="col">{t("system.table.inserted")}</th>
+                      <th scope="col">{t("system.table.duplicates")}</th>
+                      <th scope="col">{t("system.table.rejected")}</th>
+                      <th scope="col">{t("system.table.health")}</th>
+                      <th scope="col">{t("system.table.nextRetry")}</th>
+                      <th scope="col">{t("system.table.action")}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {rows.map((row) => {
-                      const health = healthLabel(row);
+                      const health = healthLabel(row, t);
                       const run = row.run;
                       return (
                         <tr key={row.provider.provider_id}>
                           <td>{row.provider.display_name}</td>
-                          <td>{row.provider.detected ? "Yes" : "No"}</td>
+                          <td>{row.provider.detected ? t("common.yes") : t("common.no")}</td>
                           <td>{row.provider.source_type || "—"}</td>
                           <td>{run?.collector_mode ?? "—"}</td>
-                          <td>{formatTimestamp(run?.finished_at)}</td>
+                          <td>{formatTimestamp(run?.finished_at, language)}</td>
                           <td>{run?.source_records_seen ?? 0}</td>
                           <td>{run?.records_parsed ?? 0}</td>
                           <td>{run?.events_inserted ?? 0}</td>
@@ -231,16 +241,16 @@ export function SystemPage() {
                             <Badge tone={health.tone}>{health.label}</Badge>
                             {run?.error_code ? <small> ({run.error_code})</small> : null}
                           </td>
-                          <td>{formatTimestamp(run?.next_retry_at)}</td>
+                          <td>{formatTimestamp(run?.next_retry_at, language)}</td>
                           <td>
                             <Button
                               variant="secondary"
                               onClick={handleRefresh}
                               disabled={refreshing}
-                              aria-label={`Refresh ${row.provider.display_name}`}
+                              aria-label={t("system.refreshProvider", { provider: row.provider.display_name })}
                               style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
                             >
-                              Refresh
+                              {t("system.refresh")}
                             </Button>
                           </td>
                         </tr>
@@ -253,10 +263,10 @@ export function SystemPage() {
 
             {/* Export Diagnostics Panel */}
             {exportOpen && diagnostics && (
-              <Card title="Sanitized Diagnostics Output">
+              <Card title={t("system.export.title")}>
                 <pre
                   role="region"
-                  aria-label="Exported diagnostics"
+                  aria-label={t("system.export.aria")}
                   data-testid="exported-diagnostics"
                   style={{
                     backgroundColor: "var(--bg-app)",

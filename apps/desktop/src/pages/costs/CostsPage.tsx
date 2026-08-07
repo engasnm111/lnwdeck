@@ -10,12 +10,13 @@ import {
 } from "@lnwdeck/ui";
 import { fetchCosts, type CostBreakdownData, type HistoryWindow } from "../../lib/native";
 import { formatCompact, formatNumber } from "../../lib/freshness";
+import { useI18n } from "../../lib/i18n";
 
-const WINDOWS: Array<{ value: HistoryWindow; label: string }> = [
-  { value: "last_24h", label: "24 hours" },
-  { value: "last_7d", label: "7 days" },
-  { value: "last_30d", label: "30 days" },
-  { value: "all", label: "All time" },
+const WINDOWS: Array<{ value: HistoryWindow; labelKey: string }> = [
+  { value: "last_24h", labelKey: "costs.window24h" },
+  { value: "last_7d", labelKey: "costs.window7d" },
+  { value: "last_30d", labelKey: "costs.window30d" },
+  { value: "all", labelKey: "costs.windowAll" },
 ];
 
 /**
@@ -26,6 +27,7 @@ const WINDOWS: Array<{ value: HistoryWindow; label: string }> = [
  * zero in the total.
  */
 export function CostsPage() {
+  const { t } = useI18n();
   const [window, setWindow] = useState<HistoryWindow>("last_30d");
   const [data, setData] = useState<CostBreakdownData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,19 +55,15 @@ export function CostsPage() {
     <div>
       <div className="page-header">
         <div>
-          <h2 className="page-title">Costs</h2>
-          <p className="page-subtitle">
-            Calculated from recorded usage and the local pricing catalog. A model
-            without a catalog entry is listed as unpriced rather than estimated
-            at another rate.
-          </p>
+          <h2 className="page-title">{t("nav.costs")}</h2>
+          <p className="page-subtitle">{t("costs.subtitle")}</p>
         </div>
       </div>
 
-      <Toolbar label="Cost window">
+      <Toolbar label={t("costs.windowLabel")}>
         <Tabs
-          label="Cost window"
-          options={WINDOWS}
+          label={t("costs.windowLabel")}
+          options={WINDOWS.map((window) => ({ value: window.value, label: t(window.labelKey) }))}
           value={window}
           onChange={setWindow}
         />
@@ -77,10 +75,9 @@ export function CostsPage() {
         isEmpty={data !== null && data.rows.length === 0}
         onRetry={() => void load()}
         emptyFallback={
-          <Card title="No costs recorded">
+          <Card title={t("costs.empty.title")}>
             <p className="ui-inline-note">
-              No usage has been recorded in this window, so there is nothing to
-              price yet.
+              {t("costs.empty.body")}
             </p>
           </Card>
         }
@@ -89,39 +86,39 @@ export function CostsPage() {
           <div className="stack">
             <div className="grid-metrics">
               <MetricCard
-                title="Priced total"
+                title={t("costs.pricedTotal")}
                 value={data.priced_total}
-                subtitle={`${data.priced_rows} priced model(s)`}
+                subtitle={t("costs.pricedModels", { count: String(data.priced_rows) })}
               />
               <MetricCard
-                title="Unpriced models"
+                title={t("costs.unpricedModels")}
                 value={formatNumber(data.unpriced_rows)}
-                subtitle={`${formatCompact(data.unpriced_tokens)} tokens without pricing`}
+                subtitle={t("costs.unpricedTokens", { tokens: formatCompact(data.unpriced_tokens) })}
                 badge={
                   data.unpriced_rows > 0 ? (
-                    <Badge tone="warning">Incomplete pricing</Badge>
+                    <Badge tone="warning">{t("costs.incompletePricing")}</Badge>
                   ) : (
-                    <Badge tone="success">Full coverage</Badge>
+                    <Badge tone="success">{t("costs.fullCoverage")}</Badge>
                   )
                 }
               />
               <MetricCard
-                title="Models in window"
+                title={t("costs.modelsInWindow")}
                 value={formatNumber(data.rows.length)}
               />
             </div>
 
-            <Card title="Cost by model">
+            <Card title={t("costs.byModel")}>
               <Table
-                caption="Recorded usage and calculated cost per provider and model"
+                caption={t("costs.tableCaption")}
                 headers={[
-                  "Provider",
-                  "Model",
-                  "Requests",
-                  "Input",
-                  "Output",
-                  "Cost",
-                  "Pricing",
+                  t("costs.colProvider"),
+                  t("costs.colModel"),
+                  t("costs.colRequests"),
+                  t("costs.colInput"),
+                  t("costs.colOutput"),
+                  t("costs.colCost"),
+                  t("costs.colPricing"),
                 ]}
               >
                 {data.rows.map((row) => (
@@ -138,7 +135,7 @@ export function CostsPage() {
                       {formatCompact(row.tokens_output)}
                     </td>
                     <td className="ui-table-numeric">
-                      {row.cost ?? "not priced"}
+                      {row.cost ?? t("costs.notPriced")}
                     </td>
                     <td>
                       <Badge tone={row.cost ? "success" : "warning"}>

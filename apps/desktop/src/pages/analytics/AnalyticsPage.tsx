@@ -1,8 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchAnalytics, type AnalyticsRow } from "../../lib/native";
 import { DataState, Card, Badge, Button } from "@lnwdeck/ui";
+import { useI18n } from "../../lib/i18n";
+
+/** Local timestamp as YYYY-MM-DD HH:mm:ss, e.g. 2026-08-07 08:52:12. */
+function formatEventTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
 
 export function AnalyticsPage() {
+  const { t } = useI18n();
   const [rows, setRows] = useState<AnalyticsRow[]>([]);
   const [availableProviders, setAvailableProviders] = useState<string[]>([]);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
@@ -53,13 +65,13 @@ export function AnalyticsPage() {
         }}
       >
         <div>
-          <h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>Analytics</h2>
+          <h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>{t("nav.analytics")}</h2>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>
-            Granular event logs and token breakdown
+            {t("analytics.subtitle")}
           </p>
         </div>
-        <Button variant="secondary" onClick={load} aria-label="Refresh analytics">
-          Apply & Refresh
+        <Button variant="secondary" onClick={load} aria-label={t("analytics.refreshAria")}>
+          {t("analytics.applyRefresh")}
         </Button>
       </div>
 
@@ -67,7 +79,7 @@ export function AnalyticsPage() {
       <Card>
         <div
           role="region"
-          aria-label="Filters"
+          aria-label={t("analytics.filters")}
           style={{
             display: "flex",
             gap: "1.5rem",
@@ -85,7 +97,7 @@ export function AnalyticsPage() {
                 marginBottom: "0.25rem",
               }}
             >
-              Provider
+              {t("analytics.provider")}
             </label>
             <select
               id="filter-provider"
@@ -93,7 +105,7 @@ export function AnalyticsPage() {
               value={providerFilter}
               onChange={(e) => setProviderFilter(e.target.value)}
             >
-              <option value="">All Providers</option>
+              <option value="">{t("analytics.allProviders")}</option>
               {availableProviders.map((p) => (
                 <option key={p} value={p}>
                   {p}
@@ -112,7 +124,7 @@ export function AnalyticsPage() {
                 marginBottom: "0.25rem",
               }}
             >
-              Model
+              {t("models.colModel")}
             </label>
             <select
               id="filter-model"
@@ -120,7 +132,7 @@ export function AnalyticsPage() {
               value={modelFilter}
               onChange={(e) => setModelFilter(e.target.value)}
             >
-              <option value="">All Models</option>
+              <option value="">{t("analytics.allModels")}</option>
               {availableModels.map((m) => (
                 <option key={m} value={m}>
                   {m}
@@ -139,7 +151,7 @@ export function AnalyticsPage() {
                 marginBottom: "0.25rem",
               }}
             >
-              Confidence
+              {t("analytics.confidence")}
             </label>
             <select
               id="filter-confidence"
@@ -147,10 +159,10 @@ export function AnalyticsPage() {
               value={confidenceFilter}
               onChange={(e) => setConfidenceFilter(e.target.value)}
             >
-              <option value="">All Confidence Levels</option>
-              <option value="High">High</option>
-              <option value="Medium">Medium</option>
-              <option value="Low">Low</option>
+              <option value="">{t("analytics.allConfidence")}</option>
+              <option value="High">{t("analytics.high")}</option>
+              <option value="Medium">{t("analytics.medium")}</option>
+              <option value="Low">{t("analytics.low")}</option>
             </select>
           </div>
         </div>
@@ -161,18 +173,18 @@ export function AnalyticsPage() {
         error={error}
         isEmpty={rows.length === 0 && !loading}
         emptyFallback={
-          <Card title="No Usage Data Found">
+          <Card title={t("analytics.empty.title")}>
             <p style={{ color: "var(--text-secondary)", marginBottom: "1rem" }}>
-              No usage data yet. Connect a provider to start tracking.
+              {t("analytics.empty.body")}
             </p>
-            <Badge tone="info">No Records</Badge>
+            <Badge tone="info">{t("analytics.noRecords")}</Badge>
           </Card>
         }
       >
         {/* Summary Card */}
         <div
           role="region"
-          aria-label="Summary"
+          aria-label={t("analytics.summary")}
           style={{
             display: "flex",
             gap: "2rem",
@@ -185,7 +197,7 @@ export function AnalyticsPage() {
         >
           <div>
             <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-              Total Filtered Tokens
+              {t("analytics.totalTokens")}
             </span>
             <p style={{ fontSize: "1.25rem", fontWeight: 700 }}>
               {totalTokens.toLocaleString()}
@@ -193,7 +205,7 @@ export function AnalyticsPage() {
           </div>
           <div>
             <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-              Total Filtered Cost
+              {t("analytics.totalCost")}
             </span>
             <p style={{ fontSize: "1.25rem", fontWeight: 700 }}>
               ${totalCost.toFixed(4)}
@@ -201,7 +213,7 @@ export function AnalyticsPage() {
           </div>
           <div>
             <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-              Recorded Events
+              {t("analytics.recordedEvents")}
             </span>
             <p style={{ fontSize: "1.25rem", fontWeight: 700 }}>
               {rows.length}
@@ -211,22 +223,22 @@ export function AnalyticsPage() {
 
         {/* Usage Events Data Table */}
         <Card>
-          <table className="ui-table" role="table" aria-label="Usage events">
+          <table className="ui-table" role="table" aria-label={t("analytics.tableAria")}>
             <thead>
               <tr>
-                <th scope="col">Timestamp</th>
-                <th scope="col">Provider</th>
-                <th scope="col">Model</th>
-                <th scope="col">Tokens In</th>
-                <th scope="col">Tokens Out</th>
-                <th scope="col">Confidence</th>
-                <th scope="col">Cost</th>
+                <th scope="col">{t("analytics.colTimestamp")}</th>
+                <th scope="col">{t("system.table.provider")}</th>
+                <th scope="col">{t("models.colModel")}</th>
+                <th scope="col">{t("analytics.colTokensIn")}</th>
+                <th scope="col">{t("analytics.colTokensOut")}</th>
+                <th scope="col">{t("analytics.confidence")}</th>
+                <th scope="col">{t("costs.colCost")}</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id}>
-                  <td>{r.timestamp}</td>
+                  <td className="ui-table-numeric">{formatEventTimestamp(r.timestamp)}</td>
                   <td>{r.provider_id}</td>
                   <td>{r.model}</td>
                   <td>{r.tokens_input.toLocaleString()}</td>

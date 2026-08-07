@@ -67,7 +67,7 @@ describe("AlertsPage", () => {
         screen.getByText("OpenRouter Credits window at 4% remaining"),
       ).toBeInTheDocument(),
     );
-    expect(screen.getByText("critical")).toBeInTheDocument();
+    expect(screen.getAllByText("Critical").length).toBeGreaterThan(0);
     expect(screen.getByText(/3 occurrence/)).toBeInTheDocument();
     expect(screen.getByText("Needs attention")).toBeInTheDocument();
   });

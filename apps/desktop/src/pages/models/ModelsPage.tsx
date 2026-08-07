@@ -14,12 +14,13 @@ import {
   type UsageHistoryData,
 } from "../../lib/native";
 import { formatCompact, formatNumber, formatTimestamp } from "../../lib/freshness";
+import { useI18n } from "../../lib/i18n";
 
-const WINDOWS: Array<{ value: HistoryWindow; label: string }> = [
-  { value: "last_24h", label: "24 hours" },
-  { value: "last_7d", label: "7 days" },
-  { value: "last_30d", label: "30 days" },
-  { value: "all", label: "All time" },
+const WINDOWS: Array<{ value: HistoryWindow; labelKey: string }> = [
+  { value: "last_24h", labelKey: "costs.window24h" },
+  { value: "last_7d", labelKey: "costs.window7d" },
+  { value: "last_30d", labelKey: "costs.window30d" },
+  { value: "all", labelKey: "costs.windowAll" },
 ];
 
 /**
@@ -30,6 +31,7 @@ const WINDOWS: Array<{ value: HistoryWindow; label: string }> = [
  * rows rather than with invented ones.
  */
 export function ModelsPage() {
+  const { t, language } = useI18n();
   const [window, setWindow] = useState<HistoryWindow>("last_7d");
   const [provider, setProvider] = useState<string>("");
   const [data, setData] = useState<UsageHistoryData | null>(null);
@@ -65,23 +67,20 @@ export function ModelsPage() {
     <div>
       <div className="page-header">
         <div>
-          <h2 className="page-title">Models</h2>
-          <p className="page-subtitle">
-            Recorded requests and tokens per model. This is usage history, kept
-            separate from provider quota.
-          </p>
+          <h2 className="page-title">{t("nav.models")}</h2>
+          <p className="page-subtitle">{t("models.subtitle")}</p>
         </div>
       </div>
 
-      <Toolbar label="Model filters">
+      <Toolbar label={t("models.filters")}>
         <Tabs
-          label="Usage window"
-          options={WINDOWS}
+          label={t("models.windowLabel")}
+          options={WINDOWS.map((window) => ({ value: window.value, label: t(window.labelKey) }))}
           value={window}
           onChange={setWindow}
         />
         <label className="ui-field-label" htmlFor="model-provider">
-          Provider
+          {t("models.providerLabel")}
         </label>
         <select
           id="model-provider"
@@ -89,7 +88,7 @@ export function ModelsPage() {
           value={provider}
           onChange={(event) => setProvider(event.target.value)}
         >
-          <option value="">All providers</option>
+          <option value="">{t("models.allProviders")}</option>
           {(data?.providers ?? []).map((id) => (
             <option key={id} value={id}>
               {id}
@@ -104,10 +103,9 @@ export function ModelsPage() {
         isEmpty={data !== null && data.models.length === 0}
         onRetry={() => void load()}
         emptyFallback={
-          <Card title="No model usage recorded">
+          <Card title={t("models.empty.title")}>
             <p className="ui-inline-note">
-              No usage events were recorded in this window. Run a refresh, or
-              check the Providers page to see which collectors found a source.
+              {t("models.empty.body")}
             </p>
           </Card>
         }
@@ -116,29 +114,29 @@ export function ModelsPage() {
           <div className="stack">
             <div className="grid-metrics">
               <MetricCard
-                title="Requests"
+                title={t("models.requests")}
                 value={formatNumber(data.request_count)}
               />
               <MetricCard
-                title="Input tokens"
+                title={t("models.inputTokens")}
                 value={formatCompact(data.tokens_input)}
               />
               <MetricCard
-                title="Output tokens"
+                title={t("models.outputTokens")}
                 value={formatCompact(data.tokens_output)}
               />
               <MetricCard
-                title="Distinct models"
+                title={t("models.distinctModels")}
                 value={formatNumber(data.models.length)}
               />
             </div>
 
             {data.daily.length > 0 && (
               <Card
-                title="Daily tokens"
-                subtitle="Recorded input plus output tokens per day"
+                title={t("models.dailyTokens")}
+                subtitle={t("models.dailySubtitle")}
               >
-                <div className="trend-chart" role="img" aria-label="Daily token totals">
+                <div className="trend-chart" role="img" aria-label={t("models.dailyAria")}>
                   {data.daily.map((day) => {
                     const total = day.tokens_input + day.tokens_output;
                     const height = Math.max(2, (total / maxDaily) * 100);
@@ -147,7 +145,7 @@ export function ModelsPage() {
                         key={day.day}
                         className="trend-bar"
                         style={{ height: `${height}%` }}
-                        title={`${day.day}: ${formatCompact(total)} tokens over ${day.request_count} request(s)`}
+                        title={t("models.dailyTitle", { day: day.day, tokens: formatCompact(total), count: String(day.request_count) })}
                       />
                     );
                   })}
@@ -155,17 +153,17 @@ export function ModelsPage() {
               </Card>
             )}
 
-            <Card title="Model breakdown">
+            <Card title={t("models.breakdown")}>
               <Table
-                caption="Recorded usage per model"
+                caption={t("models.tableCaption")}
                 headers={[
-                  "Model",
-                  "Provider",
-                  "Requests",
-                  "Input",
-                  "Output",
-                  "Share",
-                  "Last used",
+                  t("models.colModel"),
+                  t("models.colProvider"),
+                  t("models.colRequests"),
+                  t("models.colInput"),
+                  t("models.colOutput"),
+                  t("models.colShare"),
+                  t("models.colLastUsed"),
                 ]}
               >
                 {data.models.map((row) => (
@@ -185,16 +183,16 @@ export function ModelsPage() {
                       <div className="stack-tight">
                         <ProgressBar
                           percent={row.token_share_percent}
-                          label={`${row.model} share of tokens`}
+                          label={t("models.shareLabel", { model: row.model })}
                         />
                         <span className="ui-inline-note">
                           {row.token_share_percent === null
-                            ? "no tokens recorded"
+                            ? t("models.noTokens")
                             : `${row.token_share_percent.toFixed(1)}%`}
                         </span>
                       </div>
                     </td>
-                    <td>{formatTimestamp(row.last_seen_at)}</td>
+                    <td>{formatTimestamp(row.last_seen_at, language)}</td>
                   </tr>
                 ))}
               </Table>

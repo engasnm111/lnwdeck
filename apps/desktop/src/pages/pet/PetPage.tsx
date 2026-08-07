@@ -10,13 +10,27 @@ import {
   setPetAutoSleep,
   setPetCharacter,
   setPetOpacity,
+  setPetPose,
   setPetSizePreset,
   setPetSpeed,
+  setPetStayInPlace,
   showPetWindow,
   type PetManifest,
+  type PetPoseKey,
   type PetSizePreset,
   type PetWindowSettingsData,
 } from "../../lib/native";
+import { useI18n } from "../../lib/i18n";
+
+/** Ambient poses the user can toggle, in UI order. */
+const POSE_OPTIONS: Array<{ key: PetPoseKey; labelKey: string; field: keyof PetWindowSettingsData }> = [
+  { key: "pet_pose_wave", labelKey: "pose.wave", field: "poseWave" },
+  { key: "pet_pose_jump", labelKey: "pose.jump", field: "poseJump" },
+  { key: "pet_pose_look_left", labelKey: "pose.lookLeft", field: "poseLookLeft" },
+  { key: "pet_pose_look_right", labelKey: "pose.lookRight", field: "poseLookRight" },
+  { key: "pet_pose_waiting", labelKey: "pose.waiting", field: "poseWaiting" },
+  { key: "pet_pose_review", labelKey: "pose.review", field: "poseReview" },
+];
 
 /**
  * Desktop pet page.
@@ -27,6 +41,7 @@ import {
  * command and reports what was actually stored.
  */
 export function PetPage() {
+  const { t } = useI18n();
   const [settings, setSettings] = useState<PetWindowSettingsData | null>(null);
   const [pets, setPets] = useState<PetManifest[]>([]);
   const [previews, setPreviews] = useState<Record<string, string>>({});
@@ -152,6 +167,30 @@ export function PetPage() {
     [reloadSettings],
   );
 
+  const handleSetStayInPlace = useCallback(
+    async (stayInPlace: boolean) => {
+      try {
+        await setPetStayInPlace(stayInPlace);
+        await reloadSettings();
+      } catch (error_) {
+        setError(error_ instanceof Error ? error_ : new Error(String(error_)));
+      }
+    },
+    [reloadSettings],
+  );
+
+  const handleSetPose = useCallback(
+    async (key: PetPoseKey, enabled: boolean) => {
+      try {
+        await setPetPose(key, enabled);
+        await reloadSettings();
+      } catch (error_) {
+        setError(error_ instanceof Error ? error_ : new Error(String(error_)));
+      }
+    },
+    [reloadSettings],
+  );
+
   const handleImport = useCallback(async () => {
     if (!petImport.trim()) return;
     setPetImporting(true);
@@ -182,11 +221,8 @@ export function PetPage() {
     <div>
       <div className="page-header">
         <div>
-          <h2 className="page-title">Pet</h2>
-          <p className="page-subtitle">
-            A floating companion that walks across your screen and shows your
-            token usage when hovered. Right-click the pet to close it.
-          </p>
+          <h2 className="page-title">{t("pet.title")}</h2>
+          <p className="page-subtitle">{t("pet.subtitle")}</p>
         </div>
       </div>
 
@@ -198,35 +234,46 @@ export function PetPage() {
       >
         {settings && (
           <div className="stack">
-            <Card title="Desktop pet">
+            <Card title={t("pet.desktop.title")}>
               <div className="stack-tight">
                 <Toggle
                   id="pet-visible"
-                  label="Show desktop pet"
+                  label={t("pet.show.label")}
                   hint={
                     settings.visible
-                      ? "The pet is walking on your screen now"
-                      : "The pet appears near the bottom of the screen"
+                      ? t("pet.show.hintVisible")
+                      : t("pet.show.hintHidden")
                   }
                   checked={settings.visible}
                   onChange={() => void handleToggleVisible()}
                 />
-                <Field label="Walk speed" htmlFor="pet-speed">
+                <Field label={t("pet.speed.label")} htmlFor="pet-speed">
                   <select
                     id="pet-speed"
                     className="ui-select"
                     value={settings.speed}
                     onChange={(e) => void handleSetSpeed(e.target.value)}
                   >
-                    <option value="slow">Slow</option>
-                    <option value="normal">Normal</option>
-                    <option value="fast">Fast</option>
+                    <option value="slow">{t("pet.speed.slow")}</option>
+                    <option value="normal">{t("pet.speed.normal")}</option>
+                    <option value="fast">{t("pet.speed.fast")}</option>
                   </select>
                 </Field>
+                <Toggle
+                  id="pet-stay"
+                  label={t("pet.stay.label")}
+                  hint={
+                    settings.stayInPlace
+                      ? t("pet.stay.hintOn")
+                      : t("pet.stay.hintOff")
+                  }
+                  checked={settings.stayInPlace}
+                  onChange={(checked) => void handleSetStayInPlace(checked)}
+                />
                 <Field
-                  label="Pet size"
+                  label={t("pet.size.label")}
                   htmlFor="pet-size"
-                  hint="The pet window is fixed-size; the sprite scales with it"
+                  hint={t("pet.size.hint")}
                 >
                   <select
                     id="pet-size"
@@ -236,13 +283,13 @@ export function PetPage() {
                       void handleSetSize(e.target.value as PetSizePreset)
                     }
                   >
-                    <option value="small">Small (200 x 300)</option>
-                    <option value="medium">Medium (280 x 400)</option>
-                    <option value="large">Large (360 x 520)</option>
+                    <option value="small">{t("pet.size.small")}</option>
+                    <option value="medium">{t("pet.size.medium")}</option>
+                    <option value="large">{t("pet.size.large")}</option>
                   </select>
                 </Field>
                 <Field
-                  label={`Opacity: ${Math.round(settings.opacity * 100)}%`}
+                  label={`${t("pet.opacity.label")}: ${Math.round(settings.opacity * 100)}%`}
                   htmlFor="pet-opacity"
                 >
                   <input
@@ -260,23 +307,40 @@ export function PetPage() {
                 </Field>
                 <Toggle
                   id="pet-auto-sleep"
-                  label="Auto-sleep after inactivity"
-                  hint="The pet falls asleep when you stop interacting"
+                  label={t("pet.autoSleep.label")}
+                  hint={t("pet.autoSleep.hint")}
                   checked={settings.autoSleep}
                   onChange={(checked) => void handleSetAutoSleep(checked)}
                 />
+                <fieldset className="ui-fieldset">
+                  <legend className="ui-fieldset-legend">
+                    {t("pet.poses.title")}
+                  </legend>
+                  <div className="settings-pose-grid">
+                    {POSE_OPTIONS.map((option) => (
+                      <Toggle
+                        key={option.key}
+                        id={`pose-${option.key}`}
+                        label={t(option.labelKey)}
+                        checked={Boolean(settings[option.field])}
+                        onChange={(checked) =>
+                          void handleSetPose(option.key, checked)
+                        }
+                      />
+                    ))}
+                  </div>
+                </fieldset>
               </div>
             </Card>
 
             <Card
-              title="Characters"
-              subtitle="Six defaults are bundled from codex-pets.net; community pets can be imported by id or URL"
+              title={t("pet.character")}
+              subtitle={t("pet.characterSubtitle")}
             >
               <div className="stack-tight">
                 {pets.length === 0 ? (
                   <p className="ui-inline-note">
-                    No characters installed yet. Import one from codex-pets.net
-                    below.
+                    {t("pet.noCharacters")}
                   </p>
                 ) : (
                   <ul className="settings-pet-list">
@@ -314,8 +378,8 @@ export function PetPage() {
                               }
                             >
                               {settings.character === pet.id
-                                ? "Active"
-                                : "Installed"}
+                                ? t("common.active")
+                                : t("common.installed")}
                             </Badge>
                           </div>
                         </div>
@@ -330,14 +394,16 @@ export function PetPage() {
                             disabled={settings.character === pet.id}
                             onClick={() => void handleSelectCharacter(pet.id)}
                           >
-                            {settings.character === pet.id ? "Active" : "Use"}
+                            {settings.character === pet.id
+                              ? t("common.active")
+                              : t("common.use")}
                           </Button>
                           <Button
                             size="small"
                             variant="danger"
                             onClick={() => void handleRemove(pet.id)}
                           >
-                            Remove
+                            {t("common.remove")}
                           </Button>
                         </div>
                       </li>
@@ -345,11 +411,11 @@ export function PetPage() {
                   </ul>
                 )}
 
-                <div className="row">
+                <div className="settings-import">
                   <input
-                    className="ui-input"
+                    className="ui-input settings-import-input"
                     type="text"
-                    placeholder="Pet id or https://codex-pets.net pet URL"
+                    placeholder={t("pet.importPlaceholder")}
                     aria-label="Codex Pets URL or pet id"
                     value={petImport}
                     disabled={petImporting}
@@ -360,12 +426,16 @@ export function PetPage() {
                     onClick={() => void handleImport()}
                     disabled={petImporting || petImport.trim() === ""}
                   >
-                    {petImporting ? "Importing" : "Import"}
+                    {petImporting ? t("common.importing") : t("common.import")}
                   </Button>
                 </div>
+                <ol className="settings-import-steps">
+                  <li>{t("pet.importSteps.step1")}</li>
+                  <li>{t("pet.importSteps.step2")}</li>
+                  <li>{t("pet.importSteps.step3")}</li>
+                </ol>
                 <p className="ui-inline-note">
-                  Imports only reach codex-pets.net over HTTPS on your explicit
-                  action and are stored locally.
+                  {t("pet.importNote")}
                 </p>
               </div>
             </Card>

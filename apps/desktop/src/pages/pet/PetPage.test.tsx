@@ -14,6 +14,8 @@ vi.mock("../../lib/native", () => ({
   setPetOpacity: vi.fn(),
   setPetAutoSleep: vi.fn(),
   setPetSizePreset: vi.fn(),
+  setPetStayInPlace: vi.fn(),
+  setPetPose: vi.fn(),
   importWidgetPet: vi.fn(),
   removeWidgetPet: vi.fn(),
 }));
@@ -25,6 +27,13 @@ const petSettings = (overrides: Partial<native.PetWindowSettingsData> = {}) => (
   opacity: 1,
   autoSleep: true,
   sizePreset: "medium" as native.PetSizePreset,
+  stayInPlace: false,
+  poseWave: true,
+  poseJump: true,
+  poseLookLeft: true,
+  poseLookRight: true,
+  poseWaiting: true,
+  poseReview: true,
   ...overrides,
 });
 
@@ -48,6 +57,8 @@ describe("PetPage", () => {
     vi.mocked(native.setPetOpacity).mockReset();
     vi.mocked(native.setPetAutoSleep).mockReset();
     vi.mocked(native.setPetSizePreset).mockReset();
+    vi.mocked(native.setPetStayInPlace).mockReset();
+    vi.mocked(native.setPetPose).mockReset();
     vi.mocked(native.setPetSizePreset).mockResolvedValue("medium");
     vi.mocked(native.importWidgetPet).mockReset();
     vi.mocked(native.removeWidgetPet).mockReset();
@@ -128,6 +139,43 @@ describe("PetPage", () => {
 
     await waitFor(() => {
       expect(native.setPetAutoSleep).toHaveBeenCalledWith(false);
+    });
+  });
+
+  it("persists stay-in-place and pose toggles through the backend", async () => {
+    vi.mocked(native.setPetStayInPlace).mockResolvedValue(true);
+    vi.mocked(native.setPetPose).mockResolvedValue(false);
+
+    render(<PetPage />);
+    const stay = await screen.findByLabelText("Stay in place");
+    await userEvent.click(stay);
+
+    await waitFor(() => {
+      expect(native.setPetStayInPlace).toHaveBeenCalledWith(true);
+    });
+
+    const jump = screen.getByLabelText("Jump");
+    await userEvent.click(jump);
+
+    await waitFor(() => {
+      expect(native.setPetPose).toHaveBeenCalledWith("pet_pose_jump", false);
+    });
+  });
+
+  it("re-renders the pose toggle from the echoed backend value", async () => {
+    vi.mocked(native.setPetPose).mockResolvedValue(false);
+    vi.mocked(native.fetchPetWindowSettings)
+      .mockResolvedValueOnce(petSettings())
+      .mockResolvedValueOnce(petSettings({ poseJump: false }));
+
+    render(<PetPage />);
+    const jump = await screen.findByLabelText("Jump");
+    expect(jump).toBeChecked();
+
+    await userEvent.click(jump);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Jump")).not.toBeChecked();
     });
   });
 

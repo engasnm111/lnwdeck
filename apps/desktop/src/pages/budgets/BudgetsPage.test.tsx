@@ -92,7 +92,7 @@ describe("BudgetsPage", () => {
     });
     render(<BudgetsPage />);
 
-    await waitFor(() => expect(screen.getByText("warning")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Near limit")).toBeInTheDocument());
     expect(screen.getByText("9.000000 / 10")).toBeInTheDocument();
     const bar = screen.getByRole("progressbar", { name: "Cost budget used" });
     expect(bar).toHaveAttribute("aria-valuenow", "90");

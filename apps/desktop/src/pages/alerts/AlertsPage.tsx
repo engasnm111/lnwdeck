@@ -7,6 +7,7 @@ import {
   type AlertsViewData,
 } from "../../lib/native";
 import { formatTimestamp } from "../../lib/freshness";
+import { useI18n } from "../../lib/i18n";
 
 function severityTone(severity: AlertRowData["severity"]) {
   switch (severity) {
@@ -27,6 +28,7 @@ function severityTone(severity: AlertRowData["severity"]) {
  * as a verified healthy system.
  */
 export function AlertsPage() {
+  const { t, language } = useI18n();
   const [data, setData] = useState<AlertsViewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -73,14 +75,10 @@ export function AlertsPage() {
     <div>
       <div className="page-header">
         <div>
-          <h2 className="page-title">Alerts</h2>
-          <p className="page-subtitle">
-            Raised from stored quota reports, collector runs and budget
-            progress. Providers that are simply not supported or not configured
-            are not treated as failures.
-          </p>
+          <h2 className="page-title">{t("nav.alerts")}</h2>
+          <p className="page-subtitle">{t("alerts.subtitle")}</p>
         </div>
-        <Button onClick={() => void load()}>Re-evaluate</Button>
+        <Button onClick={() => void load()}>{t("alerts.reevaluate")}</Button>
       </div>
 
       {actionError && (
@@ -98,28 +96,27 @@ export function AlertsPage() {
         {data && (
           <div className="stack">
             <div className="grid-metrics">
-              <MetricCard title="Open" value={data.open_count} />
+              <MetricCard title={t("alerts.open")} value={data.open_count} />
               <MetricCard
-                title="Critical"
+                title={t("alerts.critical")}
                 value={data.critical_count}
                 badge={
                   data.critical_count > 0 ? (
-                    <Badge tone="danger">Needs attention</Badge>
+                    <Badge tone="danger">{t("alerts.needsAttention")}</Badge>
                   ) : undefined
                 }
               />
               <MetricCard
-                title="Unacknowledged"
+                title={t("alerts.unacknowledged")}
                 value={data.unacknowledged_count}
               />
-              <MetricCard title="Resolved records" value={resolved.length} />
+              <MetricCard title={t("alerts.resolvedRecords")} value={resolved.length} />
             </div>
 
-            <Card title="Open alerts">
+            <Card title={t("alerts.openTitle")}>
               {data.open.length === 0 ? (
                 <p className="ui-inline-note">
-                  No alerts are open. Nothing crossed a quota threshold, no
-                  collector failed, and no budget is over its limit.
+                  {t("alerts.noneOpen")}
                 </p>
               ) : (
                 <div className="stack-tight">
@@ -135,23 +132,21 @@ export function AlertsPage() {
                           {alert.error_code ? ` (${alert.error_code})` : ""}
                         </div>
                         <div className="alert-detail">
-                          First seen {formatTimestamp(alert.first_seen_at)}, last
-                          seen {formatTimestamp(alert.last_seen_at)},{" "}
-                          {alert.occurrences} occurrence(s)
+                          {t("alerts.firstLastSeen", { first: formatTimestamp(alert.first_seen_at, language), last: formatTimestamp(alert.last_seen_at, language), occurrences: String(alert.occurrences) })}
                         </div>
                       </div>
                       <div className="row">
                         <Badge tone={severityTone(alert.severity)}>
-                          {alert.severity}
+                          {t(`alerts.severity.${alert.severity}`)}
                         </Badge>
                         {alert.acknowledged_at ? (
-                          <Badge tone="neutral">Acknowledged</Badge>
+                          <Badge tone="neutral">{t("alerts.acknowledged")}</Badge>
                         ) : (
                           <Button
                             size="small"
                             onClick={() => void handleAcknowledge(alert.id)}
                           >
-                            Acknowledge
+                            {t("alerts.acknowledge")}
                           </Button>
                         )}
                       </div>
@@ -163,8 +158,8 @@ export function AlertsPage() {
 
             {resolved.length > 0 && (
               <Card
-                title="Resolved"
-                subtitle="Conditions that no longer apply, kept for reference"
+                title={t("alerts.resolvedTitle")}
+                subtitle={t("alerts.resolvedSubtitle")}
               >
                 <div className="stack-tight">
                   {resolved.slice(0, 20).map((alert) => (
@@ -172,10 +167,10 @@ export function AlertsPage() {
                       <div className="alert-body">
                         <div className="alert-title">{alert.title}</div>
                         <div className="alert-detail">
-                          Resolved {formatTimestamp(alert.resolved_at)}
+                          {t("alerts.resolvedAt", { time: formatTimestamp(alert.resolved_at, language) })}
                         </div>
                       </div>
-                      <Badge tone="success">Resolved</Badge>
+                      <Badge tone="success">{t("alerts.resolvedTitle")}</Badge>
                     </div>
                   ))}
                 </div>

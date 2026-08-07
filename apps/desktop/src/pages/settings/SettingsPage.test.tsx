@@ -20,6 +20,13 @@ vi.mock("../../lib/native", async (importOriginal) => {
     fetchWidgetSettings: vi.fn(),
     setWidgetView: vi.fn(),
     setWidgetSizePreset: vi.fn(),
+    setLanguage: vi.fn(),
+    setPetStayInPlace: vi.fn(),
+    setPetPose: vi.fn(),
+    setPetSpeed: vi.fn(),
+    setPetSizePreset: vi.fn(),
+    setPetOpacity: vi.fn(),
+    setPetAutoSleep: vi.fn(),
   };
 });
 
@@ -41,6 +48,15 @@ const view = (
     pet_speed: "normal",
     pet_opacity: 1,
     pet_auto_sleep: true,
+    pet_size: "medium",
+    pet_stay_in_place: false,
+    pet_pose_wave: true,
+    pet_pose_jump: true,
+    pet_pose_look_left: true,
+    pet_pose_look_right: true,
+    pet_pose_waiting: true,
+    pet_pose_review: true,
+    language: "en",
   },
   startup_supported: true,
   startup_registered: false,
@@ -73,6 +89,14 @@ describe("SettingsPage", () => {
     vi.mocked(native.setWidgetView).mockReset();
     vi.mocked(native.setWidgetSizePreset).mockReset();
     vi.mocked(native.setWidgetSizePreset).mockResolvedValue("medium");
+    vi.mocked(native.setLanguage).mockReset();
+    vi.mocked(native.setLanguage).mockResolvedValue("en");
+    vi.mocked(native.setPetStayInPlace).mockReset();
+    vi.mocked(native.setPetPose).mockReset();
+    vi.mocked(native.setPetSpeed).mockReset();
+    vi.mocked(native.setPetSizePreset).mockReset();
+    vi.mocked(native.setPetOpacity).mockReset();
+    vi.mocked(native.setPetAutoSleep).mockReset();
     vi.mocked(native.listWidgetPets).mockResolvedValue([]);
     vi.mocked(native.getWidgetPet).mockResolvedValue(null);
     vi.mocked(native.fetchWidgetSettings).mockResolvedValue({
@@ -102,7 +126,7 @@ describe("SettingsPage", () => {
     expect(screen.getByLabelText("Theme")).toHaveValue("dark");
   });
 
-  it("persists a changed interval through the backend and reports it", async () => {
+  it("persists a changed interval immediately without a save button", async () => {
     vi.mocked(native.fetchSettings).mockResolvedValue(view());
     vi.mocked(native.saveSettings).mockImplementation(async (settings) =>
       view({ settings }),
@@ -116,13 +140,12 @@ describe("SettingsPage", () => {
       screen.getByLabelText("Automatic refresh"),
       "60",
     );
-    await userEvent.click(screen.getByRole("button", { name: "Save settings" }));
 
     await waitFor(() => expect(native.saveSettings).toHaveBeenCalledTimes(1));
     expect(native.saveSettings).toHaveBeenCalledWith(
       expect.objectContaining({ refresh_interval_seconds: 60 }),
     );
-    await waitFor(() => expect(screen.getByRole("status")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: /save/i })).not.toBeInTheDocument();
   });
 
   it("shows a rejected save and keeps the previous stored value", async () => {
@@ -135,7 +158,10 @@ describe("SettingsPage", () => {
     await waitFor(() =>
       expect(screen.getByLabelText("Automatic refresh")).toBeInTheDocument(),
     );
-    await userEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    await userEvent.selectOptions(
+      screen.getByLabelText("Automatic refresh"),
+      "60",
+    );
 
     await waitFor(() =>
       expect(
@@ -279,6 +305,39 @@ describe("SettingsPage", () => {
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Only https://codex-pets.net pet URLs are supported",
       ),
+    );
+  });
+
+  it("applies desktop pet stay-in-place and pose changes immediately", async () => {
+    vi.mocked(native.fetchSettings).mockResolvedValue(view());
+    vi.mocked(native.setPetStayInPlace).mockResolvedValue(true);
+    vi.mocked(native.setPetPose).mockResolvedValue(false);
+    render(<SettingsPage />);
+
+    const stay = await screen.findByRole("switch", {
+      name: /Stay in place/i,
+    });
+    await userEvent.click(stay);
+    await waitFor(() =>
+      expect(native.setPetStayInPlace).toHaveBeenCalledWith(true),
+    );
+
+    const jump = screen.getByRole("switch", { name: /^Jump$/ });
+    await userEvent.click(jump);
+    await waitFor(() =>
+      expect(native.setPetPose).toHaveBeenCalledWith("pet_pose_jump", false),
+    );
+  });
+
+  it("switches the UI language through the backend", async () => {
+    vi.mocked(native.fetchSettings).mockResolvedValue(view());
+    vi.mocked(native.setLanguage).mockResolvedValue("th");
+    render(<SettingsPage />);
+
+    const select = await screen.findByLabelText("Language");
+    await userEvent.selectOptions(select, "th");
+    await waitFor(() =>
+      expect(native.setLanguage).toHaveBeenCalledWith("th"),
     );
   });
 });
