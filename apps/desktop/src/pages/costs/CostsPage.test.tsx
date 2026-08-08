@@ -29,14 +29,15 @@ const breakdown = (
       request_count: 2,
       tokens_input: 1000,
       tokens_output: 0,
-      cost: null,
-      pricing_status: "no catalog entry",
+      cost: "0.002500",
+      pricing_status: "estimated",
     },
   ],
   priced_total: "0.003000",
   priced_rows: 1,
-  unpriced_rows: 1,
-  unpriced_tokens: 1000,
+  estimated_rows: 1,
+  unpriced_rows: 0,
+  unpriced_tokens: 0,
   ...overrides,
 });
 
@@ -45,20 +46,19 @@ describe("CostsPage", () => {
     vi.mocked(native.fetchCosts).mockReset();
   });
 
-  it("shows the priced total and marks unpriced models", async () => {
+  it("shows the priced total and marks estimated models", async () => {
     vi.mocked(native.fetchCosts).mockResolvedValue(breakdown());
     render(<CostsPage />);
 
     await waitFor(() => expect(screen.getByText("claude-test")).toBeInTheDocument());
     expect(screen.getAllByText("0.003000").length).toBeGreaterThan(0);
-    expect(screen.getByText("not priced")).toBeInTheDocument();
-    expect(screen.getByText("no catalog entry")).toBeInTheDocument();
-    expect(screen.getByText("Incomplete pricing")).toBeInTheDocument();
+    expect(screen.getAllByText("estimated").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("0.002500")).toBeInTheDocument();
   });
 
   it("reports an empty window instead of a zero cost", async () => {
     vi.mocked(native.fetchCosts).mockResolvedValue(
-      breakdown({ rows: [], priced_rows: 0, unpriced_rows: 0, unpriced_tokens: 0 }),
+      breakdown({ rows: [], priced_rows: 0, estimated_rows: 0 }),
     );
     render(<CostsPage />);
 

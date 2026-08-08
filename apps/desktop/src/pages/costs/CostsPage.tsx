@@ -91,12 +91,12 @@ export function CostsPage() {
                 subtitle={t("costs.pricedModels", { count: String(data.priced_rows) })}
               />
               <MetricCard
-                title={t("costs.unpricedModels")}
-                value={formatNumber(data.unpriced_rows)}
-                subtitle={t("costs.unpricedTokens", { tokens: formatCompact(data.unpriced_tokens) })}
+                title={t("costs.estimatedModels")}
+                value={formatNumber(data.estimated_rows)}
+                subtitle={t("costs.estimatedRows", { count: formatNumber(data.estimated_rows) })}
                 badge={
-                  data.unpriced_rows > 0 ? (
-                    <Badge tone="warning">{t("costs.incompletePricing")}</Badge>
+                  data.estimated_rows > 0 ? (
+                    <Badge tone="warning">{t("costs.estimated")}</Badge>
                   ) : (
                     <Badge tone="success">{t("costs.fullCoverage")}</Badge>
                   )
@@ -135,11 +135,21 @@ export function CostsPage() {
                       {formatCompact(row.tokens_output)}
                     </td>
                     <td className="ui-table-numeric">
-                      {row.cost ?? t("costs.notPriced")}
+                      {row.cost || t("costs.notPriced")}
                     </td>
                     <td>
-                      <Badge tone={row.cost ? "success" : "warning"}>
-                        {row.pricing_status}
+                      <Badge
+                        tone={
+                          row.pricing_status === "priced"
+                            ? "success"
+                            : row.pricing_status === "estimated"
+                              ? "warning"
+                              : "danger"
+                        }
+                      >
+                        {row.pricing_status === "estimated"
+                          ? t("costs.estimated")
+                          : row.pricing_status}
                       </Badge>
                     </td>
                   </tr>

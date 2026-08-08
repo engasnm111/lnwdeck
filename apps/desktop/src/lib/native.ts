@@ -305,8 +305,9 @@ export interface ModelCostRow {
   request_count: number;
   tokens_input: number;
   tokens_output: number;
-  /** Null when the model has no pricing entry. */
-  cost: string | null;
+  /** Decimal cost string; unknown models carry a labeled estimate. */
+  cost: string;
+  /** `priced`, `estimated` or `no catalog entry`. */
   pricing_status: string;
 }
 
@@ -316,6 +317,8 @@ export interface CostBreakdownData {
   rows: ModelCostRow[];
   priced_total: string;
   priced_rows: number;
+  /** Rows charged at the generic estimate rate. */
+  estimated_rows: number;
   unpriced_rows: number;
   unpriced_tokens: number;
 }
@@ -324,6 +327,73 @@ export async function fetchCosts(
   window: HistoryWindow,
 ): Promise<CostBreakdownData> {
   return invoke<CostBreakdownData>("get_costs", { window });
+}
+
+// ── Sessions ─────────────────────────────────────────────────────────────
+
+export interface SessionUsageRow {
+  session_hash: string;
+  /** User-entered name, or a generated label such as `Session 01`. */
+  display_name: string;
+  provider_id: string;
+  request_count: number;
+  tokens_input: number;
+  tokens_output: number;
+  cost: string;
+  first_seen_at: string | null;
+  last_seen_at: string | null;
+}
+
+export interface ProjectUsage {
+  /** Keyed hash of the folder identity; `""` groups unassigned events. */
+  project_hash: string;
+  /** User-entered name, or a generated label such as `Project 01`. */
+  display_name: string;
+  request_count: number;
+  tokens_input: number;
+  tokens_output: number;
+  cost: string;
+  first_seen_at: string | null;
+  last_seen_at: string | null;
+  sessions: SessionUsageRow[];
+}
+
+export interface SessionsOverview {
+  window: HistoryWindow;
+  generated_at: string;
+  since: string | null;
+  request_count: number;
+  tokens_input: number;
+  tokens_output: number;
+  cost: string;
+  projects: ProjectUsage[];
+  providers: string[];
+}
+
+export async function fetchSessions(
+  window: HistoryWindow,
+  providerId?: string,
+): Promise<SessionsOverview> {
+  return invoke<SessionsOverview>("get_sessions", {
+    window,
+    providerId,
+  });
+}
+
+/** Stores a user-entered display name for a session (metadata only). */
+export async function renameSession(
+  sessionHash: string,
+  displayName: string,
+): Promise<void> {
+  return invoke<void>("rename_session", { sessionHash, displayName });
+}
+
+/** Stores a user-entered display name for a project (metadata only). */
+export async function renameProject(
+  projectHash: string,
+  displayName: string,
+): Promise<void> {
+  return invoke<void>("rename_project", { projectHash, displayName });
 }
 
 export type BudgetPeriod = "daily" | "weekly" | "monthly";
