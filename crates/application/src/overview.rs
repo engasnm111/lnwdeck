@@ -111,14 +111,14 @@ impl QueryOverview {
                 if parsed_cost > 0.0 {
                     total_cost += parsed_cost;
                     has_computable_cost = true;
-                } else if let Ok(calc_cost) = calculate_cost_with_provider(
+                } else if let Ok(estimate) = calculate_cost_with_provider(
                     &pid,
                     &model,
                     tin as u64,
                     tout as u64,
                     &price_resolver,
                 ) {
-                    if let Ok(val) = calc_cost.parse::<f64>() {
+                    if let Ok(val) = estimate.cost.parse::<f64>() {
                         total_cost += val;
                         has_computable_cost = true;
                     }

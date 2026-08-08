@@ -106,7 +106,7 @@ pub fn evaluate(
             output.max(0) as u64,
             resolver,
         ) {
-            Ok(value) => cost_used += value.parse::<f64>().unwrap_or(0.0),
+            Ok(estimate) => cost_used += estimate.cost.parse::<f64>().unwrap_or(0.0),
             Err(_) => unpriced_tokens += input + output,
         }
     }
@@ -247,11 +247,12 @@ mod tests {
     }
 
     #[test]
-    fn cost_progress_uses_priced_events_only() {
+    fn cost_progress_counts_priced_and_estimated_events() {
         let storage = open_db();
         // 2000 tokens at 1.0 per 1k = 2.00 priced.
         insert_event(&storage, "e1", "anthropic_claude", "claude-test", 2000, 1);
-        // Unpriced model: counted in tokens, never given a cost.
+        // Unknown model: counted in tokens and charged the labeled generic
+        // estimate (500 * 0.0025 / 1000 = 0.00125), never left blank.
         insert_event(&storage, "e2", "mystery", "mystery-model", 500, 1);
         BudgetRepository::new(&storage.conn)
             .upsert(&budget(BudgetScope::Global, "10", None))
@@ -260,9 +261,9 @@ mod tests {
         let overview = QueryBudgets::execute(&storage.conn, &resolver()).expect("overview");
         let progress = &overview.budgets[0];
         assert_eq!(progress.tokens_used, 2500);
-        assert_eq!(progress.cost_used, "2.000000");
-        assert_eq!(progress.unpriced_tokens, 500);
-        assert_eq!(progress.cost_percent, Some(20.0));
+        assert_eq!(progress.cost_used, "2.001250");
+        assert_eq!(progress.unpriced_tokens, 0);
+        assert!((progress.cost_percent.unwrap() - 20.0125).abs() < 1e-9);
         assert_eq!(progress.state, "under");
     }
 
@@ -323,10 +324,11 @@ mod tests {
     }
 
     #[test]
-    fn usage_a_provider_cannot_be_priced_for_is_reported_not_charged() {
+    fn usage_a_provider_cannot_be_priced_for_gets_a_labeled_estimate() {
         let storage = open_db();
         // The catalog only prices claude-test for Anthropic; the same model
-        // recorded under another provider must not inherit that rate.
+        // recorded under another provider must not inherit that rate. It
+        // still gets the generic estimate, labeled as such.
         insert_event(&storage, "e1", "opencode", "claude-test", 5000, 1);
         BudgetRepository::new(&storage.conn)
             .upsert(&budget(
@@ -338,8 +340,11 @@ mod tests {
 
         let overview = QueryBudgets::execute(&storage.conn, &resolver()).expect("overview");
         assert_eq!(overview.budgets[0].tokens_used, 5000);
-        assert_eq!(overview.budgets[0].cost_used, "0.000000");
-        assert_eq!(overview.budgets[0].unpriced_tokens, 5000);
+        assert_eq!(
+            overview.budgets[0].cost_used, "0.012500",
+            "the generic estimate (5000 * 0.0025 / 1000) applies, never the Anthropic override"
+        );
+        assert_eq!(overview.budgets[0].unpriced_tokens, 0);
     }
 
     #[test]

@@ -18,9 +18,10 @@ pub struct ModelCostRow {
     pub request_count: i64,
     pub tokens_input: i64,
     pub tokens_output: i64,
-    /// Cost as a decimal string, or `None` when the model has no catalog entry.
-    pub cost: Option<String>,
-    /// Why the cost is missing, when it is.
+    /// Cost as a decimal string. Always present: unknown models get a
+    /// labeled estimate, never a blank cell.
+    pub cost: String,
+    /// How the cost was produced: `priced`, `estimated` or `no catalog entry`.
     pub pricing_status: String,
 }
 
@@ -32,6 +33,9 @@ pub struct CostBreakdown {
     /// Sum over priced rows only.
     pub priced_total: String,
     pub priced_rows: usize,
+    /// Rows charged at the generic estimate rate.
+    pub estimated_rows: usize,
+    /// Rows with no pricing information at all.
     pub unpriced_rows: usize,
     /// Tokens that could not be priced at all.
     pub unpriced_tokens: i64,
@@ -75,6 +79,7 @@ impl QueryCosts {
         let mut rows = Vec::with_capacity(raw.len());
         let mut priced_total = 0.0f64;
         let mut priced_rows = 0usize;
+        let mut estimated_rows = 0usize;
         let mut unpriced_rows = 0usize;
         let mut unpriced_tokens = 0i64;
 
@@ -87,15 +92,21 @@ impl QueryCosts {
                 resolver,
             );
             let (cost, pricing_status) = match calculated {
-                Ok(value) => {
-                    priced_rows += 1;
-                    priced_total += value.parse::<f64>().unwrap_or(0.0);
-                    (Some(value), "priced".to_string())
-                }
+                Ok(estimate) => match estimate.status {
+                    lnwdeck_pricing::PricingStatus::Priced => {
+                        priced_rows += 1;
+                        priced_total += estimate.cost.parse::<f64>().unwrap_or(0.0);
+                        (estimate.cost, "priced".to_string())
+                    }
+                    lnwdeck_pricing::PricingStatus::Estimated => {
+                        estimated_rows += 1;
+                        (estimate.cost, "estimated".to_string())
+                    }
+                },
                 Err(_) => {
                     unpriced_rows += 1;
                     unpriced_tokens += tokens_input + tokens_output;
-                    (None, "no catalog entry".to_string())
+                    (String::new(), "no catalog entry".to_string())
                 }
             };
             rows.push(ModelCostRow {
@@ -115,6 +126,7 @@ impl QueryCosts {
             rows,
             priced_total: format!("{priced_total:.6}"),
             priced_rows,
+            estimated_rows,
             unpriced_rows,
             unpriced_tokens,
         })
@@ -166,6 +178,7 @@ mod tests {
             QueryCosts::execute(&storage.conn, HistoryWindow::Last30d, &resolver()).expect("costs");
         assert!(breakdown.rows.is_empty());
         assert_eq!(breakdown.priced_rows, 0);
+        assert_eq!(breakdown.estimated_rows, 0);
         assert_eq!(breakdown.unpriced_rows, 0);
         assert_eq!(breakdown.priced_total, "0.000000");
     }
@@ -178,15 +191,16 @@ mod tests {
         let breakdown =
             QueryCosts::execute(&storage.conn, HistoryWindow::Last30d, &resolver()).expect("costs");
         assert_eq!(breakdown.rows.len(), 1);
-        assert_eq!(breakdown.rows[0].cost.as_deref(), Some("0.003000"));
+        assert_eq!(breakdown.rows[0].cost, "0.003000");
         assert_eq!(breakdown.rows[0].pricing_status, "priced");
         assert_eq!(breakdown.priced_rows, 1);
+        assert_eq!(breakdown.estimated_rows, 0);
         assert_eq!(breakdown.unpriced_rows, 0);
         assert_eq!(breakdown.priced_total, "0.003000");
     }
 
     #[test]
-    fn unpriced_models_are_reported_not_charged_at_another_rate() {
+    fn unknown_models_get_a_labeled_estimate_not_a_blank_cell() {
         let storage = open_db();
         insert_event(&storage, "e1", "mystery_provider", "mystery-model", 5000);
 
@@ -194,12 +208,15 @@ mod tests {
             QueryCosts::execute(&storage.conn, HistoryWindow::Last30d, &resolver()).expect("costs");
         assert_eq!(breakdown.rows.len(), 1);
         assert_eq!(
-            breakdown.rows[0].cost, None,
-            "an unknown model must not be given a cost"
+            breakdown.rows[0].pricing_status, "estimated",
+            "unknown models are estimated, never silently zero or blank"
         );
-        assert_eq!(breakdown.rows[0].pricing_status, "no catalog entry");
-        assert_eq!(breakdown.unpriced_rows, 1);
-        assert_eq!(breakdown.unpriced_tokens, 5000);
+        assert_eq!(
+            breakdown.rows[0].cost, "0.012500",
+            "generic estimate applies: 2.50 per 1M input tokens"
+        );
+        assert_eq!(breakdown.estimated_rows, 1);
+        assert_eq!(breakdown.unpriced_rows, 0);
         assert_eq!(breakdown.priced_total, "0.000000");
     }
 
@@ -213,8 +230,9 @@ mod tests {
             QueryCosts::execute(&storage.conn, HistoryWindow::Last30d, &resolver()).expect("costs");
         assert_eq!(breakdown.rows.len(), 2);
         assert_eq!(breakdown.priced_rows, 1);
-        assert_eq!(breakdown.unpriced_rows, 1);
+        assert_eq!(breakdown.estimated_rows, 1);
+        assert_eq!(breakdown.unpriced_rows, 0);
         assert_eq!(breakdown.priced_total, "0.006000");
-        assert_eq!(breakdown.unpriced_tokens, 100);
+        assert_eq!(breakdown.unpriced_tokens, 0);
     }
 }
