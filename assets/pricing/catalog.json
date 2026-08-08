@@ -1,69 +1,3089 @@
 {
-  "version": "1",
-  "updated": "2026-08-03",
+  "$generated_by": "scripts/update-pricing-catalog.mjs",
+  "$generated_from": "BerriAI/litellm model_prices_and_context_window.json (MIT)",
   "providers": {
-    "openai": {
-      "models": {
-        "gpt-4o": { "input_per_1k": "0.00500", "output_per_1k": "0.01500" },
-        "gpt-4o-mini": { "input_per_1k": "0.00015", "output_per_1k": "0.00060" },
-        "gpt-4": { "input_per_1k": "0.03000", "output_per_1k": "0.06000" },
-        "gpt-3.5-turbo": { "input_per_1k": "0.00050", "output_per_1k": "0.00150" },
-        "codex": { "input_per_1k": "0.00250", "output_per_1k": "0.01000" },
-        "opencode-model": { "input_per_1k": "0.00150", "output_per_1k": "0.00500" }
-      }
-    },
     "anthropic": {
       "models": {
-        "claude-3-5-sonnet": { "input_per_1k": "0.00300", "output_per_1k": "0.01500" },
-        "claude-3-7-sonnet": { "input_per_1k": "0.00300", "output_per_1k": "0.01500" },
-        "claude-3-opus": { "input_per_1k": "0.01500", "output_per_1k": "0.07500" },
-        "claude-3-sonnet": { "input_per_1k": "0.00300", "output_per_1k": "0.01500" },
-        "claude-3-haiku": { "input_per_1k": "0.00025", "output_per_1k": "0.00125" }
+        "claude-3-5-haiku": {
+          "input_per_1k": "0.001000",
+          "output_per_1k": "0.005000"
+        },
+        "claude-haiku-4-5": {
+          "input_per_1k": "0.001000",
+          "output_per_1k": "0.005000"
+        },
+        "claude-3-5-sonnet": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "claude-3-7-sonnet": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "claude-3-haiku": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.001250"
+        },
+        "claude-3-opus": {
+          "input_per_1k": "0.015000",
+          "output_per_1k": "0.075000"
+        },
+        "claude-3-sonnet": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "claude-instant-v1": {
+          "input_per_1k": "0.000800",
+          "output_per_1k": "0.002400"
+        },
+        "claude-opus-4-1": {
+          "input_per_1k": "0.015000",
+          "output_per_1k": "0.075000"
+        },
+        "claude-opus-4": {
+          "input_per_1k": "0.015000",
+          "output_per_1k": "0.075000"
+        },
+        "claude-opus-4-5": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "claude-opus-4-6-v1": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "global.anthropic.claude-opus-4-6-v1": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "us.anthropic.claude-opus-4-6-v1": {
+          "input_per_1k": "0.005500",
+          "output_per_1k": "0.027500"
+        },
+        "eu.anthropic.claude-opus-4-6-v1": {
+          "input_per_1k": "0.005500",
+          "output_per_1k": "0.027500"
+        },
+        "au.anthropic.claude-opus-4-6-v1": {
+          "input_per_1k": "0.005500",
+          "output_per_1k": "0.027500"
+        },
+        "claude-opus-4-7": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "claude-mythos-preview": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "global.anthropic.claude-opus-4-7": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "us.anthropic.claude-opus-4-7": {
+          "input_per_1k": "0.005500",
+          "output_per_1k": "0.027500"
+        },
+        "eu.anthropic.claude-opus-4-7": {
+          "input_per_1k": "0.005500",
+          "output_per_1k": "0.027500"
+        },
+        "au.anthropic.claude-opus-4-7": {
+          "input_per_1k": "0.005500",
+          "output_per_1k": "0.027500"
+        },
+        "claude-fable-5": {
+          "input_per_1k": "0.010000",
+          "output_per_1k": "0.050000"
+        },
+        "global.anthropic.claude-fable-5": {
+          "input_per_1k": "0.010000",
+          "output_per_1k": "0.050000"
+        },
+        "us.anthropic.claude-fable-5": {
+          "input_per_1k": "0.011000",
+          "output_per_1k": "0.055000"
+        },
+        "eu.anthropic.claude-fable-5": {
+          "input_per_1k": "0.011000",
+          "output_per_1k": "0.055000"
+        },
+        "claude-opus-5": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "global.anthropic.claude-opus-5": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "us.anthropic.claude-opus-5": {
+          "input_per_1k": "0.005500",
+          "output_per_1k": "0.027500"
+        },
+        "eu.anthropic.claude-opus-5": {
+          "input_per_1k": "0.005500",
+          "output_per_1k": "0.027500"
+        },
+        "au.anthropic.claude-opus-5": {
+          "input_per_1k": "0.005500",
+          "output_per_1k": "0.027500"
+        },
+        "jp.anthropic.claude-opus-5": {
+          "input_per_1k": "0.005500",
+          "output_per_1k": "0.027500"
+        },
+        "claude-opus-4-8": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "global.anthropic.claude-opus-4-8": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "us.anthropic.claude-opus-4-8": {
+          "input_per_1k": "0.005500",
+          "output_per_1k": "0.027500"
+        },
+        "eu.anthropic.claude-opus-4-8": {
+          "input_per_1k": "0.005500",
+          "output_per_1k": "0.027500"
+        },
+        "au.anthropic.claude-opus-4-8": {
+          "input_per_1k": "0.005500",
+          "output_per_1k": "0.027500"
+        },
+        "jp.anthropic.claude-opus-4-8": {
+          "input_per_1k": "0.005500",
+          "output_per_1k": "0.027500"
+        },
+        "jp.anthropic.claude-opus-4-7": {
+          "input_per_1k": "0.005500",
+          "output_per_1k": "0.027500"
+        },
+        "claude-sonnet-5": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.010000"
+        },
+        "global.anthropic.claude-sonnet-5": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.010000"
+        },
+        "us.anthropic.claude-sonnet-5": {
+          "input_per_1k": "0.002200",
+          "output_per_1k": "0.011000"
+        },
+        "eu.anthropic.claude-sonnet-5": {
+          "input_per_1k": "0.002200",
+          "output_per_1k": "0.011000"
+        },
+        "au.anthropic.claude-sonnet-5": {
+          "input_per_1k": "0.002200",
+          "output_per_1k": "0.011000"
+        },
+        "jp.anthropic.claude-sonnet-5": {
+          "input_per_1k": "0.002200",
+          "output_per_1k": "0.011000"
+        },
+        "claude-sonnet-4-6": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "global.anthropic.claude-sonnet-4-6": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "us.anthropic.claude-sonnet-4-6": {
+          "input_per_1k": "0.003300",
+          "output_per_1k": "0.016500"
+        },
+        "eu.anthropic.claude-sonnet-4-6": {
+          "input_per_1k": "0.003300",
+          "output_per_1k": "0.016500"
+        },
+        "au.anthropic.claude-sonnet-4-6": {
+          "input_per_1k": "0.003300",
+          "output_per_1k": "0.016500"
+        },
+        "jp.anthropic.claude-sonnet-4-6": {
+          "input_per_1k": "0.003300",
+          "output_per_1k": "0.016500"
+        },
+        "claude-sonnet-4": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "claude-sonnet-4-5": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "claude-v1": {
+          "input_per_1k": "0.008000",
+          "output_per_1k": "0.024000"
+        },
+        "claude-v2:1": {
+          "input_per_1k": "0.008000",
+          "output_per_1k": "0.024000"
+        },
+        "apac.anthropic.claude-3-5-sonnet": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "apac.anthropic.claude-3-haiku": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.001250"
+        },
+        "apac.anthropic.claude-haiku-4-5": {
+          "input_per_1k": "0.001100",
+          "output_per_1k": "0.005500"
+        },
+        "apac.anthropic.claude-3-sonnet": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "apac.anthropic.claude-sonnet-4": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "au.anthropic.claude-sonnet-4-5": {
+          "input_per_1k": "0.003300",
+          "output_per_1k": "0.016500"
+        },
+        "claude-opus-4-6": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "us.anthropic.claude-3-5-haiku": {
+          "input_per_1k": "0.000800",
+          "output_per_1k": "0.004000"
+        },
+        "claude-4-opus": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "claude-4-sonnet": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "databricks-claude-3-7-sonnet": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "databricks-claude-haiku-4-5": {
+          "input_per_1k": "0.001000",
+          "output_per_1k": "0.005000"
+        },
+        "databricks-claude-opus-4": {
+          "input_per_1k": "0.015000",
+          "output_per_1k": "0.075000"
+        },
+        "databricks-claude-opus-4-1": {
+          "input_per_1k": "0.015000",
+          "output_per_1k": "0.075000"
+        },
+        "databricks-claude-opus-4-5": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "databricks-claude-sonnet-4": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "databricks-claude-sonnet-4-1": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "databricks-claude-sonnet-4-5": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "claude-3-7-sonnet-latest": {
+          "input_per_1k": "0.003300",
+          "output_per_1k": "0.016500"
+        },
+        "eu.anthropic.claude-3-5-haiku": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.001250"
+        },
+        "eu.anthropic.claude-haiku-4-5": {
+          "input_per_1k": "0.001100",
+          "output_per_1k": "0.005500"
+        },
+        "eu.anthropic.claude-3-5-sonnet": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "eu.anthropic.claude-3-7-sonnet": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "eu.anthropic.claude-3-haiku": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.001250"
+        },
+        "eu.anthropic.claude-3-opus": {
+          "input_per_1k": "0.015000",
+          "output_per_1k": "0.075000"
+        },
+        "eu.anthropic.claude-3-sonnet": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "eu.anthropic.claude-opus-4-1": {
+          "input_per_1k": "0.015000",
+          "output_per_1k": "0.075000"
+        },
+        "eu.anthropic.claude-opus-4": {
+          "input_per_1k": "0.015000",
+          "output_per_1k": "0.075000"
+        },
+        "eu.anthropic.claude-sonnet-4": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "eu.anthropic.claude-sonnet-4-5": {
+          "input_per_1k": "0.003300",
+          "output_per_1k": "0.016500"
+        },
+        "claude-opus-4.5": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "claude-sonnet-4.5": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "global.anthropic.claude-sonnet-4-5": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "global.anthropic.claude-sonnet-4": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "global.anthropic.claude-haiku-4-5": {
+          "input_per_1k": "0.001000",
+          "output_per_1k": "0.005000"
+        },
+        "anthropic-claude-3-opus": {
+          "input_per_1k": "0.015000",
+          "output_per_1k": "0.075000"
+        },
+        "anthropic-claude-3.5-haiku": {
+          "input_per_1k": "0.000800",
+          "output_per_1k": "0.004000"
+        },
+        "anthropic-claude-3.5-sonnet": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "anthropic-claude-3.7-sonnet": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "jp.anthropic.claude-sonnet-4-5": {
+          "input_per_1k": "0.003300",
+          "output_per_1k": "0.016500"
+        },
+        "jp.anthropic.claude-haiku-4-5": {
+          "input_per_1k": "0.001100",
+          "output_per_1k": "0.005500"
+        },
+        "claude-3.5-sonnet": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "claude-3.7-sonnet": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "claude-opus-4.1": {
+          "input_per_1k": "0.015000",
+          "output_per_1k": "0.075000"
+        },
+        "claude-sonnet-4.6": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "claude-opus-4.6": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "claude-haiku-4.5": {
+          "input_per_1k": "0.001000",
+          "output_per_1k": "0.005000"
+        },
+        "claude-opus-4.7": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "claude-4.5-haiku": {
+          "input_per_1k": "0.001000",
+          "output_per_1k": "0.005000"
+        },
+        "claude-3.5-haiku": {
+          "input_per_1k": "0.000800",
+          "output_per_1k": "0.004000"
+        },
+        "claude-4.5-sonnet": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "us.anthropic.claude-haiku-4-5": {
+          "input_per_1k": "0.001100",
+          "output_per_1k": "0.005500"
+        },
+        "us.anthropic.claude-3-5-sonnet": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "us.anthropic.claude-3-7-sonnet": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "us.anthropic.claude-3-haiku": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.001250"
+        },
+        "us.anthropic.claude-3-opus": {
+          "input_per_1k": "0.015000",
+          "output_per_1k": "0.075000"
+        },
+        "us.anthropic.claude-3-sonnet": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "us.anthropic.claude-opus-4-1": {
+          "input_per_1k": "0.015000",
+          "output_per_1k": "0.075000"
+        },
+        "us.anthropic.claude-sonnet-4-5": {
+          "input_per_1k": "0.003300",
+          "output_per_1k": "0.016500"
+        },
+        "us-gov.anthropic.claude-sonnet-4-5": {
+          "input_per_1k": "0.003600",
+          "output_per_1k": "0.018000"
+        },
+        "au.anthropic.claude-haiku-4-5": {
+          "input_per_1k": "0.001100",
+          "output_per_1k": "0.005500"
+        },
+        "us.anthropic.claude-opus-4": {
+          "input_per_1k": "0.015000",
+          "output_per_1k": "0.075000"
+        },
+        "us.anthropic.claude-opus-4-5": {
+          "input_per_1k": "0.005500",
+          "output_per_1k": "0.027500"
+        },
+        "global.anthropic.claude-opus-4-5": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "eu.anthropic.claude-opus-4-5": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "us.anthropic.claude-sonnet-4": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "claude-opus-4-6@default": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "claude-opus-4-7@default": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "claude-fable-5@default": {
+          "input_per_1k": "0.010000",
+          "output_per_1k": "0.050000"
+        },
+        "claude-opus-5@default": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "claude-opus-4-8@default": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "claude-sonnet-5@default": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.010000"
+        },
+        "claude-sonnet-4-6@default": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        }
       }
     },
     "google": {
       "models": {
-        "gemini-2.0-flash": { "input_per_1k": "0.00010", "output_per_1k": "0.00040" },
-        "gemini-1.5-pro": { "input_per_1k": "0.00125", "output_per_1k": "0.00500" },
-        "gemini-1.5-flash": { "input_per_1k": "0.000075", "output_per_1k": "0.00030" }
+        "gemma-7b-it": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000150"
+        },
+        "gemma-2b-it-lora": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "gemma-7b-it-lora": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "gemma-4-26b-a4b-it": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.000500"
+        },
+        "databricks-gemini-2-5-flash": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.002500"
+        },
+        "databricks-gemini-2-5-pro": {
+          "input_per_1k": "0.001250",
+          "output_per_1k": "0.010000"
+        },
+        "gemini-2.0-flash-001": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000400"
+        },
+        "gemini-2.5-flash": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.002500"
+        },
+        "gemini-2.5-pro": {
+          "input_per_1k": "0.002500",
+          "output_per_1k": "0.010000"
+        },
+        "gemma-3-12b-it": {
+          "input_per_1k": "0.000050",
+          "output_per_1k": "0.000100"
+        },
+        "gemma-3-27b-it": {
+          "input_per_1k": "0.000119",
+          "output_per_1k": "0.000200"
+        },
+        "gemma-3-4b-it": {
+          "input_per_1k": "0.000040",
+          "output_per_1k": "0.000080"
+        },
+        "gemini-2.0-flash": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000600"
+        },
+        "gemini-2.0-flash-lite": {
+          "input_per_1k": "0.000075",
+          "output_per_1k": "0.000300"
+        },
+        "gemini-2.0-flash-lite-001": {
+          "input_per_1k": "0.000075",
+          "output_per_1k": "0.000300"
+        },
+        "gemini-2.5-flash-image": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.002500"
+        },
+        "gemini-3-pro-image": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.012000"
+        },
+        "gemini-3-pro-image-preview": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.012000"
+        },
+        "gemini-3.1-flash-image": {
+          "input_per_1k": "0.000500",
+          "output_per_1k": "0.003000"
+        },
+        "gemini-3.1-flash-image-preview": {
+          "input_per_1k": "0.000500",
+          "output_per_1k": "0.003000"
+        },
+        "gemini-3.1-flash-lite-preview": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.001500"
+        },
+        "gemini-3.1-flash-lite": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.001500"
+        },
+        "gemini-3.5-flash-lite": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.002500"
+        },
+        "gemini-2.5-flash-lite": {
+          "input_per_1k": "0.000075",
+          "output_per_1k": "0.000300"
+        },
+        "gemini-2.5-flash-lite-preview-09-2025": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000400"
+        },
+        "gemini-2.5-flash-preview-09-2025": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.002500"
+        },
+        "gemini-live-2.5-flash-preview-native-audio-09-2025": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.002000"
+        },
+        "gemini-2.5-flash-lite-preview-06-17": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000400"
+        },
+        "gemini-3-pro-preview": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.012000"
+        },
+        "gemini-3.1-pro-preview": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.012000"
+        },
+        "gemini-3.1-pro-preview-customtools": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.012000"
+        },
+        "gemini-3-flash-preview": {
+          "input_per_1k": "0.000500",
+          "output_per_1k": "0.003000"
+        },
+        "gemini-3.5-flash": {
+          "input_per_1k": "0.001500",
+          "output_per_1k": "0.009000"
+        },
+        "gemini-3.6-flash": {
+          "input_per_1k": "0.001500",
+          "output_per_1k": "0.007500"
+        },
+        "gemini-2.5-pro-preview-tts": {
+          "input_per_1k": "0.001250",
+          "output_per_1k": "0.010000"
+        },
+        "gemini-robotics-er-1.5-preview": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.002500"
+        },
+        "gemini-robotics-er-2-preview": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.010000"
+        },
+        "gemini-robotics-er-1.6-preview": {
+          "input_per_1k": "0.001000",
+          "output_per_1k": "0.005000"
+        },
+        "gemini-2.5-computer-use-preview-10-2025": {
+          "input_per_1k": "0.001250",
+          "output_per_1k": "0.010000"
+        },
+        "gemini-embedding-001": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000000"
+        },
+        "gemini-embedding-2-preview": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000000"
+        },
+        "gemini-embedding-2": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000000"
+        },
+        "gemini-flash-experimental": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "gemini-1.5-flash": {
+          "input_per_1k": "0.000075",
+          "output_per_1k": "0.000000"
+        },
+        "deep-research-pro-preview-12-2025": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.012000"
+        },
+        "gemini-flash-latest": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.002500"
+        },
+        "gemini-flash-lite-latest": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000400"
+        },
+        "gemini-2.5-flash-preview-tts": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.002500"
+        },
+        "gemini-omni-flash-preview": {
+          "input_per_1k": "0.001500",
+          "output_per_1k": "0.009000"
+        },
+        "gemini-exp-1114": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "gemini-exp-1206": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.002500"
+        },
+        "gemini-gemma-2-27b-it": {
+          "input_per_1k": "0.000350",
+          "output_per_1k": "0.001050"
+        },
+        "gemini-gemma-2-9b-it": {
+          "input_per_1k": "0.000350",
+          "output_per_1k": "0.001050"
+        },
+        "learnlm-1.5-pro-experimental": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "lyria-3-clip-preview": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "lyria-3-pro-preview": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "gemini-3-pro": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.012000"
+        },
+        "gemma-2-9b": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "text-embedding-005": {
+          "input_per_1k": "0.000025",
+          "output_per_1k": "0.000000"
+        },
+        "text-multilingual-embedding-002": {
+          "input_per_1k": "0.000025",
+          "output_per_1k": "0.000000"
+        },
+        "gemma-4-26b-a4b-it-maas": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000600"
+        },
+        "flan-t5-xl-3b": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.000600"
+        },
+        "gemini-2.0-flash-exp-image-generation": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "gemini-2.5-flash-native-audio-latest": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.002500"
+        },
+        "gemini-2.5-flash-native-audio-preview-09-2025": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.002500"
+        },
+        "gemini-2.5-flash-native-audio-preview-12-2025": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.002500"
+        },
+        "gemini-3.1-flash-live-preview": {
+          "input_per_1k": "0.000750",
+          "output_per_1k": "0.004500"
+        },
+        "gemini-pro-latest": {
+          "input_per_1k": "0.001250",
+          "output_per_1k": "0.010000"
+        },
+        "gemma-4-31b": {
+          "input_per_1k": "0.000140",
+          "output_per_1k": "0.000400"
+        },
+        "gemma-4-26b-a4b": {
+          "input_per_1k": "0.000130",
+          "output_per_1k": "0.000400"
+        },
+        "gemma-4-e2b": {
+          "input_per_1k": "0.000040",
+          "output_per_1k": "0.000080"
+        },
+        "gemma-4-31b-it": {
+          "input_per_1k": "0.000140",
+          "output_per_1k": "0.000560"
+        }
+      }
+    },
+    "mistral": {
+      "models": {
+        "mistral-7b-instruct-v0.1": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "mixtral-8x22b-instruct-v0.1": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.000600"
+        },
+        "mixtral-8x7b-instruct-v0.1": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.000600"
+        },
+        "mistral-large-2402": {
+          "input_per_1k": "0.004000",
+          "output_per_1k": "0.012000"
+        },
+        "mistral-large-latest": {
+          "input_per_1k": "0.000500",
+          "output_per_1k": "0.001500"
+        },
+        "mistral-large": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.010000"
+        },
+        "mistral-large-2407": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.009000"
+        },
+        "mistral-large-3": {
+          "input_per_1k": "0.000500",
+          "output_per_1k": "0.001500"
+        },
+        "mistral-medium-2505": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.010000"
+        },
+        "mistral-nemo": {
+          "input_per_1k": "0.000040",
+          "output_per_1k": "0.000170"
+        },
+        "mistral-small": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000300"
+        },
+        "mistral-small-2503": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000300"
+        },
+        "mistral-7b-instruct-v0:2": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000200"
+        },
+        "mistral-large-2402-v1:0": {
+          "input_per_1k": "0.008000",
+          "output_per_1k": "0.024000"
+        },
+        "mixtral-8x7b-instruct-v0:1": {
+          "input_per_1k": "0.000450",
+          "output_per_1k": "0.000700"
+        },
+        "mistral-7b-instruct-v0.2-lora": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "mistral-small-3.1-24b-instruct": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000300"
+        },
+        "codestral-2405": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "codestral-latest": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "mistral-nemo-instruct-2407": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "mistral-small-24b-instruct-2501": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "mistral-small-3.2-24b-instruct-2506": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000350"
+        },
+        "eu.mistral.pixtral-large-2502-v1:0": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.006000"
+        },
+        "devstral-2-123b": {
+          "input_per_1k": "0.000400",
+          "output_per_1k": "0.002000"
+        },
+        "magistral-small-2509": {
+          "input_per_1k": "0.000500",
+          "output_per_1k": "0.001500"
+        },
+        "ministral-3-14b-instruct": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "ministral-3-3b-instruct": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "ministral-3-8b-instruct": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000150"
+        },
+        "mistral-large-2407-v1:0": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.009000"
+        },
+        "mistral-large-3-675b-instruct": {
+          "input_per_1k": "0.000500",
+          "output_per_1k": "0.001500"
+        },
+        "mistral-small-2402-v1:0": {
+          "input_per_1k": "0.001000",
+          "output_per_1k": "0.003000"
+        },
+        "voxtral-mini-3b-2507": {
+          "input_per_1k": "0.000040",
+          "output_per_1k": "0.000040"
+        },
+        "voxtral-small-24b-2507": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000350"
+        },
+        "codestral-2508": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.000900"
+        },
+        "codestral-mamba-latest": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.000250"
+        },
+        "devstral-medium-2507": {
+          "input_per_1k": "0.000400",
+          "output_per_1k": "0.002000"
+        },
+        "devstral-small-2505": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000300"
+        },
+        "devstral-small-2507": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000300"
+        },
+        "devstral-small-latest": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000300"
+        },
+        "labs-devstral-small-2512": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000300"
+        },
+        "devstral-latest": {
+          "input_per_1k": "0.000400",
+          "output_per_1k": "0.002000"
+        },
+        "devstral-medium-latest": {
+          "input_per_1k": "0.000400",
+          "output_per_1k": "0.002000"
+        },
+        "devstral-2512": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000600"
+        },
+        "magistral-medium-2506": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.005000"
+        },
+        "magistral-medium-2509": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.005000"
+        },
+        "magistral-medium-1-2-2509": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.005000"
+        },
+        "magistral-medium-latest": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.005000"
+        },
+        "magistral-small-2506": {
+          "input_per_1k": "0.000500",
+          "output_per_1k": "0.001500"
+        },
+        "magistral-small-latest": {
+          "input_per_1k": "0.000500",
+          "output_per_1k": "0.001500"
+        },
+        "magistral-small-1-2-2509": {
+          "input_per_1k": "0.000500",
+          "output_per_1k": "0.001500"
+        },
+        "mistral-large-2411": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.006000"
+        },
+        "mistral-large-2512": {
+          "input_per_1k": "0.000500",
+          "output_per_1k": "0.001500"
+        },
+        "mistral-medium": {
+          "input_per_1k": "0.002700",
+          "output_per_1k": "0.008100"
+        },
+        "mistral-medium-2312": {
+          "input_per_1k": "0.002700",
+          "output_per_1k": "0.008100"
+        },
+        "mistral-medium-2508": {
+          "input_per_1k": "0.000400",
+          "output_per_1k": "0.002000"
+        },
+        "mistral-medium-2604": {
+          "input_per_1k": "0.001500",
+          "output_per_1k": "0.007500"
+        },
+        "mistral-medium-latest": {
+          "input_per_1k": "0.001500",
+          "output_per_1k": "0.007500"
+        },
+        "mistral-medium-3-1-2508": {
+          "input_per_1k": "0.000400",
+          "output_per_1k": "0.002000"
+        },
+        "mistral-medium-3-5": {
+          "input_per_1k": "0.001500",
+          "output_per_1k": "0.007500"
+        },
+        "mistral-small-latest": {
+          "input_per_1k": "0.000060",
+          "output_per_1k": "0.000180"
+        },
+        "mistral-small-3-2-2506": {
+          "input_per_1k": "0.000060",
+          "output_per_1k": "0.000180"
+        },
+        "ministral-3-3b-2512": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "ministral-3-8b-2512": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000150"
+        },
+        "ministral-3-14b-2512": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "ministral-8b-2512": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000150"
+        },
+        "ministral-8b-latest": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000150"
+        },
+        "mistral-tiny": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.000250"
+        },
+        "open-codestral-mamba": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.000250"
+        },
+        "open-mistral-7b": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.000250"
+        },
+        "open-mistral-nemo": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.000300"
+        },
+        "open-mistral-nemo-2407": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.000300"
+        },
+        "open-mixtral-8x22b": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.006000"
+        },
+        "open-mixtral-8x7b": {
+          "input_per_1k": "0.000700",
+          "output_per_1k": "0.000700"
+        },
+        "pixtral-12b-2409": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "pixtral-large-2411": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.006000"
+        },
+        "pixtral-large-latest": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.006000"
+        },
+        "e5-mistral-7b-instruct": {
+          "input_per_1k": "0.000010",
+          "output_per_1k": "0.000000"
+        },
+        "mistral": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "mistral-7b-instruct-v0.2": {
+          "input_per_1k": "0.000050",
+          "output_per_1k": "0.000250"
+        },
+        "mistral-large-instruct-2407": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "ministral-3b-2512": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "ministral-14b-2512": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "mistral-7b-instruct": {
+          "input_per_1k": "0.000070",
+          "output_per_1k": "0.000280"
+        },
+        "mistral-small-3.2-24b-instruct": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000300"
+        },
+        "mixtral-8x22b-instruct": {
+          "input_per_1k": "0.001200",
+          "output_per_1k": "0.001200"
+        },
+        "mistral-7b-instruct-v0.3": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "llava-v1.6-mistral-7b-hf": {
+          "input_per_1k": "0.000290",
+          "output_per_1k": "0.000290"
+        },
+        "mamba-codestral-7b-v0.1": {
+          "input_per_1k": "0.000190",
+          "output_per_1k": "0.000190"
+        },
+        "mistral-7b-v0.1": {
+          "input_per_1k": "0.000050",
+          "output_per_1k": "0.000250"
+        },
+        "nv-rerankqa-mistral-4b-v3": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "mistral-large2": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.006000"
+        },
+        "us.mistral.pixtral-large-2502-v1:0": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.006000"
+        },
+        "codestral": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.000900"
+        },
+        "codestral-embed": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000000"
+        },
+        "devstral-small": {
+          "input_per_1k": "0.000070",
+          "output_per_1k": "0.000280"
+        },
+        "magistral-medium": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.005000"
+        },
+        "magistral-small": {
+          "input_per_1k": "0.000500",
+          "output_per_1k": "0.001500"
+        },
+        "ministral-3b": {
+          "input_per_1k": "0.000040",
+          "output_per_1k": "0.000040"
+        },
+        "ministral-8b": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "mistral-embed": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000000"
+        },
+        "mistral-saba-24b": {
+          "input_per_1k": "0.000790",
+          "output_per_1k": "0.000790"
+        },
+        "pixtral-12b": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000150"
+        },
+        "pixtral-large": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.006000"
+        },
+        "codestral-2@001": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.000900"
+        },
+        "codestral-2": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.000900"
+        },
+        "codestral-2501": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000600"
+        },
+        "codestral@2405": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000600"
+        },
+        "codestral@latest": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000600"
+        },
+        "mistral-medium-3": {
+          "input_per_1k": "0.000400",
+          "output_per_1k": "0.002000"
+        },
+        "mistral-medium-3@001": {
+          "input_per_1k": "0.000400",
+          "output_per_1k": "0.002000"
+        },
+        "mistral-large@2407": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.006000"
+        },
+        "mistral-large@2411-001": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.006000"
+        },
+        "mistral-large@latest": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.006000"
+        },
+        "mistral-nemo@2407": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.003000"
+        },
+        "mistral-nemo@latest": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000150"
+        },
+        "mistral-small-2503@001": {
+          "input_per_1k": "0.001000",
+          "output_per_1k": "0.003000"
+        },
+        "mistral-small-3-1-24b-instruct-2503": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000300"
+        },
+        "hermes-2-pro-mistral-7b": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "mistral-7b": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "mistral-7b-instruct-4k": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "mistral-7b-instruct-v0p2": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "mistral-7b-instruct-v3": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "mistral-7b-v0p2": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "mistral-large-3-fp8": {
+          "input_per_1k": "0.001200",
+          "output_per_1k": "0.001200"
+        },
+        "mistral-nemo-base-2407": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "openhermes-2-mistral-7b": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "openhermes-2p5-mistral-7b": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "snorkel-mistral-7b-pairrm-dpo": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "mistral-medium-3.5-128b": {
+          "input_per_1k": "0.001500",
+          "output_per_1k": "0.007500"
+        },
+        "devstral-2-123b-instruct-2512": {
+          "input_per_1k": "0.000400",
+          "output_per_1k": "0.002000"
+        },
+        "mistral-7b-v0.3": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000150"
+        }
+      }
+    },
+    "openai": {
+      "models": {
+        "codex-mini": {
+          "input_per_1k": "0.001500",
+          "output_per_1k": "0.006000"
+        },
+        "gpt-5.1-codex": {
+          "input_per_1k": "0.001250",
+          "output_per_1k": "0.010000"
+        },
+        "gpt-5.1-codex-mini": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.002000"
+        },
+        "gpt-5-codex": {
+          "input_per_1k": "0.001250",
+          "output_per_1k": "0.010000"
+        },
+        "gpt-5.1-codex-max": {
+          "input_per_1k": "0.001250",
+          "output_per_1k": "0.010000"
+        },
+        "gpt-5.2-codex": {
+          "input_per_1k": "0.001750",
+          "output_per_1k": "0.014000"
+        },
+        "gpt-5.3-codex": {
+          "input_per_1k": "0.001750",
+          "output_per_1k": "0.014000"
+        },
+        "gpt-oss-120b": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000600"
+        },
+        "gpt-oss-20b": {
+          "input_per_1k": "0.000070",
+          "output_per_1k": "0.000280"
+        },
+        "codex-mini-latest": {
+          "input_per_1k": "0.001500",
+          "output_per_1k": "0.006000"
+        },
+        "mai-code-1-flash": {
+          "input_per_1k": "0.000750",
+          "output_per_1k": "0.004500"
+        },
+        "mai-code-1-flash-internal": {
+          "input_per_1k": "0.000750",
+          "output_per_1k": "0.004500"
+        },
+        "gpt-5.2": {
+          "input_per_1k": "0.001750",
+          "output_per_1k": "0.014000"
+        },
+        "gpt-5.1": {
+          "input_per_1k": "0.001250",
+          "output_per_1k": "0.010000"
+        },
+        "gpt-5": {
+          "input_per_1k": "0.001250",
+          "output_per_1k": "0.010000"
+        },
+        "gpt-4o": {
+          "input_per_1k": "0.002500",
+          "output_per_1k": "0.010000"
+        },
+        "gpt-4o-mini": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000600"
+        },
+        "openai-o3": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.008000"
+        },
+        "openai-o3-mini": {
+          "input_per_1k": "0.001100",
+          "output_per_1k": "0.004400"
+        },
+        "gpt-oss-safeguard-20b": {
+          "input_per_1k": "0.000075",
+          "output_per_1k": "0.000300"
+        },
+        "gpt-5-mini": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.002000"
+        },
+        "gpt-5-nano": {
+          "input_per_1k": "0.000050",
+          "output_per_1k": "0.000400"
+        },
+        "gpt-oss-120b-1:0": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000600"
+        },
+        "gpt-oss-20b-1:0": {
+          "input_per_1k": "0.000070",
+          "output_per_1k": "0.000300"
+        },
+        "gpt-oss-safeguard-120b": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000600"
+        },
+        "gpt-3.5-turbo": {
+          "input_per_1k": "0.000500",
+          "output_per_1k": "0.001500"
+        },
+        "gpt-3.5-turbo-16k": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.004000"
+        },
+        "gpt-4": {
+          "input_per_1k": "0.030000",
+          "output_per_1k": "0.060000"
+        },
+        "gpt-4.1": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.008000"
+        },
+        "gpt-4.1-mini": {
+          "input_per_1k": "0.000400",
+          "output_per_1k": "0.001600"
+        },
+        "gpt-4.1-nano": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000400"
+        },
+        "gpt-5-chat": {
+          "input_per_1k": "0.001250",
+          "output_per_1k": "0.010000"
+        },
+        "gpt-5.2-chat": {
+          "input_per_1k": "0.001750",
+          "output_per_1k": "0.014000"
+        },
+        "gpt-5.2-pro": {
+          "input_per_1k": "0.021000",
+          "output_per_1k": "0.168000"
+        },
+        "o1": {
+          "input_per_1k": "0.015000",
+          "output_per_1k": "0.060000"
+        },
+        "o3-mini": {
+          "input_per_1k": "0.001100",
+          "output_per_1k": "0.004400"
+        },
+        "o3-mini-high": {
+          "input_per_1k": "0.001100",
+          "output_per_1k": "0.004400"
+        },
+        "o4-mini": {
+          "input_per_1k": "0.001100",
+          "output_per_1k": "0.004400"
+        },
+        "o1-mini": {
+          "input_per_1k": "0.001100",
+          "output_per_1k": "0.004400"
+        },
+        "gpt-3.5-turbo-instruct": {
+          "input_per_1k": "0.001500",
+          "output_per_1k": "0.002000"
+        },
+        "gpt-4-turbo": {
+          "input_per_1k": "0.010000",
+          "output_per_1k": "0.030000"
+        },
+        "o3": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.008000"
+        },
+        "text-embedding-3-large": {
+          "input_per_1k": "0.000130",
+          "output_per_1k": "0.000000"
+        },
+        "text-embedding-3-small": {
+          "input_per_1k": "0.000020",
+          "output_per_1k": "0.000000"
+        },
+        "text-embedding-ada-002": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000000"
+        },
+        "gpt-oss-120b-maas": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000600"
+        },
+        "gpt-oss-20b-maas": {
+          "input_per_1k": "0.000075",
+          "output_per_1k": "0.000300"
+        },
+        "gpt-5.6-sol": {
+          "input_per_1k": "0.005500",
+          "output_per_1k": "0.033000"
+        },
+        "gpt-5.6-terra": {
+          "input_per_1k": "0.002200",
+          "output_per_1k": "0.013200"
+        },
+        "gpt-5.6-luna": {
+          "input_per_1k": "0.000220",
+          "output_per_1k": "0.001320"
+        },
+        "gpt-5.5": {
+          "input_per_1k": "0.005500",
+          "output_per_1k": "0.033000"
+        },
+        "gpt-5.4": {
+          "input_per_1k": "0.002750",
+          "output_per_1k": "0.016500"
+        },
+        "openai-gpt-4.1": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.008000"
+        },
+        "openai-gpt-5": {
+          "input_per_1k": "0.001250",
+          "output_per_1k": "0.010000"
+        },
+        "openai-gpt-5-mini": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.001200"
+        },
+        "openai-gpt-5-nano": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000600"
+        }
+      }
+    },
+    "deepseek": {
+      "models": {
+        "deepseek-v3.2": {
+          "input_per_1k": "0.000269",
+          "output_per_1k": "0.000400"
+        },
+        "deepseek-v3.2-speciale": {
+          "input_per_1k": "0.000580",
+          "output_per_1k": "0.001680"
+        },
+        "deepseek-r1": {
+          "input_per_1k": "0.000550",
+          "output_per_1k": "0.002190"
+        },
+        "deepseek-v3": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "deepseek-v3-0324": {
+          "input_per_1k": "0.000270",
+          "output_per_1k": "0.001120"
+        },
+        "deepseek-v3.1": {
+          "input_per_1k": "0.000270",
+          "output_per_1k": "0.001000"
+        },
+        "deepseek-v4-pro": {
+          "input_per_1k": "0.000435",
+          "output_per_1k": "0.000870"
+        },
+        "deepseek-v4-flash": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000200"
+        },
+        "v3.2": {
+          "input_per_1k": "0.000620",
+          "output_per_1k": "0.001850"
+        },
+        "deepseek-r1-distill-qwen-32b": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.000300"
+        },
+        "deepseek-chat": {
+          "input_per_1k": "0.000140",
+          "output_per_1k": "0.000280"
+        },
+        "deepseek-reasoner": {
+          "input_per_1k": "0.000280",
+          "output_per_1k": "0.000420"
+        },
+        "deepseek-r1-0528": {
+          "input_per_1k": "0.000700",
+          "output_per_1k": "0.002500"
+        },
+        "deepseek-r1-0528-turbo": {
+          "input_per_1k": "0.001000",
+          "output_per_1k": "0.003000"
+        },
+        "deepseek-r1-distill-llama-70b": {
+          "input_per_1k": "0.000800",
+          "output_per_1k": "0.000800"
+        },
+        "deepseek-r1-turbo": {
+          "input_per_1k": "0.000700",
+          "output_per_1k": "0.002500"
+        },
+        "deepseek-v3.1-terminus": {
+          "input_per_1k": "0.000270",
+          "output_per_1k": "0.001000"
+        },
+        "deepseek-coder": {
+          "input_per_1k": "0.000140",
+          "output_per_1k": "0.000280"
+        },
+        "v3-v1:0": {
+          "input_per_1k": "0.000580",
+          "output_per_1k": "0.001680"
+        },
+        "deepseek-v3-2-251201": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "deepseek-coder-v2-instruct": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "deepseek-r1-basic": {
+          "input_per_1k": "0.000550",
+          "output_per_1k": "0.002190"
+        },
+        "deepseek-v3p1": {
+          "input_per_1k": "0.000560",
+          "output_per_1k": "0.001680"
+        },
+        "deepseek-v3p1-terminus": {
+          "input_per_1k": "0.000560",
+          "output_per_1k": "0.001680"
+        },
+        "deepseek-v3p2": {
+          "input_per_1k": "0.000560",
+          "output_per_1k": "0.001680"
+        },
+        "deepseek-llama3.3-70b": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000600"
+        },
+        "deepseek-r1-671b": {
+          "input_per_1k": "0.000800",
+          "output_per_1k": "0.000800"
+        },
+        "deepseek-r1-distill-llama-8b": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "deepseek-r1-distill-qwen-1.5b": {
+          "input_per_1k": "0.000090",
+          "output_per_1k": "0.000090"
+        },
+        "deepseek-r1-distill-qwen-14b": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000150"
+        },
+        "deepseek-r1-distill-qwen-7b": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "deepseek-coder-v2-base": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "deepseek-coder-v2-lite-base": {
+          "input_per_1k": "0.000500",
+          "output_per_1k": "0.000500"
+        },
+        "deepseek-coder-v2-lite-instruct": {
+          "input_per_1k": "0.000500",
+          "output_per_1k": "0.000500"
+        },
+        "deepseek-v3.1:671b-cloud": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "deepseek-chat-v3-0324": {
+          "input_per_1k": "0.000140",
+          "output_per_1k": "0.000280"
+        },
+        "deepseek-chat-v3.1": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000800"
+        },
+        "deepseek-v3.2-exp": {
+          "input_per_1k": "0.000270",
+          "output_per_1k": "0.000410"
+        },
+        "deepseek-r1-0528-tput": {
+          "input_per_1k": "0.000550",
+          "output_per_1k": "0.002190"
+        },
+        "us.deepseek.r1-v1:0": {
+          "input_per_1k": "0.001350",
+          "output_per_1k": "0.005400"
+        },
+        "us.deepseek.v3.2": {
+          "input_per_1k": "0.000620",
+          "output_per_1k": "0.001850"
+        },
+        "eu.deepseek.v3.2": {
+          "input_per_1k": "0.000740",
+          "output_per_1k": "0.002220"
+        },
+        "deepseek-v3.1-maas": {
+          "input_per_1k": "0.001350",
+          "output_per_1k": "0.005400"
+        },
+        "deepseek-v3.2-maas": {
+          "input_per_1k": "0.000560",
+          "output_per_1k": "0.001680"
+        },
+        "deepseek-r1-0528-maas": {
+          "input_per_1k": "0.001350",
+          "output_per_1k": "0.005400"
+        },
+        "deepseek-ocr-maas": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.001200"
+        },
+        "deepseek-coder-1b-base": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "deepseek-coder-33b-instruct": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "deepseek-coder-7b-base": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "deepseek-coder-7b-base-v1p5": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "deepseek-coder-7b-instruct-v1p5": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "deepseek-prover-v2": {
+          "input_per_1k": "0.001200",
+          "output_per_1k": "0.001200"
+        },
+        "deepseek-r1-0528-distill-qwen3-8b": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "deepseek-r1-distill-qwen-1p5b": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "deepseek-v2-lite-chat": {
+          "input_per_1k": "0.000500",
+          "output_per_1k": "0.000500"
+        },
+        "deepseek-v2p5": {
+          "input_per_1k": "0.001200",
+          "output_per_1k": "0.001200"
+        },
+        "deepseek-ocr": {
+          "input_per_1k": "0.000030",
+          "output_per_1k": "0.000030"
+        },
+        "deepseek-r1-0528-qwen3-8b": {
+          "input_per_1k": "0.000060",
+          "output_per_1k": "0.000090"
+        },
+        "deepseek-prover-v2-671b": {
+          "input_per_1k": "0.000700",
+          "output_per_1k": "0.002500"
+        },
+        "deepseek-v3-turbo": {
+          "input_per_1k": "0.000400",
+          "output_per_1k": "0.001300"
+        },
+        "deepseek-r1-8b": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000200"
+        },
+        "deepseek-r1-7b-qwen": {
+          "input_per_1k": "0.000080",
+          "output_per_1k": "0.000150"
+        },
+        "deepseek-coder-6.7b": {
+          "input_per_1k": "0.000060",
+          "output_per_1k": "0.000120"
+        },
+        "deepseek-v4-flash-thinking": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.001750"
+        }
+      }
+    },
+    "xai": {
+      "models": {
+        "grok-3": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "grok-3-mini": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.000500"
+        },
+        "grok-4": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "grok-4-fast-non-reasoning": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000500"
+        },
+        "grok-4-fast-reasoning": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000500"
+        },
+        "grok-4-1-fast-non-reasoning": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000500"
+        },
+        "grok-4-1-fast-reasoning": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000500"
+        },
+        "grok-code-fast-1": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.001500"
+        },
+        "minimax-m2.1": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.001200"
+        },
+        "minimax-m2.5": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.001200"
+        },
+        "grok-3-fast": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "grok-3-mini-fast": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.004000"
+        },
+        "grok-4-fast": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "grok-4.1-fast": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "grok-4.20": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "grok-4.20-multi-agent": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "grok-2": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.010000"
+        },
+        "grok-2-vision": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.010000"
+        },
+        "minimax-m2-maas": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.001200"
+        },
+        "grok-4.1-fast-non-reasoning": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000500"
+        },
+        "grok-4.1-fast-reasoning": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000500"
+        },
+        "grok-4.20-non-reasoning": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.006000"
+        },
+        "grok-4.20-reasoning": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.006000"
+        },
+        "grok-2-1212": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.010000"
+        },
+        "grok-2-latest": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.010000"
+        },
+        "grok-2-vision-1212": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.010000"
+        },
+        "grok-2-vision-latest": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.010000"
+        },
+        "grok-3-beta": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "grok-3-fast-beta": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "grok-3-fast-latest": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.025000"
+        },
+        "grok-3-latest": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "grok-3-mini-beta": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.000500"
+        },
+        "grok-3-mini-fast-beta": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.004000"
+        },
+        "grok-3-mini-fast-latest": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.004000"
+        },
+        "grok-3-mini-latest": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.000500"
+        },
+        "grok-4-0709": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "grok-4-latest": {
+          "input_per_1k": "0.003000",
+          "output_per_1k": "0.015000"
+        },
+        "grok-4-1-fast": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000500"
+        },
+        "grok-4-1-fast-reasoning-latest": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000500"
+        },
+        "grok-4-1-fast-non-reasoning-latest": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000500"
+        },
+        "grok-4.20-multi-agent-beta-0309": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.006000"
+        },
+        "grok-4.20-beta-0309-reasoning": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.006000"
+        },
+        "grok-4.20-0309-reasoning": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.006000"
+        },
+        "grok-4.20-beta-0309-non-reasoning": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.006000"
+        },
+        "grok-4.3": {
+          "input_per_1k": "0.001250",
+          "output_per_1k": "0.002500"
+        },
+        "grok-4.3-latest": {
+          "input_per_1k": "0.001250",
+          "output_per_1k": "0.002500"
+        },
+        "grok-4.5": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.006000"
+        },
+        "grok-4.5-latest": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.006000"
+        },
+        "grok-beta": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.015000"
+        },
+        "grok-code-fast": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.001500"
+        },
+        "grok-code-fast-1-0825": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.001500"
+        },
+        "grok-vision-beta": {
+          "input_per_1k": "0.005000",
+          "output_per_1k": "0.015000"
+        },
+        "minimax-m1-80k": {
+          "input_per_1k": "0.000550",
+          "output_per_1k": "0.002200"
+        }
       }
     },
     "kimi": {
       "models": {
-        "moonshot-v1-8k": { "input_per_1k": "0.00120", "output_per_1k": "0.00120" },
-        "moonshot-v1-32k": { "input_per_1k": "0.00240", "output_per_1k": "0.00240" },
-        "kimi-latest": { "input_per_1k": "0.00150", "output_per_1k": "0.00150" },
-        "kimi-k2": { "input_per_1k": "0.00015", "output_per_1k": "0.00060" },
-        "kimi-k2.6": { "input_per_1k": "0.00015", "output_per_1k": "0.00060" },
-        "kimi-k2-turbo": { "input_per_1k": "0.00015", "output_per_1k": "0.00060" }
+        "kimi-k2.5": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.003000"
+        },
+        "kimi-k2.6": {
+          "input_per_1k": "0.000960",
+          "output_per_1k": "0.004000"
+        },
+        "moonshotai.kimi-k2-thinking": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.002500"
+        },
+        "moonshotai.kimi-k2.5": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.003000"
+        },
+        "kimi-k2.7-code": {
+          "input_per_1k": "0.000950",
+          "output_per_1k": "0.004000"
+        },
+        "kimi-k2-instruct": {
+          "input_per_1k": "0.000570",
+          "output_per_1k": "0.002300"
+        },
+        "kimi-k2-instruct-0905": {
+          "input_per_1k": "0.001000",
+          "output_per_1k": "0.003000"
+        },
+        "kimi-k2-thinking-251104": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "kimi-k2-thinking": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.002500"
+        },
+        "kimi-k2p5": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.003000"
+        },
+        "kimi-k2p6": {
+          "input_per_1k": "0.000950",
+          "output_per_1k": "0.004000"
+        },
+        "kimi-k2p7-code": {
+          "input_per_1k": "0.000950",
+          "output_per_1k": "0.004000"
+        },
+        "kimi-k2p6-fast": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.008000"
+        },
+        "kimi-k2p7-code-fast": {
+          "input_per_1k": "0.001900",
+          "output_per_1k": "0.008000"
+        },
+        "kimi-k2-0711-preview": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.002500"
+        },
+        "kimi-k2-0905-preview": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.002500"
+        },
+        "kimi-k2-turbo-preview": {
+          "input_per_1k": "0.001150",
+          "output_per_1k": "0.008000"
+        },
+        "kimi-latest": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.005000"
+        },
+        "kimi-latest-128k": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.005000"
+        },
+        "kimi-latest-32k": {
+          "input_per_1k": "0.001000",
+          "output_per_1k": "0.003000"
+        },
+        "kimi-latest-8k": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.002000"
+        },
+        "kimi-thinking-preview": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.002500"
+        },
+        "kimi-k2-thinking-turbo": {
+          "input_per_1k": "0.001150",
+          "output_per_1k": "0.008000"
+        },
+        "moonshot-v1-128k": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.005000"
+        },
+        "moonshot-v1-128k-0430": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.005000"
+        },
+        "moonshot-v1-128k-vision-preview": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.005000"
+        },
+        "moonshot-v1-32k": {
+          "input_per_1k": "0.001000",
+          "output_per_1k": "0.003000"
+        },
+        "moonshot-v1-32k-0430": {
+          "input_per_1k": "0.001000",
+          "output_per_1k": "0.003000"
+        },
+        "moonshot-v1-32k-vision-preview": {
+          "input_per_1k": "0.001000",
+          "output_per_1k": "0.003000"
+        },
+        "moonshot-v1-8k": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.002000"
+        },
+        "moonshot-v1-8k-0430": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.002000"
+        },
+        "moonshot-v1-8k-vision-preview": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.002000"
+        },
+        "moonshot-v1-auto": {
+          "input_per_1k": "0.002000",
+          "output_per_1k": "0.005000"
+        },
+        "kimi-k2": {
+          "input_per_1k": "0.000550",
+          "output_per_1k": "0.002200"
+        },
+        "kimi-k2-thinking-maas": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.002500"
+        },
+        "kimi-k2-0905": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.002500"
+        }
+      }
+    },
+    "qwen": {
+      "models": {
+        "qwen3-coder-next": {
+          "input_per_1k": "0.000500",
+          "output_per_1k": "0.001200"
+        },
+        "qwen-3-32b": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000300"
+        },
+        "qwen2.5-coder-32b-instruct": {
+          "input_per_1k": "0.000870",
+          "output_per_1k": "0.000870"
+        },
+        "qwen3-30b-a3b-fp8": {
+          "input_per_1k": "0.000090",
+          "output_per_1k": "0.000450"
+        },
+        "qwq-32b": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000450"
+        },
+        "qwen-coder": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.001500"
+        },
+        "qwen-max": {
+          "input_per_1k": "0.001600",
+          "output_per_1k": "0.006400"
+        },
+        "qwen-plus": {
+          "input_per_1k": "0.000400",
+          "output_per_1k": "0.001200"
+        },
+        "qwen-turbo": {
+          "input_per_1k": "0.000050",
+          "output_per_1k": "0.000200"
+        },
+        "qwen-turbo-latest": {
+          "input_per_1k": "0.000050",
+          "output_per_1k": "0.000200"
+        },
+        "qwen3-next-80b-a3b-instruct": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.001500"
+        },
+        "qwen3-next-80b-a3b-thinking": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.001500"
+        },
+        "qwen3-vl-235b-a22b-instruct": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.001500"
+        },
+        "qwen3-vl-235b-a22b-thinking": {
+          "input_per_1k": "0.000980",
+          "output_per_1k": "0.003950"
+        },
+        "qwen3-vl-32b-instruct": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "qwen3-vl-32b-thinking": {
+          "input_per_1k": "0.000160",
+          "output_per_1k": "0.002870"
+        },
+        "qwen3.7-max": {
+          "input_per_1k": "0.002500",
+          "output_per_1k": "0.007500"
+        },
+        "qwen2.5-72b-instruct": {
+          "input_per_1k": "0.000130",
+          "output_per_1k": "0.000400"
+        },
+        "qwen2.5-7b-instruct": {
+          "input_per_1k": "0.000070",
+          "output_per_1k": "0.000070"
+        },
+        "qwen2.5-vl-32b-instruct": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000600"
+        },
+        "qwen3-14b": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "qwen3-235b-a22b": {
+          "input_per_1k": "0.000220",
+          "output_per_1k": "0.000880"
+        },
+        "qwen3-235b-a22b-instruct-2507": {
+          "input_per_1k": "0.000090",
+          "output_per_1k": "0.000580"
+        },
+        "qwen3-235b-a22b-thinking-2507": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.003000"
+        },
+        "qwen3-30b-a3b": {
+          "input_per_1k": "0.000090",
+          "output_per_1k": "0.000200"
+        },
+        "qwen3-32b": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "qwen3-coder-480b-a35b-instruct": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.001300"
+        },
+        "qwen3-coder-480b-a35b-instruct-turbo": {
+          "input_per_1k": "0.000290",
+          "output_per_1k": "0.001200"
+        },
+        "qwen2-72b-instruct": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "qwen2p5-coder-32b-instruct": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "qwen3p7-plus": {
+          "input_per_1k": "0.000400",
+          "output_per_1k": "0.001600"
+        },
+        "qwen3-vl-235b-a22b-instruct-fp8": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.001400"
+        },
+        "qwen3-coder-30b-a3b-instruct-gguf": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "qwen3-4b-instruct-2507-gguf": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "qwen25-coder-32b-instruct": {
+          "input_per_1k": "0.000050",
+          "output_per_1k": "0.000100"
+        },
+        "qwen3-32b-fp8": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000450"
+        },
+        "qwen2.5-coder-3b-instruct": {
+          "input_per_1k": "0.000010",
+          "output_per_1k": "0.000030"
+        },
+        "qwen2.5-coder-7b-instruct": {
+          "input_per_1k": "0.000010",
+          "output_per_1k": "0.000030"
+        },
+        "qwen3-4b": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "qwen2.5-32b-instruct": {
+          "input_per_1k": "0.000060",
+          "output_per_1k": "0.000200"
+        },
+        "qwen2.5-coder-7b": {
+          "input_per_1k": "0.000060",
+          "output_per_1k": "0.000120"
+        },
+        "qwen2.5-vl-72b-instruct": {
+          "input_per_1k": "0.000800",
+          "output_per_1k": "0.000800"
+        },
+        "qwen2-vl-72b-instruct": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "qwen2-vl-7b-instruct": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "qwen3-coder:480b-cloud": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "qwen-2.5-coder-32b-instruct": {
+          "input_per_1k": "0.000180",
+          "output_per_1k": "0.000180"
+        },
+        "qwen-vl-plus": {
+          "input_per_1k": "0.000210",
+          "output_per_1k": "0.000630"
+        },
+        "qwen3-coder": {
+          "input_per_1k": "0.000400",
+          "output_per_1k": "0.001600"
+        },
+        "qwen3-coder-plus": {
+          "input_per_1k": "0.001000",
+          "output_per_1k": "0.005000"
+        },
+        "qwen3-235b-a22b-2507": {
+          "input_per_1k": "0.000071",
+          "output_per_1k": "0.000100"
+        },
+        "qwen3.6-plus": {
+          "input_per_1k": "0.000325",
+          "output_per_1k": "0.001950"
+        },
+        "qwen3.5-35b-a3b": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.002000"
+        },
+        "qwen3.5-27b": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.002400"
+        },
+        "qwen3.5-122b-a10b": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.001750"
+        },
+        "qwen3.5-flash-02-23": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000400"
+        },
+        "qwen3.5-plus-02-15": {
+          "input_per_1k": "0.000400",
+          "output_per_1k": "0.002400"
+        },
+        "qwen3.5-397b-a17b": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.003600"
+        },
+        "qwen-sea-lion-v4-32b-it": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "qwen3-coder-480b-a35b-v1:0": {
+          "input_per_1k": "0.000220",
+          "output_per_1k": "0.001800"
+        },
+        "qwen3-235b-a22b-2507-v1:0": {
+          "input_per_1k": "0.000220",
+          "output_per_1k": "0.000880"
+        },
+        "qwen3-coder-30b-a3b-v1:0": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000600"
+        },
+        "qwen3-32b-v1:0": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000600"
+        },
+        "qwen3-next-80b-a3b": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.001200"
+        },
+        "qwen3-vl-235b-a22b": {
+          "input_per_1k": "0.000530",
+          "output_per_1k": "0.002660"
+        },
+        "qwen2-audio-7b-instruct": {
+          "input_per_1k": "0.000500",
+          "output_per_1k": "0.100000"
+        },
+        "qwen3-235b-a22b-instruct-2507-tput": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.006000"
+        },
+        "qwen3-235b-a22b-fp8-tput": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000600"
+        },
+        "qwen3-coder-480b-a35b-instruct-fp8": {
+          "input_per_1k": "0.000450",
+          "output_per_1k": "0.001800"
+        },
+        "qwen-3-14b": {
+          "input_per_1k": "0.000080",
+          "output_per_1k": "0.000240"
+        },
+        "qwen-3-235b": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000600"
+        },
+        "qwen-3-30b": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000300"
+        },
+        "qwen3-235b-a22b-instruct-2507-maas": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.001000"
+        },
+        "qwen3-coder-480b-a35b-instruct-maas": {
+          "input_per_1k": "0.001000",
+          "output_per_1k": "0.004000"
+        },
+        "qwen3-next-80b-a3b-instruct-maas": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.001200"
+        },
+        "qwen3-next-80b-a3b-thinking-maas": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.001200"
+        },
+        "code-qwen-1p5-7b": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "cogito-v1-preview-qwen-14b": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "cogito-v1-preview-qwen-32b": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "dolphin-2-9-2-qwen2-72b": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "qwen-qwq-32b-preview": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "qwen-v2p5-14b-instruct": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "qwen-v2p5-7b": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "qwen1p5-72b-chat": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "qwen2-7b-instruct": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "qwen2-vl-2b-instruct": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "qwen2p5-0p5b-instruct": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "qwen2p5-14b": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "qwen2p5-1p5b-instruct": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "qwen2p5-32b": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "qwen2p5-32b-instruct": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "qwen2p5-72b": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "qwen2p5-72b-instruct": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "qwen2p5-7b-instruct": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "qwen2p5-coder-0p5b": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "qwen2p5-coder-0p5b-instruct": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "qwen2p5-coder-14b": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "qwen2p5-coder-14b-instruct": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "qwen2p5-coder-1p5b": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "qwen2p5-coder-1p5b-instruct": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "qwen2p5-coder-32b": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "qwen2p5-coder-32b-instruct-128k": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "qwen2p5-coder-32b-instruct-32k-rope": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "qwen2p5-coder-32b-instruct-64k": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "qwen2p5-coder-3b": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "qwen2p5-coder-3b-instruct": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "qwen2p5-coder-7b": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "qwen2p5-coder-7b-instruct": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "qwen2p5-math-72b-instruct": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "qwen2p5-vl-32b-instruct": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "qwen2p5-vl-3b-instruct": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "qwen2p5-vl-72b-instruct": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "qwen2p5-vl-7b-instruct": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "qwen3-0p6b": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "qwen3-1p7b": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "qwen3-1p7b-fp8-draft": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "qwen3-1p7b-fp8-draft-131072": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "qwen3-1p7b-fp8-draft-40960": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "qwen3-30b-a3b-instruct-2507": {
+          "input_per_1k": "0.000500",
+          "output_per_1k": "0.000500"
+        },
+        "qwen3-30b-a3b-thinking-2507": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "qwen3-4b-instruct-2507": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000200"
+        },
+        "qwen3-8b": {
+          "input_per_1k": "0.000040",
+          "output_per_1k": "0.000140"
+        },
+        "qwen3-coder-30b-a3b-instruct": {
+          "input_per_1k": "0.000070",
+          "output_per_1k": "0.000270"
+        },
+        "qwen3-coder-480b-instruct-bf16": {
+          "input_per_1k": "0.000900",
+          "output_per_1k": "0.000900"
+        },
+        "qwen3-embedding-0p6b": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "qwen3-embedding-4b": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "qwen3-reranker-0p6b": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "qwen3-reranker-4b": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "qwen3-reranker-8b": {
+          "input_per_1k": "0.000050",
+          "output_per_1k": "0.000050"
+        },
+        "qwen3-vl-30b-a3b-instruct": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000700"
+        },
+        "qwen3-vl-30b-a3b-thinking": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.001000"
+        },
+        "qwen3-vl-8b-instruct": {
+          "input_per_1k": "0.000080",
+          "output_per_1k": "0.000500"
+        },
+        "qwen3.6-35b-a3b": {
+          "input_per_1k": "0.000140",
+          "output_per_1k": "0.000450"
+        },
+        "qwen3-embedding-8b": {
+          "input_per_1k": "0.000020",
+          "output_per_1k": "0.000000"
+        },
+        "qwen3-max": {
+          "input_per_1k": "0.002110",
+          "output_per_1k": "0.008450"
+        },
+        "qwen-2.5-72b-instruct": {
+          "input_per_1k": "0.000380",
+          "output_per_1k": "0.000400"
+        },
+        "qwen3-235b-a22b-fp8": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.000800"
+        },
+        "qwen3-omni-30b-a3b-thinking": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.000970"
+        },
+        "qwen3-omni-30b-a3b-instruct": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.000970"
+        },
+        "qwen-mt-plus": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.000750"
+        },
+        "qwen3-8b-fp8": {
+          "input_per_1k": "0.000035",
+          "output_per_1k": "0.000138"
+        },
+        "qwen3-4b-fp8": {
+          "input_per_1k": "0.000030",
+          "output_per_1k": "0.000030"
+        },
+        "qwen3-embedding-0.6b": {
+          "input_per_1k": "0.000070",
+          "output_per_1k": "0.000000"
+        },
+        "qwen3-vl-8b": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000550"
+        },
+        "qwen3.6-27b": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000500"
+        },
+        "qwen3.6-27b-thinking": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000500"
+        },
+        "qwen3.6-35b-a3b-thinking": {
+          "input_per_1k": "0.000150",
+          "output_per_1k": "0.000500"
+        },
+        "qwen3.5-122b-a10b-thinking": {
+          "input_per_1k": "0.000250",
+          "output_per_1k": "0.001750"
+        },
+        "qwen3.5-397b-a17b-fp8": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.003600"
+        },
+        "qwen3.6-27b-fp8": {
+          "input_per_1k": "0.000320",
+          "output_per_1k": "0.003200"
+        },
+        "qwen3-coder-30b-a3b": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.000600"
+        }
       }
     },
     "zai": {
       "models": {
-        "glm-5.2": { "input_per_1k": "0.00140", "output_per_1k": "0.00440" },
-        "glm-5.1": { "input_per_1k": "0.00140", "output_per_1k": "0.00440" },
-        "glm-5": { "input_per_1k": "0.00100", "output_per_1k": "0.00320" },
-        "glm-5-turbo": { "input_per_1k": "0.00120", "output_per_1k": "0.00400" },
-        "glm-4.7": { "input_per_1k": "0.00060", "output_per_1k": "0.00220" },
-        "glm-4.6": { "input_per_1k": "0.00060", "output_per_1k": "0.00220" },
-        "glm-4.5": { "input_per_1k": "0.00060", "output_per_1k": "0.00220" },
-        "glm-4.5-x": { "input_per_1k": "0.00220", "output_per_1k": "0.00890" },
-        "glm-4.5-air": { "input_per_1k": "0.00020", "output_per_1k": "0.00110" },
-        "glm-4.5-airx": { "input_per_1k": "0.00110", "output_per_1k": "0.00450" },
-        "glm-4.7-flash": { "input_per_1k": "0.00000", "output_per_1k": "0.00000" },
-        "glm-4.7-flashx": { "input_per_1k": "0.00007", "output_per_1k": "0.00040" },
-        "glm-4.5-flash": { "input_per_1k": "0.00000", "output_per_1k": "0.00000" },
-        "glm-4-32b-0414-128k": { "input_per_1k": "0.00010", "output_per_1k": "0.00010" },
-        "glm-4.6v": { "input_per_1k": "0.00030", "output_per_1k": "0.00090" },
-        "glm-4.5v": { "input_per_1k": "0.00060", "output_per_1k": "0.00180" },
-        "glm-5v-turbo": { "input_per_1k": "0.00120", "output_per_1k": "0.00400" },
-        "glm-ocr": { "input_per_1k": "0.00003", "output_per_1k": "0.00003" }
+        "zai-glm-4.6": {
+          "input_per_1k": "0.002250",
+          "output_per_1k": "0.002750"
+        },
+        "zai-glm-4.7": {
+          "input_per_1k": "0.002250",
+          "output_per_1k": "0.002750"
+        },
+        "glm-4.7-flash": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "glm-5.2": {
+          "input_per_1k": "0.001400",
+          "output_per_1k": "0.004400"
+        },
+        "glm-4.5": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.002200"
+        },
+        "glm-4-7-251222": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "glm-4p5": {
+          "input_per_1k": "0.000550",
+          "output_per_1k": "0.002190"
+        },
+        "glm-4p5-air": {
+          "input_per_1k": "0.000220",
+          "output_per_1k": "0.000880"
+        },
+        "glm-4p6": {
+          "input_per_1k": "0.000550",
+          "output_per_1k": "0.002190"
+        },
+        "glm-4p7": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.002200"
+        },
+        "glm-5p1": {
+          "input_per_1k": "0.001400",
+          "output_per_1k": "0.004400"
+        },
+        "glm-5p2": {
+          "input_per_1k": "0.001400",
+          "output_per_1k": "0.004400"
+        },
+        "glm-5p1-fast": {
+          "input_per_1k": "0.002800",
+          "output_per_1k": "0.008800"
+        },
+        "glm-5": {
+          "input_per_1k": "0.001000",
+          "output_per_1k": "0.003200"
+        },
+        "glm-4.7": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.002200"
+        },
+        "glm-4.6": {
+          "input_per_1k": "0.000550",
+          "output_per_1k": "0.002200"
+        },
+        "glm-4.7-fp8": {
+          "input_per_1k": "0.000400",
+          "output_per_1k": "0.002000"
+        },
+        "glm-4.6:exacto": {
+          "input_per_1k": "0.000450",
+          "output_per_1k": "0.001900"
+        },
+        "glm-5.1": {
+          "input_per_1k": "0.001400",
+          "output_per_1k": "0.004400"
+        },
+        "glm-4.5-air-fp8": {
+          "input_per_1k": "0.000200",
+          "output_per_1k": "0.001100"
+        },
+        "glm-4.5-air": {
+          "input_per_1k": "0.000125",
+          "output_per_1k": "0.000450"
+        },
+        "glm-4.7-maas": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.002200"
+        },
+        "glm-5-maas": {
+          "input_per_1k": "0.001000",
+          "output_per_1k": "0.003200"
+        },
+        "zai.glm-4.7": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.002200"
+        },
+        "zai.glm-5": {
+          "input_per_1k": "0.001000",
+          "output_per_1k": "0.003200"
+        },
+        "zai.glm-4.7-flash": {
+          "input_per_1k": "0.000070",
+          "output_per_1k": "0.000400"
+        },
+        "glm-5-code": {
+          "input_per_1k": "0.001200",
+          "output_per_1k": "0.005000"
+        },
+        "glm-4.5v": {
+          "input_per_1k": "0.000600",
+          "output_per_1k": "0.001800"
+        },
+        "glm-4.5-x": {
+          "input_per_1k": "0.002200",
+          "output_per_1k": "0.008900"
+        },
+        "glm-4.5-airx": {
+          "input_per_1k": "0.001100",
+          "output_per_1k": "0.004500"
+        },
+        "glm-4-32b-0414-128k": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000100"
+        },
+        "glm-4.5-flash": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "glm-4p5v": {
+          "input_per_1k": "0.001200",
+          "output_per_1k": "0.001200"
+        },
+        "autoglm-phone-9b-multilingual": {
+          "input_per_1k": "0.000035",
+          "output_per_1k": "0.000138"
+        },
+        "glm-4.6v": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.000900"
+        },
+        "glm-5.1-nvfp4-mtp": {
+          "input_per_1k": "0.001400",
+          "output_per_1k": "0.004400"
+        }
       }
     },
-    "opencode": {
+    "ollama": {
       "models": {
-        "opencode-free": { "input_per_1k": "0.00000", "output_per_1k": "0.00000" },
-        "opencode-default": { "input_per_1k": "0.00150", "output_per_1k": "0.00500" }
+        "codegeex4": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "codegemma": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "codellama": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "gpt-oss:120b-cloud": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "gpt-oss:20b-cloud": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "internlm2_5-20b-chat": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "llama2": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "llama2-uncensored": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "llama2:13b": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "llama2:70b": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "llama2:7b": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "llama3": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "llama3.1": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "llama3:70b": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "llama3:8b": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "mixtral-8x22b-instruct-v0.1": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "mixtral-8x7b-instruct-v0.1": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "orca-mini": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "vicuna": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        }
+      }
+    },
+    "openrouter": {
+      "models": {
+        "ui-tars-1.5-7b": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000200"
+        },
+        "mythomax-l2-13b": {
+          "input_per_1k": "0.001875",
+          "output_per_1k": "0.001875"
+        },
+        "weaver": {
+          "input_per_1k": "0.005625",
+          "output_per_1k": "0.005625"
+        },
+        "llama-3-70b-instruct": {
+          "input_per_1k": "0.000590",
+          "output_per_1k": "0.000790"
+        },
+        "minimax-m2": {
+          "input_per_1k": "0.000255",
+          "output_per_1k": "0.001020"
+        },
+        "router": {
+          "input_per_1k": "0.000850",
+          "output_per_1k": "0.003400"
+        },
+        "remm-slerp-l2-13b": {
+          "input_per_1k": "0.001875",
+          "output_per_1k": "0.001875"
+        },
+        "mimo-v2-flash": {
+          "input_per_1k": "0.000100",
+          "output_per_1k": "0.000300"
+        },
+        "mimo-v2.5-pro": {
+          "input_per_1k": "0.001000",
+          "output_per_1k": "0.003000"
+        },
+        "mimo-v2.5": {
+          "input_per_1k": "0.000400",
+          "output_per_1k": "0.002000"
+        },
+        "minimax-m2.1": {
+          "input_per_1k": "0.000270",
+          "output_per_1k": "0.001200"
+        },
+        "minimax-m2.5": {
+          "input_per_1k": "0.000300",
+          "output_per_1k": "0.001100"
+        },
+        "auto": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "free": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        },
+        "bodybuilder": {
+          "input_per_1k": "0.000000",
+          "output_per_1k": "0.000000"
+        }
       }
     }
   }
