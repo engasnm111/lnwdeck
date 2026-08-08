@@ -1,6 +1,6 @@
 {
   "name": "lnwdeck",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Local-only Universal AI Usage Tracker",
   "architectures": [
     { "arch": "x64", "target": "x86_64-pc-windows-msvc", "artifact": "lnwdeck_0.8.0_x64-setup.exe" },

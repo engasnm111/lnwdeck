@@ -2,6 +2,44 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [0.9.0] - 2026-08-08
+
+### Highlights
+
+- **Sessions page — token usage per project folder.** A new page groups usage
+  by session and folder (privacy-safe keyed hashes only; raw paths and session
+  ids are never stored). Sessions and folders have generated names
+  (`Project 01`, `Session 01`) that the user can rename inline; records
+  without attribution land in an *Unassigned* bucket. OpenCode attributes
+  every event already; other adapters follow.
+- **Costs page finally shows prices.** The bundled price catalog grew from 37
+  to **1,389 models across 11 providers** (generated from the MIT-licensed
+  LiteLLM price snapshot), matching now tolerates provider aliases,
+  vendor-prefixed ids and dated model variants, and anything still unknown is
+  charged a labeled generic estimate instead of a blank cell — every model
+  has a cost, never an unrelated provider's rate.
+- **Dark-mode dropdown fix.** The native select popup no longer renders white
+  in dark theme; option rows are painted with opaque theme colors.
+- **Two new bundled default pets** (Friend Pixel Pet, Yae Miko) from
+  codex-pets.net, installed offline on first run next to the original six.
+
+### Added
+
+- Sessions read model (`get_sessions`) and rename commands
+  (`rename_session`, `rename_project`); migration v006 adds `session_hash`
+  and `project_hash` attribution columns plus session/project name metadata.
+- OpenCode adapter attributes every event with session and project keyed
+  hashes; the privacy scan confirms raw ids never leave the adapter.
+- Pricing catalog generator script (`scripts/update-pricing-catalog.mjs`).
+- Pricing estimate status: unknown models are charged the labeled generic
+  estimate, and the Costs page marks them with an *estimated* badge.
+
+### Fixed
+
+- Costs/Budgets/Overview pages showed no cost for models the old 37-model
+  catalog did not cover exactly.
+- Dark theme: white dropdown popup made option text unreadable.
+- Sessions list in dark mode now matches the theme.
 ## [0.8.0] - 2026-08-08
 
 ### Highlights
