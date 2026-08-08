@@ -19,7 +19,7 @@ import {
   type DetailedProviderInfo,
 } from "../../lib/native";
 import { formatCompact, formatTimestamp } from "../../lib/freshness";
-import { useI18n } from "../../lib/i18n";
+import { dataStateLabels, useI18n } from "../../lib/i18n";
 
 const PERIODS: BudgetPeriod[] = ["daily", "weekly", "monthly"];
 
@@ -277,6 +277,7 @@ export function BudgetsPage() {
         </Card>
 
         <DataState
+          labels={dataStateLabels(t)}
           loading={loading}
           error={error}
           isEmpty={data !== null && data.budgets.length === 0}

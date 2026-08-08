@@ -6,7 +6,12 @@ import * as native from "../../lib/native";
 
 vi.mock("../../lib/native", async (importOriginal) => {
   const actual = await importOriginal<typeof native>();
-  return { ...actual, fetchAlerts: vi.fn(), acknowledgeAlert: vi.fn() };
+  return {
+    ...actual,
+    fetchAlerts: vi.fn(),
+    acknowledgeAlert: vi.fn(),
+    markAllAlertsRead: vi.fn(),
+  };
 });
 
 const alert = (
@@ -32,6 +37,7 @@ describe("AlertsPage", () => {
   beforeEach(() => {
     vi.mocked(native.fetchAlerts).mockReset();
     vi.mocked(native.acknowledgeAlert).mockReset();
+    vi.mocked(native.markAllAlertsRead).mockReset();
   });
 
   it("says no alerts are open without claiming the system is healthy", async () => {
@@ -123,5 +129,42 @@ describe("AlertsPage", () => {
         screen.getByText("alert 1 is unknown or already acknowledged"),
       ).toBeInTheDocument(),
     );
+  });
+
+  it("marks every open alert as read optimistically and calls one backend transaction", async () => {
+    vi.mocked(native.fetchAlerts).mockResolvedValue({
+      generated_at: "2026-08-04T00:00:00Z",
+      open: [alert()],
+      history: [],
+      open_count: 1,
+      critical_count: 1,
+      unacknowledged_count: 1,
+    });
+    vi.mocked(native.markAllAlertsRead).mockResolvedValue(1);
+    render(<AlertsPage />);
+
+    const markAll = await screen.findByRole("button", { name: "Mark all as read" });
+    await userEvent.click(markAll);
+    expect(native.markAllAlertsRead).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Mark all as read" })).toBeDisabled(),
+    );
+  });
+
+  it("rolls back the optimistic mark-all state when the transaction fails", async () => {
+    vi.mocked(native.fetchAlerts).mockResolvedValue({
+      generated_at: "2026-08-04T00:00:00Z",
+      open: [alert()],
+      history: [],
+      open_count: 1,
+      critical_count: 1,
+      unacknowledged_count: 1,
+    });
+    vi.mocked(native.markAllAlertsRead).mockRejectedValue(new Error("storage locked"));
+    render(<AlertsPage />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Mark all as read" }));
+    await waitFor(() => expect(screen.getByText("storage locked")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Mark all as read" })).toBeEnabled();
   });
 });

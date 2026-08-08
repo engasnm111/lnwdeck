@@ -185,12 +185,14 @@ describe("PetPage", () => {
     );
 
     render(<PetPage />);
-    const input = await screen.findByLabelText("Codex Pets URL or pet id");
-    await userEvent.type(input, "solaire");
-    await userEvent.click(screen.getByRole("button", { name: "Import" }));
+    const input = await screen.findByLabelText("Official Codex Pets URL");
+    await userEvent.type(input, "https://codex-pets.net/#/pets/solaire");
+    await userEvent.click(screen.getByRole("button", { name: "Import pet" }));
 
     await waitFor(() => {
-      expect(native.importWidgetPet).toHaveBeenCalledWith("solaire");
+      expect(native.importWidgetPet).toHaveBeenCalledWith(
+        "https://codex-pets.net/#/pets/solaire",
+      );
     });
     await waitFor(() => {
       expect(native.listWidgetPets).toHaveBeenCalledTimes(2);
@@ -203,9 +205,9 @@ describe("PetPage", () => {
     );
 
     render(<PetPage />);
-    const input = await screen.findByLabelText("Codex Pets URL or pet id");
-    await userEvent.type(input, "bad pet!");
-    await userEvent.click(screen.getByRole("button", { name: "Import" }));
+    const input = await screen.findByLabelText("Official Codex Pets URL");
+    await userEvent.type(input, "https://evil.example/pets/bad-pet");
+    await userEvent.click(screen.getByRole("button", { name: "Import pet" }));
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(

@@ -17,7 +17,12 @@ import {
   SystemIcon,
 } from "../components/Icons";
 import { UpdateNotification } from "../components/UpdateNotification";
-import { fetchAlerts, fetchSettings, refreshAll } from "../lib/native";
+import {
+  fetchAlerts,
+  fetchSettings,
+  startRefresh,
+  type RefreshProgressEvent,
+} from "../lib/native";
 import { formatRelativeTime, freshnessOf } from "../lib/freshness";
 import { useI18n } from "../lib/i18n";
 import { ALERTS_UPDATED_EVENT } from "../lib/ui-events";
@@ -91,6 +96,31 @@ export function AppShell() {
     const unlisten = listen<string>("settings-changed", (event) => {
       setTheme(event.payload);
     });
+    const unlistenRefresh = listen<RefreshProgressEvent>(
+      "refresh-progress",
+      (event) => {
+        const progress = event.payload;
+        if (progress.phase === "started" || progress.phase === "progress") {
+          setRefreshing(true);
+          return;
+        }
+        setRefreshing(false);
+        if (progress.phase === "partial") {
+          setRefreshError(t("app.refreshPartial"));
+        } else if (progress.phase === "failed") {
+          setRefreshError(
+            t("app.refreshFailed", {
+              error: progress.error_code ?? t("topbar.refresh"),
+            }),
+          );
+        } else {
+          setRefreshError(null);
+        }
+        void loadFreshness();
+        void loadStatus();
+        setNow(Date.now());
+      },
+    );
     const onAlertsUpdated = () => {
       void loadStatus();
     };
@@ -99,9 +129,10 @@ export function AppShell() {
     return () => {
       clearInterval(tick);
       void unlisten.then((fn) => fn());
+      void unlistenRefresh.then((fn) => fn());
       window.removeEventListener(ALERTS_UPDATED_EVENT, onAlertsUpdated);
     };
-  }, [loadStatus, loadFreshness]);
+  }, [loadStatus, loadFreshness, t]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -111,10 +142,10 @@ export function AppShell() {
     setRefreshing(true);
     setRefreshError(null);
     try {
-      await refreshAll();
-      await loadFreshness();
-      await loadStatus();
-      setNow(Date.now());
+      const result = await startRefresh();
+      if (!result.started) {
+        setRefreshing(false);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "refresh failed";
       // A cycle is already running (background or a previous click): the UI
@@ -123,10 +154,9 @@ export function AppShell() {
       if (!/already in progress/i.test(message)) {
         setRefreshError(message);
       }
-    } finally {
       setRefreshing(false);
     }
-  }, [loadFreshness, loadStatus]);
+  }, []);
 
   const freshness = freshnessOf(lastSync, now);
 

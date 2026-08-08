@@ -9,7 +9,7 @@ use crate::state::AppState;
 use lnwdeck_storage::repositories::{AppEventLevel, AppEventRepository};
 use std::path::PathBuf;
 use std::time::Duration;
-use tauri::{Emitter, Manager};
+use tauri::Manager;
 
 /// Delay before the first background refresh, so startup stays responsive.
 const FIRST_REFRESH_DELAY: Duration = Duration::from_secs(15);
@@ -110,61 +110,14 @@ fn spawn_refresh_loop(app: tauri::AppHandle) {
 /// One refresh cycle plus alert evaluation, with every failure recorded.
 /// Skips the cycle when a manual refresh is already running.
 fn run_refresh_cycle(app: &tauri::AppHandle) {
-    let state = app.state::<AppState>();
-    if state
-        .refresh_running
-        .compare_exchange(
-            false,
-            true,
-            std::sync::atomic::Ordering::SeqCst,
-            std::sync::atomic::Ordering::SeqCst,
-        )
-        .is_err()
-    {
-        return;
-    }
-    let result = commands::pipeline::refresh_now(&state);
-    state
-        .refresh_running
-        .store(false, std::sync::atomic::Ordering::SeqCst);
-    match result {
-        Ok(cycle) => {
-            let failed: Vec<&str> = cycle
-                .usage
-                .iter()
-                .filter(|outcome| !outcome.error_code.is_empty() && !outcome.is_not_supported())
-                .map(|outcome| outcome.error_code.as_str())
-                .collect();
-            if !failed.is_empty() {
-                record_event(
-                    app,
-                    "refresh_loop",
-                    AppEventLevel::Warning,
-                    "COLLECTION_INCOMPLETE",
-                    &format!("{} collector(s) reported an error", failed.len()),
-                );
-            }
-            let _ = app.emit("quota-updated", ());
-            let _ = app.emit("usage-updated", ());
-            if let Err(code) = commands::pipeline::evaluate_alerts_now(&state) {
-                record_event(
-                    app,
-                    "refresh_loop",
-                    AppEventLevel::Warning,
-                    "ALERT_EVALUATION_FAILED",
-                    &code,
-                );
-            }
-        }
-        Err(error) => {
-            record_event(
-                app,
-                "refresh_loop",
-                AppEventLevel::Error,
-                "REFRESH_FAILED",
-                &error,
-            );
-        }
+    if let Err(error) = commands::pipeline::start_refresh(app.clone()) {
+        record_event(
+            app,
+            "refresh_loop",
+            AppEventLevel::Warning,
+            "REFRESH_START_FAILED",
+            &error,
+        );
     }
 }
 
@@ -248,6 +201,11 @@ pub fn run() {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 windows::handle_close_request(window, api);
             }
+            if let tauri::WindowEvent::Focused(false) = event {
+                if window.label() == windows::TRAY_LABEL {
+                    let _ = window.hide();
+                }
+            }
             if let tauri::WindowEvent::Moved { .. } = event {
                 if window.label() == "widget" {
                     windows::save_widget_position(window.app_handle());
@@ -257,8 +215,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::overview::get_overview,
             commands::analytics::get_analytics,
+            commands::dashboard::get_usage_dashboard,
             commands::providers::get_providers,
             commands::pipeline::refresh_all,
+            commands::pipeline::start_refresh,
+            commands::pipeline::cancel_refresh,
             commands::pipeline::refresh_provider,
             commands::pipeline::get_pipeline_diagnostics,
             commands::quota::get_quota_dashboard,
@@ -272,6 +233,7 @@ pub fn run() {
             commands::pages::delete_budget,
             commands::pages::get_alerts,
             commands::pages::acknowledge_alert,
+            commands::pages::acknowledge_all_alerts,
             commands::pages::get_settings,
             commands::pages::save_settings,
             commands::pages::set_provider_key,
@@ -286,6 +248,7 @@ pub fn run() {
             windows::set_widget_view,
             windows::set_widget_size_preset,
             windows::show_main_window,
+            windows::hide_tray_popup,
             commands::pets::import_widget_pet,
             commands::pets::import_widget_pet_file,
             commands::pets::list_widget_pets,

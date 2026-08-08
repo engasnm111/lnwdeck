@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchAnalytics, type AnalyticsRow } from "../../lib/native";
 import { DataState, Card, Badge, Button } from "@lnwdeck/ui";
-import { useI18n } from "../../lib/i18n";
+import { dataStateLabels, useI18n } from "../../lib/i18n";
+import { formatFullTokenCount } from "../../lib/token-format";
 
 /** Local timestamp as YYYY-MM-DD HH:mm:ss, e.g. 2026-08-07 08:52:12. */
 function formatEventTimestamp(value: string): string {
@@ -169,6 +170,7 @@ export function AnalyticsPage() {
       </Card>
 
       <DataState
+        labels={dataStateLabels(t)}
         loading={loading}
         error={error}
         isEmpty={rows.length === 0 && !loading}
@@ -200,7 +202,7 @@ export function AnalyticsPage() {
               {t("analytics.totalTokens")}
             </span>
             <p style={{ fontSize: "1.25rem", fontWeight: 700 }}>
-              {totalTokens.toLocaleString()}
+              {formatFullTokenCount(totalTokens)}
             </p>
           </div>
           <div>
@@ -241,8 +243,8 @@ export function AnalyticsPage() {
                   <td className="ui-table-numeric">{formatEventTimestamp(r.timestamp)}</td>
                   <td>{r.provider_id}</td>
                   <td>{r.model}</td>
-                  <td>{r.tokens_input.toLocaleString()}</td>
-                  <td>{r.tokens_output.toLocaleString()}</td>
+                  <td>{formatFullTokenCount(r.tokens_input)}</td>
+                  <td>{formatFullTokenCount(r.tokens_output)}</td>
                   <td>
                     <Badge tone={r.confidence === "High" ? "success" : "warning"}>
                       {r.confidence}

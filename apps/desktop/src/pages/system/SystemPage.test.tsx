@@ -5,14 +5,14 @@ import { SystemPage } from "./SystemPage";
 import {
   exportDiagnostics,
   fetchPipelineDiagnostics,
-  refreshAll,
+  startRefresh,
   revealInExplorer,
   type PipelineDiagnostics,
 } from "../../lib/native";
 
 vi.mock("../../lib/native", () => ({
   fetchPipelineDiagnostics: vi.fn(),
-  refreshAll: vi.fn(),
+  startRefresh: vi.fn(),
   exportDiagnostics: vi.fn(),
   revealInExplorer: vi.fn(),
 }));
@@ -83,7 +83,7 @@ const emptyFixture: PipelineDiagnostics = {
 describe("SystemPage Data Pipeline", () => {
   beforeEach(() => {
     vi.mocked(fetchPipelineDiagnostics).mockReset();
-    vi.mocked(refreshAll).mockReset();
+    vi.mocked(startRefresh).mockReset();
     vi.mocked(exportDiagnostics).mockReset();
     vi.mocked(revealInExplorer).mockReset();
   });
@@ -163,11 +163,11 @@ describe("SystemPage Data Pipeline", () => {
     ).toBeVisible();
   });
 
-  it("refresh button runs refresh-all and reloads diagnostics", async () => {
+  it("refresh button starts the shared background job without blocking the page", async () => {
     vi.mocked(fetchPipelineDiagnostics)
       .mockResolvedValueOnce(emptyFixture)
       .mockResolvedValueOnce(fixture);
-    vi.mocked(refreshAll).mockResolvedValue({ usage: fixture.runs, quota: [] });
+    vi.mocked(startRefresh).mockResolvedValue({ started: true, already_running: false });
     const user = userEvent.setup();
     render(<SystemPage />);
 
@@ -178,12 +178,10 @@ describe("SystemPage Data Pipeline", () => {
     await user.click(screen.getByRole("button", { name: /refresh all/i }));
 
     await waitFor(() => {
-      expect(refreshAll).toHaveBeenCalledTimes(1);
+      expect(startRefresh).toHaveBeenCalledTimes(1);
     });
-    expect(
-      await screen.findByRole("row", { name: /OpenCode/ }),
-    ).toBeInTheDocument();
-    expect(fetchPipelineDiagnostics).toHaveBeenCalledTimes(2);
+    expect(fetchPipelineDiagnostics).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: /refresh all/i })).toBeDisabled();
   });
 
   it("export button downloads a sanitized diagnostics JSON file", async () => {

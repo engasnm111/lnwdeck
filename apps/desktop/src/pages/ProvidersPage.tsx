@@ -9,7 +9,7 @@ import {
   type QuotaDashboardData,
 } from "../lib/native";
 import { formatCompact, formatTimestamp } from "../lib/freshness";
-import { useI18n } from "../lib/i18n";
+import { dataStateLabels, useI18n } from "../lib/i18n";
 
 function healthTone(status: string) {
   if (status.startsWith("Error")) {
@@ -114,6 +114,7 @@ export function ProvidersPage() {
       )}
 
       <DataState
+        labels={dataStateLabels(t)}
         loading={loading}
         error={error}
         isEmpty={providers.length === 0}

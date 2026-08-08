@@ -1,4 +1,8 @@
 import type { BadgeTone } from "@lnwdeck/ui";
+import {
+  formatCompactTokenCount,
+  formatFullTokenCount,
+} from "./token-format";
 
 /**
  * Freshness of the last successful collection.
@@ -96,19 +100,10 @@ export function formatTimestamp(
 
 /** Thousands-separated integer. */
 export function formatNumber(value: number): string {
-  return value.toLocaleString();
+  return formatFullTokenCount(value);
 }
 
 /** Compact token counts: 1.2K, 3.4M. */
 export function formatCompact(value: number): string {
-  if (!Number.isFinite(value)) {
-    return "-";
-  }
-  if (Math.abs(value) < 1000) {
-    return String(value);
-  }
-  if (Math.abs(value) < 1_000_000) {
-    return `${(value / 1000).toFixed(1)}K`;
-  }
-  return `${(value / 1_000_000).toFixed(1)}M`;
+  return formatCompactTokenCount(value);
 }

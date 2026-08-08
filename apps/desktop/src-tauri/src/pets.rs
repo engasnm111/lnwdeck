@@ -64,42 +64,68 @@ const DEFAULT_PET_PACKAGES: [&[u8]; 8] = [
 
 /// `app_settings` key marking that the bundled defaults were installed once.
 const DEFAULT_PETS_SEEDED_KEY: &str = "pet_defaults_seeded";
+/// IDs acknowledged by the six-pet seed used before v10. This lets the v10
+/// migration add only the two newly bundled pets without restoring a default
+/// the user intentionally removed.
+const LEGACY_DEFAULT_PET_IDS: [&str; 6] = [
+    "youyou",
+    "old-bai",
+    "a-ti",
+    "sharkler",
+    "solaire",
+    "tennis-ball",
+];
+const DEFAULT_PETS_SEEDED_IDS_KEY: &str = "pet_defaults_seeded_ids";
 
-/// Installs the bundled default pets into the store, exactly once.
-///
-/// Re-runs are idempotent: when the marker is already set, the currently
-/// installed defaults are reported and nothing is written, so a default the
-/// user removed stays removed.
+/// Installs bundled defaults and migrates older seed markers without deleting
+/// custom pets or restoring a default the user removed.
 pub fn seed_default_pets(pets_dir: &Path, conn: &Connection) -> Result<Vec<String>, String> {
     let repo = AppSettingsRepository::new(conn);
-    if repo
+    let seeded_marker = repo
         .get(DEFAULT_PETS_SEEDED_KEY)
         .map_err(|e| e.to_string())?
         .as_deref()
-        == Some("true")
-    {
-        return Ok(DEFAULT_PET_IDS
-            .iter()
-            .filter(|id| pets_dir.join(id).is_dir())
-            .map(|id| id.to_string())
-            .collect());
+        == Some("true");
+    let mut seeded_ids = repo
+        .get(DEFAULT_PETS_SEEDED_IDS_KEY)
+        .map_err(|e| e.to_string())?
+        .and_then(|raw| serde_json::from_str::<Vec<String>>(&raw).ok())
+        .unwrap_or_default();
+
+    // Versions before v10 only stored a boolean. Treat all six old IDs as
+    // acknowledged, including missing directories, so deleted pets remain
+    // deleted while the two v10 additions are installed once.
+    if seeded_marker && seeded_ids.is_empty() {
+        seeded_ids.extend(LEGACY_DEFAULT_PET_IDS.iter().map(|id| (*id).to_string()));
     }
 
     let mut installed = Vec::new();
     for (id, package) in DEFAULT_PET_IDS.iter().zip(DEFAULT_PET_PACKAGES.iter()) {
-        if pets_dir.join(id).is_dir() {
-            installed.push((*id).to_string());
+        if seeded_ids.iter().any(|seeded| seeded == id) {
+            if pets_dir.join(id).is_dir() {
+                installed.push((*id).to_string());
+            }
             continue;
         }
-        match install_pet(pets_dir, package) {
-            Ok(manifest) => installed.push(manifest.id),
-            Err(error) => {
-                return Err(format!("default pet {id}: {error}"));
+        if pets_dir.join(id).is_dir() {
+            installed.push((*id).to_string());
+        } else {
+            match install_pet(pets_dir, package) {
+                Ok(manifest) => installed.push(manifest.id),
+                Err(error) => {
+                    return Err(format!("default pet {id}: {error}"));
+                }
             }
         }
+        seeded_ids.push((*id).to_string());
     }
     repo.set(DEFAULT_PETS_SEEDED_KEY, "true")
         .map_err(|e| e.to_string())?;
+    repo.set(
+        DEFAULT_PETS_SEEDED_IDS_KEY,
+        &serde_json::to_string(&seeded_ids).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
     Ok(installed)
 }
 
@@ -365,27 +391,31 @@ pub fn validate_package_zip(bytes: &[u8]) -> Result<PetManifest, String> {
     Ok(manifest)
 }
 
-/// Installed pet id from a bare id or a codex-pets.net URL.
+/// Extracts an installed pet id from an official codex-pets.net URL.
 ///
-/// Accepted: a bare pet id, `https://codex-pets.net/#/pets/<id>`,
+/// Accepted: `https://codex-pets.net/#/pets/<id>`,
 /// `https://codex-pets.net/api/pets/<id>` and
 /// `https://codex-pets.net/api/pets/<id>/download`.
 pub fn pet_id_from_codex_pets_url(input: &str) -> Result<String, String> {
     let raw = input.trim();
-    if is_pet_id(raw) {
-        return Ok(raw.to_string());
-    }
-    let parsed = url_parse(raw).ok_or_else(|| "Enter a Codex Pets URL or pet id".to_string())?;
-    if parsed.scheme != "https" || parsed.host != CODEX_PETS_HOST {
+    let parsed = url_parse(raw).ok_or_else(|| "Enter an official Codex Pets URL".to_string())?;
+    if parsed.scheme != "https"
+        || parsed.host != CODEX_PETS_HOST
+        || parsed.port.is_some()
+        || parsed.query.is_some()
+    {
         return Err("Only https://codex-pets.net pet URLs are supported".to_string());
     }
     let id = if let Some(captured) = parsed.hash.strip_prefix("#/pets/") {
-        captured.trim_end_matches('/').to_string()
+        if !parsed.path.is_empty() && parsed.path != "/" {
+            return Err("Only official Codex Pets page URLs are supported".to_string());
+        }
+        captured.to_string()
     } else if let Some(rest) = parsed.path.strip_prefix("/api/pets/") {
-        rest.trim_end_matches('/')
-            .strip_suffix("/download")
-            .unwrap_or(rest.trim_end_matches('/'))
-            .to_string()
+        if !parsed.hash.is_empty() {
+            return Err("Only official Codex Pets API URLs are supported".to_string());
+        }
+        rest.strip_suffix("/download").unwrap_or(rest).to_string()
     } else {
         String::new()
     };
@@ -401,20 +431,38 @@ pub fn pet_id_from_codex_pets_url(input: &str) -> Result<String, String> {
 struct SimpleUrl {
     scheme: String,
     host: String,
+    port: Option<String>,
     path: String,
     hash: String,
+    query: Option<String>,
 }
 
 fn url_parse(raw: &str) -> Option<SimpleUrl> {
     let (scheme, rest) = raw.split_once("://")?;
     let (authority, tail) = rest.split_once('/').unwrap_or((rest, ""));
-    let (host, _port) = authority.split_once(':').unwrap_or((authority, ""));
-    let (path, hash) = tail.split_once('#').unwrap_or((tail, ""));
+    if authority.contains('@') {
+        return None;
+    }
+    let (host, port) = authority
+        .split_once(':')
+        .map(|(host, port)| (host, Some(port.to_string())))
+        .unwrap_or((authority, None));
+    let (before_hash, hash) = tail.split_once('#').unwrap_or((tail, ""));
+    let (path, query) = before_hash
+        .split_once('?')
+        .map(|(path, query)| (path, Some(query.to_string())))
+        .unwrap_or((before_hash, None));
     Some(SimpleUrl {
         scheme: scheme.to_ascii_lowercase(),
         host: host.to_ascii_lowercase(),
+        port,
         path: format!("/{path}"),
-        hash: format!("#{hash}"),
+        hash: if hash.is_empty() {
+            String::new()
+        } else {
+            format!("#{hash}")
+        },
+        query,
     })
 }
 
@@ -574,6 +622,7 @@ fn hex_uuid() -> String {
 mod tests {
     use super::*;
     use std::io::Write as _;
+    use tempfile::tempdir;
 
     fn manifest_json(id: &str, display_name: &str, version: Option<u64>) -> serde_json::Value {
         let mut value = serde_json::json!({
@@ -717,8 +766,41 @@ mod tests {
     }
 
     #[test]
+    fn v10_seed_migration_adds_new_defaults_without_restoring_deleted_pets() {
+        let root = tempdir().unwrap();
+        let pets_dir = root.path().join("pets");
+        let database = root.path().join("pets.db");
+        let storage = lnwdeck_storage::Storage::open(&database).unwrap();
+        lnwdeck_storage::migrations::apply_all(&storage.conn).unwrap();
+
+        // Simulate a pre-v10 installation where the user removed `solaire`.
+        for (id, package) in LEGACY_DEFAULT_PET_IDS
+            .iter()
+            .zip(DEFAULT_PET_PACKAGES.iter())
+            .filter(|(id, _)| **id != "solaire")
+        {
+            install_pet(&pets_dir, package).unwrap();
+            assert!(pets_dir.join(id).is_dir());
+        }
+        AppSettingsRepository::new(&storage.conn)
+            .set(DEFAULT_PETS_SEEDED_KEY, "true")
+            .unwrap();
+
+        let installed = seed_default_pets(&pets_dir, &storage.conn).unwrap();
+        assert!(installed.iter().any(|id| id == "friend-pixel-pet"));
+        assert!(installed.iter().any(|id| id == "yae-miko"));
+        assert!(pets_dir.join("friend-pixel-pet").is_dir());
+        assert!(pets_dir.join("yae-miko").is_dir());
+        assert!(!pets_dir.join("solaire").exists());
+
+        // A subsequent run must not resurrect a v10 default the user removes.
+        remove_installed_pet(&pets_dir, "friend-pixel-pet").unwrap();
+        seed_default_pets(&pets_dir, &storage.conn).unwrap();
+        assert!(!pets_dir.join("friend-pixel-pet").exists());
+    }
+
+    #[test]
     fn pet_ids_are_extracted_from_codex_pets_urls() {
-        assert_eq!(pet_id_from_codex_pets_url("sprout").unwrap(), "sprout");
         assert_eq!(
             pet_id_from_codex_pets_url("https://codex-pets.net/#/pets/sprout").unwrap(),
             "sprout"
@@ -731,7 +813,19 @@ mod tests {
             pet_id_from_codex_pets_url("https://codex-pets.net/api/pets/sprout/download").unwrap(),
             "sprout"
         );
+        assert!(pet_id_from_codex_pets_url("sprout").is_err());
         assert!(pet_id_from_codex_pets_url("https://evil.example/pets/sprout").is_err());
+        assert!(pet_id_from_codex_pets_url("https://codex-pets.net.evil/pets/sprout").is_err());
+        assert!(pet_id_from_codex_pets_url("https://www.codex-pets.net/#/pets/sprout").is_err());
+        assert!(pet_id_from_codex_pets_url("https://codex-pets.net:443/#/pets/sprout").is_err());
+        assert!(pet_id_from_codex_pets_url("https://user@codex-pets.net/#/pets/sprout").is_err());
+        assert!(
+            pet_id_from_codex_pets_url("https://codex-pets.net/#/pets/sprout?next=evil").is_err()
+        );
+        assert!(
+            pet_id_from_codex_pets_url("https://codex-pets.net/api/pets/sprout?download=1")
+                .is_err()
+        );
         assert!(pet_id_from_codex_pets_url("http://codex-pets.net/api/pets/sprout").is_err());
         assert!(pet_id_from_codex_pets_url("https://codex-pets.net/#/pets/Not%20A%20Pet").is_err());
     }

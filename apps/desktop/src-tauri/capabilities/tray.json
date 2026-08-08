@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/windows-schema.json",
+  "identifier": "tray-window",
+  "description": "Least-privilege permissions for the localized tray popup: read overview metrics and invoke the dashboard window commands.",
+  "windows": ["tray"],
+  "permissions": ["core:default"]
+}

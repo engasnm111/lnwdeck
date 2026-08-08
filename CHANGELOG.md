@@ -2,6 +2,31 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [10.0.0] - 2026-08-08
+
+### Highlights
+
+- TokenTracker-style Dashboard with calendar ranges, provider filtering, total
+  token/input/output/duration/session summary, usage trend, activity heatmap and
+  session-level provider breakdown.
+- Shared compact/full token formatter with uppercase `K/M/B/T` and ASCII comma
+  grouping from 1,000; compact values toggle by click and keyboard.
+- Eight bundled pets, migration-safe defaults, Pet-page Add/Import controls and
+  strict official Codex Pets URL validation.
+- Complete nine-locale Main/Widget/Pet/Tray/notification coverage and a themed,
+  keyboard-accessible Widget mode dropdown.
+- Shared background Refresh All job with progress/partial results and a
+  transactional Mark all as read notification action.
+- Main-only taskbar behavior; Widget, Pet and Tray are hidden from the taskbar.
+
+### Release assets
+
+- v10.0.0 targets x64, ARM64 and x86 Windows builds.
+- The release workflow verifies detached signatures and `SHA256SUMS`, publishes
+  `latest.json`, a CycloneDX SBOM and GitHub build provenance.
+- Full installation, migration, rollback and verification details:
+  [docs/releases/v10.0.0.md](docs/releases/v10.0.0.md).
+
 ## [0.9.0] - 2026-08-08
 
 ### Highlights

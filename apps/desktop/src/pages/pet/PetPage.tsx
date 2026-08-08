@@ -20,7 +20,7 @@ import {
   type PetSizePreset,
   type PetWindowSettingsData,
 } from "../../lib/native";
-import { useI18n } from "../../lib/i18n";
+import { dataStateLabels, useI18n } from "../../lib/i18n";
 
 /** Ambient poses the user can toggle, in UI order. */
 const POSE_OPTIONS: Array<{ key: PetPoseKey; labelKey: string; field: keyof PetWindowSettingsData }> = [
@@ -227,6 +227,7 @@ export function PetPage() {
       </div>
 
       <DataState
+        labels={dataStateLabels(t)}
         loading={loading}
         error={error}
         isEmpty={false}
@@ -335,7 +336,7 @@ export function PetPage() {
 
             <Card
               title={t("pet.character")}
-              subtitle={t("pet.characterSubtitle")}
+              subtitle={t("pet.characterSubtitle", { count: String(pets.length) })}
             >
               <div className="stack-tight">
                 {pets.length === 0 ? (
@@ -411,12 +412,16 @@ export function PetPage() {
                   </ul>
                 )}
 
+                <div className="pet-import-heading">
+                  <strong>{t("pet.importTitle")}</strong>
+                  <span className="ui-inline-note">{t("pet.importNote")}</span>
+                </div>
                 <div className="settings-import">
                   <input
                     className="ui-input settings-import-input"
                     type="text"
                     placeholder={t("pet.importPlaceholder")}
-                    aria-label="Codex Pets URL or pet id"
+                    aria-label={t("pet.importLabel")}
                     value={petImport}
                     disabled={petImporting}
                     onChange={(event) => setPetImport(event.target.value)}
@@ -426,7 +431,7 @@ export function PetPage() {
                     onClick={() => void handleImport()}
                     disabled={petImporting || petImport.trim() === ""}
                   >
-                    {petImporting ? t("common.importing") : t("common.import")}
+                    {petImporting ? t("common.importing") : t("pet.importButton")}
                   </Button>
                 </div>
                 <ol className="settings-import-steps">
@@ -434,9 +439,6 @@ export function PetPage() {
                   <li>{t("pet.importSteps.step2")}</li>
                   <li>{t("pet.importSteps.step3")}</li>
                 </ol>
-                <p className="ui-inline-note">
-                  {t("pet.importNote")}
-                </p>
               </div>
             </Card>
           </div>

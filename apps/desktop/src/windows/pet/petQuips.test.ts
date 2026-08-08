@@ -46,4 +46,21 @@ describe("pickPetQuip", () => {
       Math.random = original;
     }
   });
+
+  it("uses the shared compact formatter without unnecessary zero decimals", () => {
+    const original = Math.random;
+    Math.random = () => 0;
+    try {
+      const quip = pickPetQuip({
+        todayTokens: 1_000_000,
+        costUsd: 0,
+        currencySymbol: "$",
+        lowestRemainingPercent: null,
+        plan: null,
+      });
+      expect(quip).toBe("Used 1M tokens today");
+    } finally {
+      Math.random = original;
+    }
+  });
 });

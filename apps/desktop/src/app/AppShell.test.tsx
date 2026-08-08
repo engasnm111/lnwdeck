@@ -12,7 +12,7 @@ vi.mock("../lib/native", async (importOriginal) => {
     fetchAlerts: vi.fn(),
     fetchSettings: vi.fn(),
     fetchPipelineDiagnostics: vi.fn(),
-    refreshAll: vi.fn(),
+    startRefresh: vi.fn(),
   };
 });
 
@@ -99,7 +99,7 @@ describe("AppShell", () => {
     vi.mocked(native.fetchPipelineDiagnostics).mockResolvedValue(
       diagnostics(null),
     );
-    vi.mocked(native.refreshAll).mockReset();
+    vi.mocked(native.startRefresh).mockReset();
   });
 
   it("states that nothing has been collected instead of showing a fresh badge", async () => {
@@ -131,7 +131,7 @@ describe("AppShell", () => {
   });
 
   it("surfaces a failed refresh instead of swallowing it", async () => {
-    vi.mocked(native.refreshAll).mockRejectedValue(
+    vi.mocked(native.startRefresh).mockRejectedValue(
       new Error("storage not initialized"),
     );
     renderShell();

@@ -10,7 +10,7 @@ import {
 } from "@lnwdeck/ui";
 import { fetchCosts, type CostBreakdownData, type HistoryWindow } from "../../lib/native";
 import { formatCompact, formatNumber } from "../../lib/freshness";
-import { useI18n } from "../../lib/i18n";
+import { dataStateLabels, useI18n } from "../../lib/i18n";
 
 const WINDOWS: Array<{ value: HistoryWindow; labelKey: string }> = [
   { value: "last_24h", labelKey: "costs.window24h" },
@@ -70,6 +70,7 @@ export function CostsPage() {
       </Toolbar>
 
       <DataState
+        labels={dataStateLabels(t)}
         loading={loading}
         error={error}
         isEmpty={data !== null && data.rows.length === 0}

@@ -4,31 +4,17 @@ import {
   deleteProviderKey,
   fetchSettings,
   fetchWidgetSettings,
-  getWidgetPet,
-  importWidgetPet,
-  listWidgetPets,
-  removeWidgetPet,
   saveSettings,
   setLanguage,
-  setPetAutoSleep,
-  setPetOpacity,
-  setPetPose,
-  setPetSizePreset,
-  setPetSpeed,
-  setPetStayInPlace,
   setProviderKey,
-  setWidgetPet,
   setWidgetSizePreset,
   setWidgetView,
   type AppSettingsData,
-  type PetManifest,
-  type PetPoseKey,
-  type PetSizePreset,
   type SettingsViewData,
   type WidgetSizePreset,
   type WidgetView,
 } from "../../lib/native";
-import { LANGUAGES, useI18n } from "../../lib/i18n";
+import { dataStateLabels, LANGUAGES, useI18n } from "../../lib/i18n";
 
 function intervalLabel(
   t: (key: string, vars?: Record<string, string>) => string,
@@ -75,13 +61,6 @@ export function SettingsPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
   const [keyError, setKeyError] = useState<string | null>(null);
-
-  const [pets, setPets] = useState<PetManifest[]>([]);
-  const [activePetId, setActivePetId] = useState("");
-  const [petImport, setPetImport] = useState("");
-  const [petImporting, setPetImporting] = useState(false);
-  const [petError, setPetError] = useState<string | null>(null);
-  const [desktopPetError, setDesktopPetError] = useState<string | null>(null);
 
   // Widget layout (bars / rings / pet), applied immediately via its own
   // command rather than through the saved-settings form.
@@ -139,134 +118,6 @@ export function SettingsPage() {
       setSaveError(error_ instanceof Error ? error_.message : String(error_));
     }
   }, []);
-
-  // Desktop pet controls apply immediately through pet-specific commands and
-  // echo the stored value back into the draft so the page never diverges.
-  const petEcho = useCallback((fields: Partial<AppSettingsData>) => {
-    setDraft((current) => (current ? { ...current, ...fields } : current));
-  }, []);
-
-  const handlePetStayInPlace = useCallback(
-    async (stayInPlace: boolean) => {
-      try {
-        petEcho({ pet_stay_in_place: await setPetStayInPlace(stayInPlace) });
-      } catch (error_) {
-        setDesktopPetError(error_ instanceof Error ? error_.message : String(error_));
-      }
-    },
-    [petEcho],
-  );
-
-  const handlePetPose = useCallback(
-    async (key: PetPoseKey, enabled: boolean) => {
-      try {
-        petEcho({ [key]: await setPetPose(key, enabled) });
-      } catch (error_) {
-        setDesktopPetError(error_ instanceof Error ? error_.message : String(error_));
-      }
-    },
-    [petEcho],
-  );
-
-  const handlePetSpeed = useCallback(
-    async (speed: string) => {
-      try {
-        petEcho({ pet_speed: await setPetSpeed(speed) });
-      } catch (error_) {
-        setDesktopPetError(error_ instanceof Error ? error_.message : String(error_));
-      }
-    },
-    [petEcho],
-  );
-
-  const handlePetSize = useCallback(
-    async (preset: PetSizePreset) => {
-      try {
-        petEcho({ pet_size: await setPetSizePreset(preset) });
-      } catch (error_) {
-        setDesktopPetError(error_ instanceof Error ? error_.message : String(error_));
-      }
-    },
-    [petEcho],
-  );
-
-  const handlePetOpacity = useCallback(
-    async (opacity: number) => {
-      try {
-        petEcho({ pet_opacity: await setPetOpacity(opacity) });
-      } catch (error_) {
-        setDesktopPetError(error_ instanceof Error ? error_.message : String(error_));
-      }
-    },
-    [petEcho],
-  );
-
-  const handlePetAutoSleep = useCallback(
-    async (autoSleep: boolean) => {
-      try {
-        petEcho({ pet_auto_sleep: await setPetAutoSleep(autoSleep) });
-      } catch (error_) {
-        setDesktopPetError(error_ instanceof Error ? error_.message : String(error_));
-      }
-    },
-    [petEcho],
-  );
-
-  const loadPets = useCallback(async () => {
-    try {
-      const [installed, active] = await Promise.all([
-        listWidgetPets(),
-        getWidgetPet(),
-      ]);
-      setPets(installed);
-      setActivePetId(active?.id ?? "");
-    } catch (error_) {
-      setDesktopPetError(error_ instanceof Error ? error_.message : String(error_));
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadPets();
-  }, [loadPets]);
-
-  const handleImportPet = useCallback(async () => {
-    if (!petImport.trim()) {
-      return;
-    }
-    setPetImporting(true);
-    setPetError(null);
-    try {
-      await importWidgetPet(petImport.trim());
-      setPetImport("");
-      await loadPets();
-    } catch (error_) {
-      setPetError(error_ instanceof Error ? error_.message : String(error_));
-    } finally {
-      setPetImporting(false);
-    }
-  }, [petImport, loadPets]);
-
-  const handleSelectPet = useCallback(async (petId: string) => {
-    setPetError(null);
-    try {
-      setActivePetId(await setWidgetPet(petId));
-    } catch (error_) {
-      setPetError(error_ instanceof Error ? error_.message : String(error_));
-    }
-  }, []);
-
-  const handleRemovePet = useCallback(
-    async (petId: string) => {
-      setPetError(null);
-      try {
-        await removeWidgetPet(petId);
-        await loadPets();
-      } catch (error_) {
-        setPetError(error_ instanceof Error ? error_.message : String(error_));
-      }
-    },
-    [loadPets],
-  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -378,6 +229,7 @@ export function SettingsPage() {
       </div>
 
       <DataState
+        labels={dataStateLabels(t)}
         loading={loading}
         error={error}
         isEmpty={false}
@@ -576,178 +428,6 @@ export function SettingsPage() {
               </div>
             </Card>
 
-            <Card title={t("settings.petCard")} subtitle={t("settings.petCardSubtitle")}>
-              <div className="stack-tight">
-                <Field label={t("settings.petSpeed")} htmlFor="settings-pet-speed">
-                  <select
-                    id="settings-pet-speed"
-                    className="ui-select"
-                    value={draft.pet_speed}
-                    onChange={(event) => void handlePetSpeed(event.target.value)}
-                  >
-                    <option value="slow">{t("pet.speed.slow")}</option>
-                    <option value="normal">{t("pet.speed.normal")}</option>
-                    <option value="fast">{t("pet.speed.fast")}</option>
-                  </select>
-                </Field>
-                <Toggle
-                  id="settings-pet-stay"
-                  label={t("settings.petStay")}
-                  hint={
-                    draft.pet_stay_in_place
-                      ? t("pet.stay.hintOn")
-                      : t("pet.stay.hintOff")
-                  }
-                  checked={draft.pet_stay_in_place}
-                  onChange={(checked) => void handlePetStayInPlace(checked)}
-                />
-                <Field label={t("settings.petSize")} htmlFor="settings-pet-size" hint={t("settings.petSizeHint")}>
-                  <select
-                    id="settings-pet-size"
-                    className="ui-select"
-                    value={draft.pet_size}
-                    onChange={(event) =>
-                      void handlePetSize(event.target.value as PetSizePreset)
-                    }
-                  >
-                    <option value="small">{t("pet.size.small")}</option>
-                    <option value="medium">{t("pet.size.medium")}</option>
-                    <option value="large">{t("pet.size.large")}</option>
-                  </select>
-                </Field>
-                <Field
-                  label={t("settings.petOpacity", { value: String(Math.round(draft.pet_opacity * 100)) })}
-                  htmlFor="settings-pet-opacity"
-                >
-                  <input
-                    id="settings-pet-opacity"
-                    className="ui-input"
-                    type="range"
-                    min={10}
-                    max={100}
-                    step={10}
-                    value={Math.round(draft.pet_opacity * 100)}
-                    onChange={(event) =>
-                      void handlePetOpacity(Number(event.target.value) / 100)
-                    }
-                  />
-                </Field>
-                <Toggle
-                  id="settings-pet-autosleep"
-                  label={t("settings.petAutoSleep")}
-                  checked={draft.pet_auto_sleep}
-                  onChange={(checked) => void handlePetAutoSleep(checked)}
-                />
-                <fieldset className="ui-fieldset">
-                  <legend className="ui-fieldset-legend">{t("settings.petPoses")}</legend>
-                  <div className="settings-pose-grid">
-                    {(
-                      [
-                        ["pet_pose_wave", "pose.wave"],
-                        ["pet_pose_jump", "pose.jump"],
-                        ["pet_pose_look_left", "pose.lookLeft"],
-                        ["pet_pose_look_right", "pose.lookRight"],
-                        ["pet_pose_waiting", "pose.waiting"],
-                        ["pet_pose_review", "pose.review"],
-                      ] as Array<[PetPoseKey, string]>
-                    ).map(([key, labelKey]) => (
-                      <Toggle
-                        key={key}
-                        id={`settings-pose-${key}`}
-                        label={t(labelKey)}
-                        checked={Boolean(draft[key])}
-                        onChange={(checked) => void handlePetPose(key, checked)}
-                      />
-                    ))}
-                  </div>
-                </fieldset>
-                {desktopPetError && (
-                  <p className="ui-field-error" role="alert">
-                    {desktopPetError}
-                  </p>
-                )}
-              </div>
-            </Card>
-
-            <Card
-              title={t("settings.widgetPet")}
-              subtitle={t("settings.widgetPetSubtitle")}
-            >
-              <div className="stack-tight">
-                <div className="settings-import">
-                  <input
-                    className="ui-input settings-import-input"
-                    type="text"
-                    placeholder={t("pet.importPlaceholder")}
-                    aria-label="Codex Pets URL or pet id"
-                    value={petImport}
-                    disabled={petImporting}
-                    onChange={(event) => setPetImport(event.target.value)}
-                  />
-                  <Button
-                    size="small"
-                    onClick={() => void handleImportPet()}
-                    disabled={petImporting || petImport.trim() === ""}
-                  >
-                    {petImporting ? t("common.importing") : t("common.import")}
-                  </Button>
-                </div>
-                <ol className="settings-import-steps">
-                  <li>{t("pet.importSteps.step1")}</li>
-                  <li>{t("pet.importSteps.step2")}</li>
-                  <li>{t("pet.importSteps.step3")}</li>
-                </ol>
-                {pets.length === 0 ? (
-                  <p className="ui-inline-note">
-                    {t("settings.widgetPetEmpty")}
-                  </p>
-                ) : (
-                  <ul className="settings-pet-list">
-                    {pets.map((pet) => (
-                      <li key={pet.id} className="row-between">
-                        <div className="stack-tight">
-                          <span className="meta-value">{pet.displayName}</span>
-                          <Badge
-                            tone={
-                              activePetId === pet.id ? "success" : "neutral"
-                            }
-                          >
-                            {activePetId === pet.id
-                              ? t("common.active")
-                              : t("common.installed")}
-                          </Badge>
-                        </div>
-                        <div className="row">
-                          <Button
-                            size="small"
-                            variant={activePetId === pet.id ? "primary" : "secondary"}
-                            disabled={activePetId === pet.id}
-                            onClick={() => void handleSelectPet(pet.id)}
-                          >
-                            {activePetId === pet.id
-                              ? t("common.active")
-                              : t("common.use")}
-                          </Button>
-                          <Button
-                            size="small"
-                            variant="danger"
-                            onClick={() => void handleRemovePet(pet.id)}
-                          >
-                            {t("common.remove")}
-                          </Button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {petError && (
-                  <p className="ui-field-error" role="alert">
-                    {petError}
-                  </p>
-                )}
-              </div>
-            </Card>
-
             <Card
               title={t("settings.keys.title")}
               subtitle={
@@ -785,7 +465,7 @@ export function SettingsPage() {
                           className="ui-input"
                           type="password"
                           placeholder={t("settings.keys.placeholder")}
-                          aria-label={`${credential.display_name} API key`}
+                          aria-label={t("settings.apiKeyAria", { provider: credential.display_name })}
                           value={keyDrafts[credential.provider_id] ?? ""}
                           disabled={!view.credential_store_supported}
                           onChange={(event) =>
@@ -826,13 +506,9 @@ export function SettingsPage() {
               )}
             </Card>
 
-            <Card title="Privacy">
+            <Card title={t("settings.privacyTitle")}>
               <p className="ui-inline-note">
-                lnwdeck reads local provider artifacts read-only and stores token
-                counts, timestamps, model identifiers and quota values. Prompts,
-                responses, file contents, file names and absolute paths are never
-                collected. Provider requests only happen for providers where you
-                stored a key.
+                {t("settings.privacyBody")}
               </p>
             </Card>
           </div>

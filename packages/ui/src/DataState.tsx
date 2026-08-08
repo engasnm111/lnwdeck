@@ -11,7 +11,16 @@ export interface DataStateProps {
   loadingFallback?: ReactNode;
   errorFallback?: ReactNode;
   emptyFallback?: ReactNode;
+  labels?: DataStateLabels;
   children: ReactNode;
+}
+
+export interface DataStateLabels {
+  loading: string;
+  errorTitle: string;
+  retry: string;
+  emptyTitle: string;
+  emptyDetail: string;
 }
 
 /**
@@ -26,18 +35,37 @@ export function DataState({
   loadingFallback,
   errorFallback,
   emptyFallback,
+  labels,
   children,
 }: DataStateProps) {
   if (loading) {
-    return <>{loadingFallback ?? <LoadingState />}</>;
+    return <>{loadingFallback ?? <LoadingState label={labels?.loading} />}</>;
   }
   if (error) {
     return (
-      <>{errorFallback ?? <ErrorState error={error} onRetry={onRetry} />}</>
+      <>
+        {errorFallback ?? (
+          <ErrorState
+            error={error}
+            onRetry={onRetry}
+            title={labels?.errorTitle}
+            retryLabel={labels?.retry}
+          />
+        )}
+      </>
     );
   }
   if (isEmpty) {
-    return <>{emptyFallback ?? <EmptyState />}</>;
+    return (
+      <>
+        {emptyFallback ?? (
+          <EmptyState
+            title={labels?.emptyTitle}
+            detail={labels?.emptyDetail}
+          />
+        )}
+      </>
+    );
   }
   return <>{children}</>;
 }

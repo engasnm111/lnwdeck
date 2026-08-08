@@ -181,8 +181,8 @@ test("WebView2 CDP is configured programmatically for every desktop webview", ()
   assert.match(windowsSource, /remote-debugging-port/);
   assert.equal(
     (windowsSource.match(/additional_browser_args/g) ?? []).length,
-    3,
-    "main, widget, and pet must receive the same browser arguments",
+    4,
+    "main, widget, pet, and tray must receive the same browser arguments",
   );
 });
 

@@ -8,13 +8,13 @@ export interface EmptyStateProps {
  * there is no data rather than implying everything is fine.
  */
 export function EmptyState({
-  title = "No data yet",
-  detail = "Nothing has been recorded for this view.",
+  title,
+  detail,
 }: EmptyStateProps) {
   return (
     <div className="ui-state" role="status">
-      <span className="ui-state-title">{title}</span>
-      <span className="ui-state-detail">{detail}</span>
+      {title && <span className="ui-state-title">{title}</span>}
+      {detail && <span className="ui-state-detail">{detail}</span>}
     </div>
   );
 }

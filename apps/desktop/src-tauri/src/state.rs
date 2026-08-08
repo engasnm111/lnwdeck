@@ -21,6 +21,8 @@ pub struct AppState {
     /// True while a refresh cycle is running (manual or background). Prevents
     /// overlapping cycles that pile up and freeze the machine.
     pub refresh_running: AtomicBool,
+    /// Set by the native cancel command and checked between provider jobs.
+    pub refresh_cancel_requested: AtomicBool,
 }
 
 impl AppState {
@@ -32,6 +34,7 @@ impl AppState {
             pet_hit_rect: Mutex::new(None),
             pet_click_through: AtomicBool::new(true),
             refresh_running: AtomicBool::new(false),
+            refresh_cancel_requested: AtomicBool::new(false),
         }
     }
 

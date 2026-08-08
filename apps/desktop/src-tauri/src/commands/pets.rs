@@ -21,7 +21,7 @@ pub fn pet_store_dir(app: &tauri::AppHandle) -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("pets"))
 }
 
-/// Imports a community pet from a codex-pets.net URL or a bare pet id.
+/// Imports a community pet from an official codex-pets.net URL.
 ///
 /// Downloads happen only here, on an explicit user action, over HTTPS, and
 /// only against `codex-pets.net`; the package is fully validated before it is
@@ -42,7 +42,8 @@ pub fn import_widget_pet_file(
     app: tauri::AppHandle,
     path: String,
 ) -> Result<crate::pets::PetManifest, String> {
-    let bytes = std::fs::read(&path).map_err(|error| format!("could not read {path}: {error}"))?;
+    let bytes = std::fs::read(&path)
+        .map_err(|error| format!("could not read the selected pet package: {error}"))?;
     crate::pets::install_pet(&pet_store_dir(&app), &bytes)
 }
 

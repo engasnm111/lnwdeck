@@ -5,6 +5,7 @@ import {
   formatRefreshedAgo,
   formatRemaining,
   formatResetLabel,
+  formatResetShort,
   quotaLevel,
   REMAINING_UNAVAILABLE,
   RESET_UNAVAILABLE,
@@ -118,11 +119,20 @@ describe("formatRefreshedAgo", () => {
 describe("formatCompact", () => {
   it("shortens large numbers", () => {
     expect(formatCompact(999)).toBe("999");
-    expect(formatCompact(1500)).toBe("1.5k");
-    expect(formatCompact(2_000_000)).toBe("2.0M");
+    expect(formatCompact(1500)).toBe("1.5K");
+    expect(formatCompact(2_000_000)).toBe("2M");
   });
 
   it("reports a non-finite value as unavailable", () => {
     expect(formatCompact(Number.NaN)).toBe(REMAINING_UNAVAILABLE);
+  });
+});
+
+describe("formatResetShort", () => {
+  it("uses the selected app locale for absolute reset dates", () => {
+    const reset = new Date(NOW + 2 * 86_400_000 + 2 * 3_600_000).getTime();
+    const date = new Date(reset);
+    const expected = `${date.toLocaleDateString("th", { weekday: "short" })} ${date.toLocaleTimeString("th", { hour: "2-digit", minute: "2-digit" })}`;
+    expect(formatResetShort(new Date(reset).toISOString(), NOW, undefined, "th")).toBe(expected);
   });
 });

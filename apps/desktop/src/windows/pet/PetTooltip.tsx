@@ -11,13 +11,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { fetchQuotaDashboard, type QuotaDashboardData } from "../../lib/native";
 import { useI18n } from "../../lib/i18n";
-
-function formatCompact(n: number): string {
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
-}
+import { TokenValue } from "../../components/TokenValue";
+import { formatCompactTokenCount, formatFullTokenCount } from "../../lib/token-format";
 
 interface QuotaBar {
   provider: string;
@@ -112,7 +107,14 @@ export function PetTooltip({ visible }: { visible: boolean }) {
         {totalTokens > 0 && (
           <div className="pet-tooltip-tokens">
             <span className="pet-tooltip-token-count">
-              {t("petTooltip.tokens", { count: formatCompact(totalTokens) })}
+              <TokenValue
+                value={totalTokens}
+                label={t("petTooltip.tokenUnit")}
+                exactLabel={t("petTooltip.tokens", {
+                  count: formatFullTokenCount(totalTokens),
+                })}
+                suffix={` ${t("petTooltip.tokenUnit")}`}
+              />
             </span>
           </div>
         )}
@@ -144,14 +146,14 @@ export function PetTooltip({ visible }: { visible: boolean }) {
                 </span>
                 <span className="pet-tooltip-bar-track pet-tooltip-bar-track-unknown" />
                 <span className="pet-tooltip-bar-pct">
-                  {t("petTooltip.used", { used: formatCompact(row.used), kind: row.kind })}
+                  {t("petTooltip.used", { used: formatCompactTokenCount(row.used), kind: row.kind })}
                 </span>
               </div>
             ))}
           </div>
         )}
         {!hasRows && (
-          <span className="pet-tooltip-empty">No usage yet</span>
+          <span className="pet-tooltip-empty">{t("petTooltip.noUsage")}</span>
         )}
       </div>
       <span className="pet-tooltip-arrow" />

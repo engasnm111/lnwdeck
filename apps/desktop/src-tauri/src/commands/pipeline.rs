@@ -43,6 +43,24 @@ pub struct PipelineDiagnostics {
 
 const MANUAL_REFRESH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
 
+/// Progress emitted by the shared background refresh job. The payload is
+/// deliberately metadata-only: it contains provider ids and outcome codes,
+/// never prompts, responses, paths or credentials.
+#[derive(Debug, Clone, Serialize)]
+pub struct RefreshProgressEvent {
+    pub phase: String,
+    pub completed: usize,
+    pub total: usize,
+    pub provider_id: Option<String>,
+    pub error_code: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RefreshStartResult {
+    pub started: bool,
+    pub already_running: bool,
+}
+
 struct RefreshRunningGuard<'a>(&'a std::sync::atomic::AtomicBool);
 
 impl Drop for RefreshRunningGuard<'_> {
@@ -127,6 +145,19 @@ pub fn ensure_registry<'a>(
 /// on its own SQLite connection from a worker thread, so the shared storage
 /// mutex — which every UI command locks — is never held during a cycle.
 pub fn refresh_now(state: &AppState) -> Result<RefreshCycleOutcome, String> {
+    refresh_now_with_progress(state, |_, _, _| true)
+}
+
+/// Runs a refresh and reports provider completion to the caller. The callback
+/// is invoked from the worker thread and may stop the cycle before the next
+/// provider by returning `false`.
+pub fn refresh_now_with_progress<F>(
+    state: &AppState,
+    mut on_progress: F,
+) -> Result<RefreshCycleOutcome, String>
+where
+    F: FnMut(&str, usize, usize) -> bool,
+{
     let hash_key = {
         let guard = state.ensure_storage()?;
         let storage = guard.as_ref().ok_or("storage not initialized")?;
@@ -135,10 +166,19 @@ pub fn refresh_now(state: &AppState) -> Result<RefreshCycleOutcome, String> {
     let storage =
         lnwdeck_storage::Storage::open(&state.db_path).map_err(|e| format!("storage open: {e}"))?;
     let registry = ensure_registry(state, &hash_key)?;
-    Ok(lnwdeck_application::refresh::RefreshAll::execute(
-        &storage.conn,
-        &registry.refs(),
-    ))
+    Ok(
+        lnwdeck_application::refresh::RefreshAll::execute_with_progress(
+            &storage.conn,
+            &registry.refs(),
+            |provider_id, completed, total| {
+                let keep_running = on_progress(provider_id, completed, total);
+                keep_running
+                    && !state
+                        .refresh_cancel_requested
+                        .load(std::sync::atomic::Ordering::SeqCst)
+            },
+        ),
+    )
 }
 
 /// Re-evaluates alerts from current state. Used by the background loop after a
@@ -181,6 +221,9 @@ pub async fn refresh_all(app: tauri::AppHandle) -> Result<RefreshCycleOutcome, S
             return Err("refresh already in progress".to_string());
         }
     }
+    app.state::<AppState>()
+        .refresh_cancel_requested
+        .store(false, std::sync::atomic::Ordering::SeqCst);
     // Collection touches the network and reads tool transcripts: it must never
     // run on the UI thread or the window freezes and Windows reports it as
     // unresponsive. The blocking work runs on the async runtime's pool, and a
@@ -209,6 +252,150 @@ pub async fn refresh_all(app: tauri::AppHandle) -> Result<RefreshCycleOutcome, S
     crate::tray::update_sync_label(&app);
     let _ = app.emit("quota-updated", ());
     Ok(cycle)
+}
+
+fn emit_refresh_event(
+    app: &tauri::AppHandle,
+    phase: &str,
+    completed: usize,
+    total: usize,
+    provider_id: Option<String>,
+    error_code: Option<String>,
+) {
+    let _ = app.emit(
+        "refresh-progress",
+        RefreshProgressEvent {
+            phase: phase.to_string(),
+            completed,
+            total,
+            provider_id,
+            error_code,
+        },
+    );
+}
+
+fn cycle_has_provider_failure(cycle: &RefreshCycleOutcome) -> bool {
+    cycle
+        .usage
+        .iter()
+        .any(|outcome| !outcome.error_code.is_empty() && !outcome.is_not_supported())
+        || cycle
+            .quota
+            .iter()
+            .any(|outcome| !outcome.error_code.is_empty() && outcome.error_code != "NOT_SUPPORTED")
+}
+
+/// Starts the same refresh job used by the tray and every UI surface. It
+/// returns immediately; progress and completion arrive through
+/// `refresh-progress`, so WebView2 never waits on provider I/O.
+#[tauri::command]
+pub fn start_refresh(app: tauri::AppHandle) -> Result<RefreshStartResult, String> {
+    let state = app.state::<AppState>();
+    if state
+        .refresh_running
+        .compare_exchange(
+            false,
+            true,
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+        )
+        .is_err()
+    {
+        return Ok(RefreshStartResult {
+            started: false,
+            already_running: true,
+        });
+    }
+    state
+        .refresh_cancel_requested
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+    emit_refresh_event(&app, "started", 0, 0, None, None);
+
+    let worker_app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let timeout_result = tokio::time::timeout(
+            MANUAL_REFRESH_TIMEOUT,
+            tauri::async_runtime::spawn_blocking({
+                let app = worker_app.clone();
+                move || -> Result<RefreshCycleOutcome, String> {
+                    let state = app.state::<AppState>();
+                    let _running_guard = RefreshRunningGuard(&state.refresh_running);
+                    refresh_now_with_progress(&state, |provider_id, completed, total| {
+                        emit_refresh_event(
+                            &app,
+                            "progress",
+                            completed,
+                            total,
+                            Some(provider_id.to_string()),
+                            None,
+                        );
+                        !state
+                            .refresh_cancel_requested
+                            .load(std::sync::atomic::Ordering::SeqCst)
+                    })
+                }
+            }),
+        )
+        .await;
+
+        let result = match timeout_result {
+            Ok(Ok(inner)) => inner,
+            Ok(Err(error)) => Err(format!("refresh task failed: {error}")),
+            Err(_) => Err(format!(
+                "refresh timed out after {} seconds",
+                MANUAL_REFRESH_TIMEOUT.as_secs()
+            )),
+        };
+
+        match result {
+            Ok(cycle) => {
+                let state = worker_app.state::<AppState>();
+                let cancelled = state
+                    .refresh_cancel_requested
+                    .load(std::sync::atomic::Ordering::SeqCst);
+                crate::record_sync_time(&worker_app);
+                crate::tray::update_sync_label(&worker_app);
+                let _ = worker_app.emit("quota-updated", ());
+                let _ = worker_app.emit("usage-updated", ());
+                let _ = evaluate_alerts_now(&state);
+                let phase = if cancelled || cycle_has_provider_failure(&cycle) {
+                    "partial"
+                } else {
+                    "completed"
+                };
+                emit_refresh_event(
+                    &worker_app,
+                    phase,
+                    cycle.usage.len(),
+                    cycle.usage.len().max(cycle.quota.len()),
+                    None,
+                    None,
+                );
+            }
+            Err(error) => {
+                emit_refresh_event(&worker_app, "failed", 0, 0, None, Some(error));
+            }
+        }
+        worker_app
+            .state::<AppState>()
+            .refresh_cancel_requested
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+    });
+
+    Ok(RefreshStartResult {
+        started: true,
+        already_running: false,
+    })
+}
+
+/// Requests a cooperative stop between provider jobs. A provider already in
+/// progress is allowed to finish so its data remains consistent.
+#[tauri::command]
+pub fn cancel_refresh(app: tauri::AppHandle) -> Result<(), String> {
+    app.state::<AppState>()
+        .refresh_cancel_requested
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    Ok(())
 }
 
 /// Refreshes a single provider by id (detection + usage + quota channels).

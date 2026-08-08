@@ -3,6 +3,7 @@ export type { BadgeTone } from "./Badge";
 export { Button } from "./Button";
 export { Card } from "./Card";
 export { DataState } from "./DataState";
+export type { DataStateLabels } from "./DataState";
 export { EmptyState } from "./EmptyState";
 export { ErrorState } from "./ErrorState";
 export { Field } from "./Field";

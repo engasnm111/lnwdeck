@@ -17,7 +17,7 @@ import {
   type SessionUsageRow,
 } from "../../lib/native";
 import { formatCompact, formatNumber, formatTimestamp } from "../../lib/freshness";
-import { useI18n } from "../../lib/i18n";
+import { dataStateLabels, useI18n } from "../../lib/i18n";
 
 const WINDOWS: Array<{ value: HistoryWindow; labelKey: string }> = [
   { value: "last_24h", labelKey: "costs.window24h" },
@@ -133,6 +133,7 @@ export function SessionsPage() {
       </Toolbar>
 
       <DataState
+        labels={dataStateLabels(t)}
         loading={loading}
         error={error}
         isEmpty={data !== null && data.projects.length === 0}

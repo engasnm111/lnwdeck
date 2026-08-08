@@ -5,7 +5,7 @@ import {
   fetchWidgetSettings,
   getWidgetPet,
   hideWidgetWindow,
-  refreshAll,
+  startRefresh,
   setWidgetLocked,
   setWidgetProviders,
   setWidgetView,
@@ -14,6 +14,7 @@ import {
   type QuotaDashboardData,
   type QuotaStatus,
   type QuotaWindowData,
+  type RefreshProgressEvent,
   type WidgetSettingsData,
   type WidgetView,
 } from "../../lib/native";
@@ -26,6 +27,7 @@ import {
   quotaLevel,
   windowSubtitle,
   type QuotaLevel,
+  type WidgetTranslator,
 } from "./widgetTime";
 import { PetMascot, type ImportedPet } from "./PetMascot";
 import { derivePetMood, type PetReaction } from "./petState";
@@ -136,15 +138,35 @@ function WindowIcon({ window }: { window: QuotaWindowData }) {
 }
 
 /** Amount formatting that keeps credits readable. */
-function formatUsed(window: QuotaWindowData): string {
+function formatUsed(
+  window: QuotaWindowData,
+  t: WidgetTranslator,
+): string {
   if (window.kind === "credits") {
-    return `${(window.used / MICRO_CREDITS).toFixed(2)} credits`;
+    return t("widget.used", {
+      value: (window.used / MICRO_CREDITS).toFixed(2),
+      unit: t("widget.time.unitCredits"),
+    });
   }
-  return `${formatCompact(window.used)} ${window.kind}`;
+  const unitKey =
+    window.kind === "tokens"
+      ? "widget.time.unitTokens"
+      : window.kind === "parallel"
+        ? "widget.time.unitParallel"
+        : "widget.time.unitRequests";
+  return t("widget.used", {
+    value: formatCompact(window.used),
+    unit: t(unitKey),
+  });
 }
 
 /** A window with its derived presentation values. */
-function windowView(window: QuotaWindowData, now: number) {
+function windowView(
+  window: QuotaWindowData,
+  now: number,
+  t: WidgetTranslator,
+  locale: string,
+) {
   const percent =
     window.remaining_percent === null
       ? null
@@ -153,11 +175,11 @@ function windowView(window: QuotaWindowData, now: number) {
   return {
     percent,
     level,
-    resetShort: formatResetShort(window.reset_at, now),
-    resetLong: formatResetLabel(window.reset_at, now),
+    resetShort: formatResetShort(window.reset_at, now, t, locale),
+    resetLong: formatResetLabel(window.reset_at, now, t),
     subtitle: window.is_unlimited
-      ? "Local runtime, no quota"
-      : windowSubtitle(window.scope, window.kind, window.label),
+      ? t("widget.localRuntime")
+      : windowSubtitle(window.scope, window.kind, window.label, t),
   };
 }
 
@@ -166,13 +188,20 @@ function BarRow({
   window,
   providerName,
   now,
+  t,
+  locale,
 }: {
   window: QuotaWindowData;
   providerName: string;
   now: number;
+  t: WidgetTranslator;
+  locale: string;
 }) {
-  const view = windowView(window, now);
-  const barLabel = `${providerName} ${window.label} remaining`;
+  const view = windowView(window, now, t, locale);
+  const barLabel = t("widget.remainingAria", {
+    provider: providerName,
+    label: window.label,
+  });
 
   return (
     <div className="w-row">
@@ -187,7 +216,7 @@ function BarRow({
         <span className="w-row-value">
           {view.percent === null ? (
             <span className="w-percent w-percent-unknown">
-              {formatRemaining(null)}
+              {formatRemaining(null, t)}
             </span>
           ) : (
             <span className={`w-percent w-percent-${view.level}`}>
@@ -202,7 +231,12 @@ function BarRow({
         <div
           className="w-bar w-bar-unknown"
           role="img"
-          aria-label={`${barLabel}: no limit reported, ${formatUsed(window)} used, ${view.resetLong.toLowerCase()}`}
+          aria-label={t("widget.noLimitAria", {
+            provider: providerName,
+            label: window.label,
+            used: formatUsed(window, t),
+            reset: view.resetLong,
+          })}
         />
       ) : (
         <div
@@ -212,7 +246,7 @@ function BarRow({
           aria-valuenow={Math.round(view.percent)}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuetext={`${formatRemaining(view.percent)}, ${view.resetLong.toLowerCase()}`}
+          aria-valuetext={`${formatRemaining(view.percent, t)}, ${view.resetLong}`}
         >
           <div
             className={`w-bar-fill w-bar-fill-${view.level}`}
@@ -222,7 +256,9 @@ function BarRow({
       )}
 
       {view.percent === null && !window.is_unlimited && (
-        <span className="w-row-note">{formatUsed(window)} used, no limit reported</span>
+        <span className="w-row-note">
+          {t("widget.noLimitReported", { used: formatUsed(window, t) })}
+        </span>
       )}
     </div>
   );
@@ -233,17 +269,24 @@ function RingGauge({
   window,
   providerName,
   now,
+  t,
+  locale,
 }: {
   window: QuotaWindowData;
   providerName: string;
   now: number;
+  t: WidgetTranslator;
+  locale: string;
 }) {
-  const view = windowView(window, now);
+  const view = windowView(window, now, t, locale);
   const radius = 26;
   const circumference = 2 * Math.PI * radius;
   const filled =
     view.percent === null ? 0 : (view.percent / 100) * circumference;
-  const barLabel = `${providerName} ${window.label} remaining`;
+  const barLabel = t("widget.remainingAria", {
+    provider: providerName,
+    label: window.label,
+  });
 
   return (
     <div className="w-ring">
@@ -253,7 +296,12 @@ function RingGauge({
         role={view.percent === null ? "img" : "progressbar"}
         aria-label={
           view.percent === null
-            ? `${barLabel}: no limit reported`
+            ? t("widget.noLimitAria", {
+                provider: providerName,
+                label: window.label,
+                used: formatUsed(window, t),
+                reset: view.resetLong,
+              })
             : barLabel
         }
         aria-valuenow={view.percent === null ? undefined : Math.round(view.percent)}
@@ -262,7 +310,7 @@ function RingGauge({
         aria-valuetext={
           view.percent === null
             ? undefined
-            : `${formatRemaining(view.percent)}, ${view.resetLong.toLowerCase()}`
+            : `${formatRemaining(view.percent, t)}, ${view.resetLong}`
         }
       >
         <circle className="w-ring-track" cx="32" cy="32" r={radius} />
@@ -295,7 +343,7 @@ function ProviderCard({
   view: WidgetView;
   now: number;
 }) {
-  const { t } = useI18n();
+  const { language, t } = useI18n();
   const chip = statusChip(provider.status, provider.error_code, t);
   return (
     <li className="w-card">
@@ -305,7 +353,7 @@ function ProviderCard({
       </div>
 
       {provider.windows.length === 0 ? (
-        <p className="w-card-note">{chip.detail ?? t("widget.noQuota")}</p>
+        <p className="w-card-note">{chip.detail ?? t("widget.noQuotaAvailable")}</p>
       ) : view === "rings" ? (
         <div className="w-rings">
           {provider.windows.map((window) => (
@@ -314,6 +362,8 @@ function ProviderCard({
               window={window}
               providerName={provider.display_name}
               now={now}
+              t={t}
+              locale={language}
             />
           ))}
         </div>
@@ -324,6 +374,8 @@ function ProviderCard({
             window={window}
             providerName={provider.display_name}
             now={now}
+            t={t}
+            locale={language}
           />
         ))
       )}
@@ -332,6 +384,126 @@ function ProviderCard({
         <p className="w-card-code">{provider.error_code}</p>
       )}
     </li>
+  );
+}
+
+function WidgetViewMenu({
+  value,
+  onChange,
+  t,
+}: {
+  value: WidgetView;
+  onChange: (view: WidgetView) => void;
+  t: (key: string, vars?: Record<string, string>) => string;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const options: Array<{ value: WidgetView; label: string }> = [
+    { value: "bars", label: t("widget.viewBars") },
+    { value: "rings", label: t("widget.viewRings") },
+    { value: "pet", label: t("widget.viewPet") },
+  ];
+  const currentIndex = Math.max(
+    0,
+    options.findIndex((option) => option.value === value),
+  );
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (open) optionRefs.current[currentIndex]?.focus();
+  }, [currentIndex, open]);
+
+  const move = (offset: number) => {
+    const next = (currentIndex + offset + options.length) % options.length;
+    onChange(options[next].value);
+    optionRefs.current[next]?.focus();
+  };
+
+  return (
+    <div className="w-view-menu" ref={rootRef}>
+      <button
+        type="button"
+        ref={triggerRef}
+        className="w-btn w-view-trigger"
+        aria-label={t("widget.action.layout")}
+        title={t("widget.action.layoutTitle")}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setOpen(true);
+          } else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            setOpen(true);
+          }
+        }}
+      >
+        {options[currentIndex].label}
+      </button>
+      {open && (
+        <div className="w-view-options" role="listbox" aria-label={t("widget.action.layout")}>
+          {options.map((option, index) => (
+            <button
+              type="button"
+              key={option.value}
+              ref={(node) => {
+                optionRefs.current[index] = node;
+              }}
+              className="w-view-option"
+              role="option"
+              aria-selected={value === option.value}
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+                triggerRef.current?.focus();
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowDown") {
+                  event.preventDefault();
+                  move(1);
+                } else if (event.key === "ArrowUp") {
+                  event.preventDefault();
+                  move(-1);
+                } else if (event.key === "Escape") {
+                  event.preventDefault();
+                  setOpen(false);
+                  triggerRef.current?.focus();
+                } else if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onChange(option.value);
+                  setOpen(false);
+                  triggerRef.current?.focus();
+                }
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -373,12 +545,12 @@ export function FloatingWidget() {
       setError(null);
     } catch (loadError) {
       setError(
-        loadError instanceof Error ? loadError.message : "quota unavailable",
+        loadError instanceof Error ? loadError.message : t("widget.error.quota"),
       );
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const applySettings = useCallback((payload: WidgetSettingsData) => {
     setSettings({
@@ -469,6 +641,41 @@ export function FloatingWidget() {
     };
   }, []);
 
+  // The widget observes the same background job as the dashboard and tray.
+  // It never waits on provider I/O; only the small event payload crosses IPC.
+  useEffect(() => {
+    let unlisten: UnlistenFn | null = null;
+    let cancelled = false;
+    void listen<RefreshProgressEvent>("refresh-progress", (event) => {
+      const progress = event.payload;
+      if (progress.phase === "started" || progress.phase === "progress") {
+        setRefreshing(true);
+        return;
+      }
+      setRefreshing(false);
+      if (progress.phase === "failed" || progress.phase === "partial") {
+        setError(t("widget.error.refresh"));
+        void load();
+        return;
+      }
+      void load();
+      setNow(Date.now());
+      celebrate();
+    }).then((cleanup) => {
+      if (cancelled) {
+        cleanup();
+      } else {
+        unlisten = cleanup;
+      }
+    }).catch(() => {
+      // Outside Tauri, the polling fallback remains active.
+    });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [celebrate, load, t]);
+
   // Loads the selected community pet's manifest. A missing or invalid pet
   // silently falls back to the built-in robot.
   useEffect(() => {
@@ -506,18 +713,20 @@ export function FloatingWidget() {
     setRefreshing(true);
     setError(null);
     try {
-      await refreshAll();
-      await load();
-      setNow(Date.now());
-      celebrate();
+      const result = await startRefresh();
+      if (!result.started) {
+        setRefreshing(false);
+      }
     } catch (refreshError) {
       setError(
-        refreshError instanceof Error ? refreshError.message : "refresh failed",
+        refreshError instanceof Error
+          ? refreshError.message
+          : t("widget.error.refresh"),
       );
     } finally {
       setRefreshing(false);
     }
-  }, [load, celebrate]);
+  }, [t]);
 
   const toggleLock = useCallback(async () => {
     try {
@@ -608,65 +817,53 @@ export function FloatingWidget() {
             className="w-btn"
             onClick={() => void handleRefresh()}
             disabled={refreshing}
-            aria-label="Refresh quota"
-            title="Refresh quota"
+            aria-label={t("widget.action.refreshQuota")}
+            title={t("widget.action.refreshQuota")}
           >
-            {refreshing ? "..." : "Sync"}
+            {refreshing ? t("widget.action.syncing") : t("widget.action.sync")}
           </button>
           <button
             type="button"
             className="w-btn"
             onClick={() => void showMainWindow()}
-            aria-label="Open dashboard"
-            title="Open the dashboard window"
+            aria-label={t("widget.action.open")}
+            title={t("widget.action.openTitle")}
           >
-            Open
+            {t("widget.action.open")}
           </button>
-          <select
-            className="w-btn w-view-select"
-            value={settings.view}
-            onChange={(event) =>
-              void selectView(event.target.value as WidgetView)
-            }
-            aria-label="Widget layout"
-            title="Choose the widget layout"
-          >
-            <option value="bars">{t("widget.viewBars")}</option>
-            <option value="rings">{t("widget.viewRings")}</option>
-            <option value="pet">{t("widget.viewPet")}</option>
-          </select>
+          <WidgetViewMenu value={settings.view} onChange={(view) => void selectView(view)} t={t} />
           <button
             type="button"
             className={`w-btn ${settings.locked ? "w-btn-active" : ""}`.trim()}
             onClick={() => void toggleLock()}
-            aria-label={settings.locked ? "Unlock widget" : "Lock widget"}
+            aria-label={settings.locked ? t("widget.action.unlock") : t("widget.action.lock")}
             aria-pressed={settings.locked}
             title={
               settings.locked
-                ? "Unlock so the widget can be dragged"
-                : "Lock the widget in place"
+                ? t("widget.action.unlockTitle")
+                : t("widget.action.lockTitle")
             }
           >
-            {settings.locked ? "Lock on" : "Lock off"}
+            {settings.locked ? t("widget.action.lock") : t("widget.action.unlock")}
           </button>
           <button
             type="button"
             className={`w-btn ${pickerOpen ? "w-btn-active" : ""}`.trim()}
             onClick={() => setPickerOpen((open) => !open)}
-            aria-label="Choose providers"
+            aria-label={t("widget.action.providers")}
             aria-expanded={pickerOpen}
-            title="Choose which providers the widget shows"
+            title={t("widget.action.providersTitle")}
           >
-            Filter
+            {t("widget.action.filter")}
           </button>
           <button
             type="button"
             className="w-btn w-btn-danger"
             onClick={() => void hideWidgetWindow()}
-            aria-label="Close widget"
-            title="Close the widget"
+            aria-label={t("widget.action.close")}
+            title={t("widget.action.closeTitle")}
           >
-            Close
+            {t("widget.action.close")}
           </button>
         </div>
       </header>
@@ -674,11 +871,11 @@ export function FloatingWidget() {
       {pickerOpen && (
         <div className="w-picker">
           <span className="w-picker-title" id="w-picker-title">
-            Providers shown
+            {t("widget.providersShown")}
           </span>
           {allProviders.length === 0 ? (
             <p className="w-message-detail">
-              No provider has reported data yet.
+              {t("widget.noProviderReported")}
             </p>
           ) : (
             <div
@@ -749,7 +946,7 @@ export function FloatingWidget() {
             </span>
           </div>
         ) : (
-          <ul className="w-cards" aria-label="Provider quota">
+          <ul className="w-cards" aria-label={t("widget.providerQuota")}>
             {visibleProviders.map((provider) => (
               <ProviderCard
                 key={provider.provider_id}
@@ -764,17 +961,22 @@ export function FloatingWidget() {
 
       <footer className="w-footer">
         <span className="w-footer-updated">
-          Updated {dashboard ? formatRefreshedAgo(dashboard.generated_at, now) : "never"}
+          {t("widget.updated", {
+            time: dashboard ? formatRefreshedAgo(dashboard.generated_at, now, t) : t("widget.time.never"),
+          })}
         </span>
         <span className="w-footer-spacer" />
         {fetchedProviders.length > 0 && (
           <span className="w-footer-count">
-            {visibleProviders.length} of {fetchedProviders.length} providers
+            {t("widget.providerCount", {
+              visible: String(visibleProviders.length),
+              total: String(fetchedProviders.length),
+            })}
           </span>
         )}
         <span className="w-footer-interval">
           <span className="w-dot" aria-hidden="true" />
-          {POLL_INTERVAL_MS / 1000}s
+          {t("widget.pollInterval", { seconds: String(POLL_INTERVAL_MS / 1000) })}
         </span>
       </footer>
     </div>

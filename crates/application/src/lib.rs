@@ -2,6 +2,7 @@ pub mod alerts;
 pub mod analytics;
 pub mod budgets;
 pub mod costs;
+pub mod dashboard;
 pub mod ingest;
 pub mod overview;
 pub mod providers;

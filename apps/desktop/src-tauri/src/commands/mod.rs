@@ -1,4 +1,5 @@
 pub mod analytics;
+pub mod dashboard;
 pub mod overview;
 pub mod pages;
 pub mod pets;

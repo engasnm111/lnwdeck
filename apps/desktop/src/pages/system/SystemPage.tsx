@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { DataState, Card, Badge, Button } from "@lnwdeck/ui";
 import {
   fetchPipelineDiagnostics,
-  refreshAll,
+  startRefresh,
+  type RefreshProgressEvent,
   type CollectorRunRow,
   type PipelineDiagnostics,
   type ProviderStateRow,
 } from "../../lib/native";
-import { useI18n } from "../../lib/i18n";
+import { dataStateLabels, useI18n } from "../../lib/i18n";
 
 interface ProviderRow {
   provider: ProviderStateRow;
@@ -77,6 +79,21 @@ export function SystemPage() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    const unlisten = listen<RefreshProgressEvent>("refresh-progress", (event) => {
+      const progress = event.payload;
+      if (progress.phase === "started" || progress.phase === "progress") {
+        setRefreshing(true);
+        return;
+      }
+      setRefreshing(false);
+      void load();
+    });
+    return () => {
+      void unlisten.then((cleanup) => cleanup());
+    };
+  }, [load]);
+
   const handleExport = useCallback(async () => {
     setExporting(true);
     setExportError(null);
@@ -105,14 +122,15 @@ export function SystemPage() {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await refreshAll();
+      const result = await startRefresh();
+      if (!result.started && !result.already_running) {
+        setRefreshing(false);
+      }
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)));
-    } finally {
       setRefreshing(false);
-      await load();
     }
-  }, [load]);
+  }, []);
 
   const rows = diagnostics ? joinRows(diagnostics) : [];
   const noProviders = diagnostics !== null && diagnostics.providers.length === 0;
@@ -178,6 +196,7 @@ export function SystemPage() {
       )}
 
       <DataState
+        labels={dataStateLabels(t)}
         loading={loading}
         error={error}
         isEmpty={false}

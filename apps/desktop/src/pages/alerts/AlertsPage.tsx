@@ -3,11 +3,12 @@ import { Badge, Button, Card, DataState, MetricCard } from "@lnwdeck/ui";
 import {
   acknowledgeAlert,
   fetchAlerts,
+  markAllAlertsRead,
   type AlertRowData,
   type AlertsViewData,
 } from "../../lib/native";
 import { formatTimestamp } from "../../lib/freshness";
-import { useI18n } from "../../lib/i18n";
+import { dataStateLabels, useI18n } from "../../lib/i18n";
 import { emitAlertsUpdated } from "../../lib/ui-events";
 
 function severityTone(severity: AlertRowData["severity"]) {
@@ -34,6 +35,7 @@ export function AlertsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [markingAll, setMarkingAll] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -69,6 +71,39 @@ export function AlertsPage() {
     [load],
   );
 
+  const handleMarkAll = useCallback(async () => {
+    if (!data || data.unacknowledged_count === 0 || markingAll) return;
+    const previous = data;
+    const acknowledgedAt = new Date().toISOString();
+    setActionError(null);
+    setMarkingAll(true);
+    setData({
+      ...data,
+      unacknowledged_count: 0,
+      open: data.open.map((alert) =>
+        alert.acknowledged_at
+          ? alert
+          : { ...alert, acknowledged_at: acknowledgedAt },
+      ),
+      history: data.history.map((alert) =>
+        alert.acknowledged_at
+          ? alert
+          : { ...alert, acknowledged_at: acknowledgedAt },
+      ),
+    });
+    try {
+      await markAllAlertsRead();
+      emitAlertsUpdated();
+    } catch (markError) {
+      setData(previous);
+      setActionError(
+        markError instanceof Error ? markError.message : String(markError),
+      );
+    } finally {
+      setMarkingAll(false);
+    }
+  }, [data, markingAll]);
+
   const resolved = (data?.history ?? []).filter(
     (alert) => alert.resolved_at !== null,
   );
@@ -80,7 +115,16 @@ export function AlertsPage() {
           <h2 className="page-title">{t("nav.alerts")}</h2>
           <p className="page-subtitle">{t("alerts.subtitle")}</p>
         </div>
-        <Button onClick={() => void load()}>{t("alerts.reevaluate")}</Button>
+        <div className="row">
+          <Button
+            size="small"
+            onClick={() => void handleMarkAll()}
+            disabled={!data || data.unacknowledged_count === 0 || markingAll}
+          >
+            {markingAll ? t("alerts.markAllBusy") : t("alerts.markAll")}
+          </Button>
+          <Button onClick={() => void load()}>{t("alerts.reevaluate")}</Button>
+        </div>
       </div>
 
       {actionError && (
@@ -90,6 +134,7 @@ export function AlertsPage() {
       )}
 
       <DataState
+        labels={dataStateLabels(t)}
         loading={loading}
         error={error}
         isEmpty={false}

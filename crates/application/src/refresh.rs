@@ -26,14 +26,33 @@ impl RefreshAll {
     /// outcome and one quota outcome; failures are isolated and recorded,
     /// never fatal.
     pub fn execute(conn: &Connection, adapters: &[&dyn ProviderAdapter]) -> RefreshCycleOutcome {
+        Self::execute_with_progress(conn, adapters, |_, _, _| true)
+    }
+
+    /// Runs a full refresh and calls `on_provider` after each adapter finishes.
+    /// Returning `false` stops before the next adapter, which lets the desktop
+    /// cancel a background refresh between provider jobs without discarding
+    /// data already persisted by completed providers.
+    pub fn execute_with_progress<F>(
+        conn: &Connection,
+        adapters: &[&dyn ProviderAdapter],
+        mut on_provider: F,
+    ) -> RefreshCycleOutcome
+    where
+        F: FnMut(&str, usize, usize) -> bool,
+    {
         let mut cycle = RefreshCycleOutcome {
             usage: Vec::new(),
             quota: Vec::new(),
         };
-        for adapter in adapters {
+        let total = adapters.len();
+        for (index, adapter) in adapters.iter().enumerate() {
             let single = Self::refresh_provider(conn, *adapter);
             cycle.usage.extend(single.usage);
             cycle.quota.extend(single.quota);
+            if !on_provider(adapter.id(), index + 1, total) {
+                break;
+            }
         }
         cycle
     }

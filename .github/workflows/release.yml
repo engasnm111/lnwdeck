@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   validate:
@@ -118,6 +120,23 @@ jobs:
             -BuildDir "target/${{ matrix.target }}/release" `
             -Arch "${{ matrix.target == 'x86_64-pc-windows-msvc' && 'x64' || (matrix.target == 'aarch64-pc-windows-msvc' && 'arm64' || 'x86') }}"
 
+      - name: Sign portable ZIP
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        run: |
+          $portable = @(Get-ChildItem -LiteralPath . -Filter "lnwdeck_*_portable.zip" -File)
+          if ($portable.Count -ne 1) {
+            Write-Output "::error::expected exactly one portable ZIP, found $($portable.Count)"
+            exit 1
+          }
+          & node apps/desktop/node_modules/@tauri-apps/cli/tauri.js signer sign --private-key $env:TAURI_SIGNING_PRIVATE_KEY $portable.FullName
+          if (-not (Test-Path "$($portable.FullName).sig")) {
+            Write-Output "::error::portable signature was not created"
+            exit 1
+          }
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -127,6 +146,7 @@ jobs:
             target/${{ matrix.target }}/release/bundle/**/*.msi
             target/${{ matrix.target }}/release/bundle/**/*.sig
             lnwdeck_*_portable.zip
+            lnwdeck_*_portable.zip.sig
           if-no-files-found: error
 
   publish:
@@ -173,6 +193,28 @@ jobs:
         run: |
           node scripts/generate-updater-json.mjs "${{ github.ref_name }}" release-assets release-assets/latest.json
           cat release-assets/latest.json
+
+      - name: Generate release SBOM
+        uses: anchore/sbom-action@v0.17.0
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: release-assets/lnwdeck-sbom.cdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Verify every architecture, signature and manifest entry
+        run: node scripts/verify-release-assets.mjs release-assets "${{ github.ref_name }}"
+
+      - name: Generate SHA256SUMS and verify it immediately
+        run: |
+          node scripts/generate-release-metadata.mjs release-assets
+          (cd release-assets && sha256sum -c SHA256SUMS)
+
+      - name: Attest release provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: release-assets/*
 
       - name: Resolve release notes file
         id: notes

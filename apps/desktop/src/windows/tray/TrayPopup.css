@@ -1,8 +1,15 @@
 /*
- * Tray popup — glass card, matching styles/tokens.css values.
- * The tray window is a separate webview that does not load the shared
- * token stylesheet, so the palette is repeated here deliberately.
+ * Tray popup — glass card using the same shared design tokens as Main.
  */
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent !important;
+}
 
 .tray-window {
   font-family: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui,
@@ -13,16 +20,21 @@
   box-sizing: border-box;
   -webkit-user-select: none;
   user-select: none;
+  color: var(--text-primary, #e8edf7);
 }
 
 .tray-card {
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03));
+  background: linear-gradient(
+    160deg,
+    var(--glass-fill-elevated, rgba(255, 255, 255, 0.07)),
+    var(--glass-fill, rgba(255, 255, 255, 0.03))
+  );
   backdrop-filter: blur(24px) saturate(1.4);
   -webkit-backdrop-filter: blur(24px) saturate(1.4);
   border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-top-color: rgba(255, 255, 255, 0.18);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), 0 0 24px rgba(34, 211, 238, 0.1);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
+  border-top-color: var(--glass-edge, rgba(255, 255, 255, 0.18));
+  box-shadow: var(--shadow-popup, 0 12px 40px rgba(0, 0, 0, 0.55));
   padding: 22px 24px;
   display: flex;
   flex-direction: column;
@@ -49,7 +61,7 @@
 .tray-brand-title {
   font-size: 19px;
   font-weight: 500;
-  color: #e8edf7;
+  color: var(--text-primary, #e8edf7);
   letter-spacing: -0.2px;
 }
 
@@ -107,13 +119,13 @@
 }
 
 .tray-icon-chart {
-  color: #8d9bb5;
+  color: var(--text-secondary, #8d9bb5);
 }
 
 .tray-metric-label {
   font-size: 15px;
   font-weight: 500;
-  color: #8d9bb5;
+  color: var(--text-secondary, #8d9bb5);
 }
 
 .tray-metric-value {
@@ -183,6 +195,6 @@
 .tray-loading {
   padding: 30px;
   text-align: center;
-  color: #64708c;
+  color: var(--text-muted, #64708c);
   font-size: 14px;
 }

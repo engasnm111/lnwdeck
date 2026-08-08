@@ -14,6 +14,8 @@ use tauri::{Emitter, LogicalSize, Manager, PhysicalPosition, WebviewWindowBuilde
 
 const WIDGET_LABEL: &str = "widget";
 const MAIN_LABEL: &str = "main";
+pub const TRAY_LABEL: &str = "tray";
+const MAIN_WINDOW_VISIBLE_KEY: &str = "main_window_visible";
 pub const PET_LABEL: &str = "pet";
 /// Fixed widget sizes per preset. The widget is never user-resized; the
 /// preset is chosen in Settings and applied by the backend.
@@ -39,6 +41,8 @@ const PET_WINDOW_WIDTH: f64 = 280.0;
 const PET_WINDOW_HEIGHT: f64 = 400.0;
 /// Gap between the screen bottom and the pet window when it is shown.
 const PET_BOTTOM_MARGIN: i32 = 48;
+const TRAY_POPUP_WIDTH: f64 = 392.0;
+const TRAY_POPUP_HEIGHT: f64 = 390.0;
 
 /// Widget appearance settings handed to the webview.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -149,6 +153,30 @@ fn write_setting(app: &tauri::AppHandle, key: &str, value: &str) {
         return;
     };
     let _ = AppSettingsRepository::new(&storage.conn).set(key, value);
+}
+
+fn main_window_visible(app: &tauri::AppHandle) -> bool {
+    let state = app.state::<AppState>();
+    let Ok(guard) = state.ensure_storage() else {
+        return true;
+    };
+    let Some(storage) = guard.as_ref() else {
+        return true;
+    };
+    AppSettingsRepository::new(&storage.conn)
+        .get(MAIN_WINDOW_VISIBLE_KEY)
+        .ok()
+        .flatten()
+        .and_then(|value| value.parse::<bool>().ok())
+        .unwrap_or(true)
+}
+
+fn persist_main_window_visible(app: &tauri::AppHandle, visible: bool) {
+    write_setting(
+        app,
+        MAIN_WINDOW_VISIBLE_KEY,
+        if visible { "true" } else { "false" },
+    );
 }
 
 /// Current pet window settings, or the documented defaults.
@@ -400,12 +428,17 @@ pub fn setup_windows(app: &tauri::App) {
     if let Some(args) = browser_args.as_deref() {
         main_builder = main_builder.additional_browser_args(args);
     }
-    let _main = main_builder
+    let main = main_builder
         .title("lnwdeck")
         .inner_size(1280.0, 840.0)
         .min_inner_size(960.0, 640.0)
+        // The dashboard is the only window allowed to appear on the taskbar.
+        .skip_taskbar(false)
         .build()
         .expect("failed to build main window");
+    if !main_window_visible(app.handle()) {
+        let _ = main.hide();
+    }
 
     let (width, height) = widget_size_dimensions(DEFAULT_WIDGET_SIZE);
     let mut widget_builder = WebviewWindowBuilder::new(
@@ -459,6 +492,27 @@ pub fn setup_windows(app: &tauri::App) {
     // the UI thread via a command (window APIs are not thread-safe here).
     let _ = pet.set_ignore_cursor_events(true);
     run_pet_click_through_loop(app.handle().clone(), pet.as_ref().window());
+
+    // The tray popup is a separate frameless webview. It is created hidden so
+    // starting with only a pet/widget never creates another taskbar button.
+    let mut tray_builder =
+        WebviewWindowBuilder::new(app, TRAY_LABEL, tauri::WebviewUrl::App("tray.html".into()));
+    if let Some(args) = browser_args.as_deref() {
+        tray_builder = tray_builder.additional_browser_args(args);
+    }
+    tray_builder
+        .title("lnwdeck tray")
+        .inner_size(TRAY_POPUP_WIDTH, TRAY_POPUP_HEIGHT)
+        .always_on_top(true)
+        .decorations(false)
+        .resizable(false)
+        .skip_taskbar(true)
+        .visible(false)
+        .transparent(true)
+        .shadow(false)
+        .background_color(tauri::window::Color(0, 0, 0, 0))
+        .build()
+        .expect("failed to build tray popup window");
 }
 
 pub fn handle_close_request(window: &tauri::Window, api: &tauri::CloseRequestApi) {
@@ -466,6 +520,7 @@ pub fn handle_close_request(window: &tauri::Window, api: &tauri::CloseRequestApi
         // Closing the dashboard hides it to the tray; the app keeps collecting.
         MAIN_LABEL => {
             api.prevent_close();
+            persist_main_window_visible(window.app_handle(), false);
             window.hide().ok();
         }
         // Closing the widget is the same as hiding it, and is remembered.
@@ -494,6 +549,12 @@ pub fn handle_close_request(window: &tauri::Window, api: &tauri::CloseRequestApi
             }
             emit_pet_window_settings(app);
             crate::tray::update_pet_toggle_label(app);
+        }
+        // The tray popup behaves like a native context popup: closing or
+        // clicking away hides it and leaves the process/tray icon alive.
+        TRAY_LABEL => {
+            api.prevent_close();
+            window.hide().ok();
         }
         _ => {}
     }
@@ -677,7 +738,51 @@ pub fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
         .ok_or("main window not found")?;
     window.show().map_err(|e| e.to_string())?;
     window.set_focus().map_err(|e| e.to_string())?;
+    persist_main_window_visible(&app, true);
     Ok(())
+}
+
+/// Hides the transient tray popup after an action has been selected.
+#[tauri::command]
+pub fn hide_tray_popup(app: tauri::AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window(TRAY_LABEL)
+        .ok_or("tray popup window not found")?;
+    window.hide().map_err(|e| e.to_string())
+}
+
+/// Shows the tray popup beside the native tray icon and keeps it off the taskbar.
+pub fn show_tray_popup(
+    app: tauri::AppHandle,
+    tray_position: PhysicalPosition<f64>,
+) -> Result<(), String> {
+    let window = app
+        .get_webview_window(TRAY_LABEL)
+        .ok_or("tray popup window not found")?;
+    let (width, height) = window
+        .outer_size()
+        .map(|size| (size.width as i32, size.height as i32))
+        .unwrap_or((TRAY_POPUP_WIDTH as i32, TRAY_POPUP_HEIGHT as i32));
+    let monitor = window.current_monitor().ok().flatten();
+    let (min_x, min_y, max_x, max_y) = monitor
+        .map(|monitor| {
+            let position = monitor.position();
+            let size = monitor.size();
+            (
+                position.x,
+                position.y,
+                position.x + size.width as i32 - width,
+                position.y + size.height as i32 - height,
+            )
+        })
+        .unwrap_or((0, 0, i32::MAX - width, i32::MAX - height));
+    let x = (tray_position.x as i32 - width - 8).clamp(min_x, max_x.max(min_x));
+    let y = (tray_position.y as i32 - height - 8).clamp(min_y, max_y.max(min_y));
+    window
+        .set_position(PhysicalPosition::new(x, y))
+        .map_err(|e| e.to_string())?;
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())
 }
 
 /// Current pet window settings, for the pet webview to render.
@@ -860,6 +965,7 @@ pub fn set_language(app: tauri::AppHandle, language: String) -> Result<String, S
         SettingsService::set_language(&storage.conn, &language).map_err(|e| e.to_string())?
     };
     let _ = app.emit("language-changed", stored.clone());
+    crate::tray::update_language_labels(&app);
     Ok(stored)
 }
 

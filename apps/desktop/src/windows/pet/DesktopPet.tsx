@@ -587,7 +587,7 @@ export function DesktopPet() {
           className="pet-menu"
           style={{ left: menu.x, top: menu.y }}
           role="menu"
-          aria-label="Pet options"
+          aria-label={t("pet.menu.options")}
           onClick={(e) => e.stopPropagation()}
         >
           <button

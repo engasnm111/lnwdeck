@@ -7,6 +7,8 @@
  * and duplicates nothing sensitive. Unknown languages fall back to English.
  */
 
+import { formatCompactTokenCount } from "../../lib/token-format";
+
 export interface QuipData {
   todayTokens: number;
   costUsd: number;
@@ -14,13 +16,6 @@ export interface QuipData {
   /** Lowest remaining percentage across published windows, if any. */
   lowestRemainingPercent: number | null;
   plan: string | null;
-}
-
-function formatCompact(n: number): string {
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(Math.round(n));
 }
 
 function pick<T>(items: readonly T[]): T {
@@ -64,11 +59,11 @@ export function pickPetQuip(data: QuipData, language = "en"): string {
   const quips = QUIPS[language] ?? QUIPS.en;
   const lines: string[] = [];
   if (data.todayTokens > 0) {
-    lines.push(fill(quips.usedToday, { tokens: formatCompact(data.todayTokens) }));
+    lines.push(fill(quips.usedToday, { tokens: formatCompactTokenCount(data.todayTokens) }));
     if (data.costUsd > 0) {
       lines.push(
         fill(quips.costToday, {
-          tokens: formatCompact(data.todayTokens),
+          tokens: formatCompactTokenCount(data.todayTokens),
           symbol: data.currencySymbol,
           cost: data.costUsd.toFixed(2),
         }),

@@ -1,63 +1,70 @@
-/**
- * Time and number formatting for the floating widget.
- *
- * Every function returns an explicit "unavailable" string rather than a guess:
- * a missing reset timestamp is stated as unknown, never rendered as zero or as
- * an invented countdown.
- */
+import { translate } from "../../lib/i18n";
+import { formatCompactTokenCount } from "../../lib/token-format";
 
-/** Shown when a provider reports no reset timestamp. */
+/** Time and presentation helpers shared by every widget layout. */
+export type WidgetTranslator = (
+  key: string,
+  vars?: Record<string, string>,
+) => string;
+
+const defaultTranslator: WidgetTranslator = (key, vars) =>
+  translate("en", key, vars);
+
+/** English fallback values retained for callers and regression tests. */
 export const RESET_UNAVAILABLE = "Reset time unavailable";
-/** Shown when a provider reports no remaining value. */
 export const REMAINING_UNAVAILABLE = "Unavailable";
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
 
-/**
- * Formats a reset timestamp as a label.
- *
- * - no or unparsable timestamp: `Reset time unavailable`
- * - already elapsed: `Resets now`
- * - under an hour: `Resets in 14m`
- * - under a day: `Resets in 2h 14m`
- * - the next calendar day: `Resets tomorrow`
- * - further out: `Resets in 4d 8h`
- */
+function localize(
+  t: WidgetTranslator,
+  key: string,
+  vars?: Record<string, string>,
+): string {
+  return t(key, vars);
+}
+
 export function formatResetLabel(
   resetAt: string | null | undefined,
   now: number = Date.now(),
+  t: WidgetTranslator = defaultTranslator,
 ): string {
   if (!resetAt) {
-    return RESET_UNAVAILABLE;
+    return localize(t, "widget.time.resetUnavailable");
   }
   const target = new Date(resetAt).getTime();
   if (Number.isNaN(target)) {
-    return RESET_UNAVAILABLE;
+    return localize(t, "widget.time.resetUnavailable");
   }
   const remaining = target - now;
   if (remaining <= 0) {
-    return "Resets now";
+    return localize(t, "widget.time.resetNow");
   }
   if (remaining < HOUR_MS) {
     const minutes = Math.max(1, Math.round(remaining / MINUTE_MS));
-    return `Resets in ${minutes}m`;
+    return localize(t, "widget.time.resetInMinutes", { minutes: String(minutes) });
   }
   if (remaining < DAY_MS) {
     const hours = Math.floor(remaining / HOUR_MS);
     const minutes = Math.floor((remaining % HOUR_MS) / MINUTE_MS);
-    return `Resets in ${hours}h ${minutes}m`;
+    return localize(t, "widget.time.resetInHoursMinutes", {
+      hours: String(hours),
+      minutes: String(minutes),
+    });
   }
   if (calendarDaysBetween(now, target) === 1) {
-    return "Resets tomorrow";
+    return localize(t, "widget.time.resetTomorrow");
   }
   const days = Math.floor(remaining / DAY_MS);
   const hours = Math.floor((remaining % DAY_MS) / HOUR_MS);
-  return `Resets in ${days}d ${hours}h`;
+  return localize(t, "widget.time.resetInDaysHours", {
+    days: String(days),
+    hours: String(hours),
+  });
 }
 
-/** Whole calendar days between two instants in the local time zone. */
 function calendarDaysBetween(from: number, to: number): number {
   const start = new Date(from);
   const end = new Date(to);
@@ -74,148 +81,153 @@ function calendarDaysBetween(from: number, to: number): number {
   return Math.round((endDay - startDay) / DAY_MS);
 }
 
-/**
- * Short reset label for a dense row: `3h 01m`, `Wed 11:00`, or a dash when the
- * provider published no reset time.
- */
 export function formatResetShort(
   resetAt: string | null | undefined,
   now: number = Date.now(),
+  t: WidgetTranslator = defaultTranslator,
+  locale = "en",
 ): string {
   if (!resetAt) {
-    return "--";
+    return localize(t, "widget.time.shortUnavailable");
   }
   const target = new Date(resetAt).getTime();
   if (Number.isNaN(target)) {
-    return "--";
+    return localize(t, "widget.time.shortUnavailable");
   }
   const remaining = target - now;
   if (remaining <= 0) {
-    return "now";
+    return localize(t, "widget.time.now");
   }
   if (remaining < HOUR_MS) {
-    return `${Math.max(1, Math.round(remaining / MINUTE_MS))}m`;
+    return localize(t, "widget.time.minutes", {
+      minutes: String(Math.max(1, Math.round(remaining / MINUTE_MS))),
+    });
   }
   if (remaining < DAY_MS) {
     const hours = Math.floor(remaining / HOUR_MS);
     const minutes = Math.floor((remaining % HOUR_MS) / MINUTE_MS);
-    return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+    return localize(t, "widget.time.hoursMinutes", {
+      hours: String(hours),
+      minutes: String(minutes).padStart(2, "0"),
+    });
   }
-  // Beyond a day a wall-clock time is easier to act on than a countdown.
   const date = new Date(target);
-  const weekday = date.toLocaleDateString(undefined, { weekday: "short" });
-  const time = date.toLocaleTimeString(undefined, {
+  const weekday = date.toLocaleDateString(locale, { weekday: "short" });
+  const time = date.toLocaleTimeString(locale, {
     hour: "2-digit",
     minute: "2-digit",
   });
   return `${weekday} ${time}`;
 }
 
-/** Human description of what a window measures, shown under its name. */
 export function windowSubtitle(
   scope: string,
   kind: string,
   label: string,
+  t: WidgetTranslator = defaultTranslator,
 ): string {
-  const unit =
+  const unitKey =
     kind === "credits"
-      ? "credit"
+      ? "widget.time.unitCredits"
       : kind === "tokens"
-        ? "token"
+        ? "widget.time.unitTokens"
         : kind === "parallel"
-          ? "parallel request"
-          : "request";
+          ? "widget.time.unitParallel"
+          : "widget.time.unitRequests";
+  const unit = localize(t, unitKey);
   switch (scope) {
     case "rolling":
-      return `Sliding ${label.toLowerCase()} ${unit} window`;
+      return localize(t, "widget.time.windowSliding", { label: label.toLowerCase(), unit });
     case "session":
-      return `Session ${unit} window`;
+      return localize(t, "widget.time.windowSession", { unit });
     case "daily":
-      return `Daily ${unit} limit`;
+      return localize(t, "widget.time.windowDaily", { unit });
     case "weekly":
-      return `Weekly ${unit} limit`;
+      return localize(t, "widget.time.windowWeekly", { unit });
     case "monthly":
-      return `Monthly ${unit} limit`;
+      return localize(t, "widget.time.windowMonthly", { unit });
     default:
-      return `${unit.charAt(0).toUpperCase()}${unit.slice(1)} limit`;
+      return localize(t, "widget.time.windowLimit", { unit });
   }
 }
 
-/** Compact countdown without the `Resets` prefix, for dense rows. */
 export function formatCountdown(
   resetAt: string | null,
   now: number = Date.now(),
+  t: WidgetTranslator = defaultTranslator,
 ): string | null {
-  const label = formatResetLabel(resetAt, now);
-  if (label === RESET_UNAVAILABLE) {
+  if (!resetAt || Number.isNaN(new Date(resetAt).getTime())) {
     return null;
   }
-  return label.replace(/^Resets (in )?/, "");
+  const target = new Date(resetAt).getTime();
+  const remaining = target - now;
+  if (remaining <= 0) return localize(t, "widget.time.now");
+  if (remaining < HOUR_MS) {
+    return localize(t, "widget.time.minutes", {
+      minutes: String(Math.max(1, Math.round(remaining / MINUTE_MS))),
+    });
+  }
+  if (remaining < DAY_MS) {
+    return localize(t, "widget.time.hoursMinutes", {
+      hours: String(Math.floor(remaining / HOUR_MS)),
+      minutes: String(Math.floor((remaining % HOUR_MS) / MINUTE_MS)),
+    });
+  }
+  if (calendarDaysBetween(now, target) === 1) {
+    return localize(t, "widget.time.tomorrow");
+  }
+  return localize(t, "widget.time.daysHours", {
+    days: String(Math.floor(remaining / DAY_MS)),
+    hours: String(Math.floor((remaining % DAY_MS) / HOUR_MS)),
+  });
 }
 
-/** How long ago a report was collected: `12s ago`, `3m ago`, `2h ago`. */
 export function formatRefreshedAgo(
   collectedAt: string | null | undefined,
   now: number = Date.now(),
+  t: WidgetTranslator = defaultTranslator,
 ): string {
-  if (!collectedAt) {
-    return "never";
-  }
+  if (!collectedAt) return localize(t, "widget.time.never");
   const collected = new Date(collectedAt).getTime();
-  if (Number.isNaN(collected)) {
-    return "unknown";
-  }
+  if (Number.isNaN(collected)) return localize(t, "widget.time.unknown");
   const seconds = Math.max(0, Math.floor((now - collected) / 1000));
   if (seconds < 60) {
-    return `${seconds}s ago`;
+    return localize(t, "widget.time.agoSeconds", { value: String(seconds) });
   }
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) {
-    return `${minutes}m ago`;
+    return localize(t, "widget.time.agoMinutes", { value: String(minutes) });
   }
   const hours = Math.floor(minutes / 60);
   if (hours < 24) {
-    return `${hours}h ago`;
+    return localize(t, "widget.time.agoHours", { value: String(hours) });
   }
-  return `${Math.floor(hours / 24)}d ago`;
+  return localize(t, "widget.time.agoDays", { value: String(Math.floor(hours / 24)) });
 }
 
-/** Compact quantities: 1500 -> `1.5k`, 2000000 -> `2.0M`. */
 export function formatCompact(value: number): string {
-  if (!Number.isFinite(value)) {
-    return REMAINING_UNAVAILABLE;
-  }
-  if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(1)}M`;
-  }
-  if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(1)}k`;
-  }
-  return `${value}`;
+  return Number.isFinite(value)
+    ? formatCompactTokenCount(value)
+    : REMAINING_UNAVAILABLE;
 }
 
-/** Severity of a remaining-quota percentage. */
 export type QuotaLevel = "normal" | "warning" | "critical";
 
-/**
- * Maps a remaining percentage to a level:
- * above 50 is normal, 20 to 50 inclusive is a warning, below 20 is critical.
- */
 export function quotaLevel(remainingPercent: number): QuotaLevel {
-  if (remainingPercent < 20) {
-    return "critical";
-  }
-  if (remainingPercent <= 50) {
-    return "warning";
-  }
+  if (remainingPercent < 20) return "critical";
+  if (remainingPercent <= 50) return "warning";
   return "normal";
 }
 
-/** Renders the percentage label, or `Unavailable` when there is no limit. */
-export function formatRemaining(remainingPercent: number | null): string {
+export function formatRemaining(
+  remainingPercent: number | null,
+  t: WidgetTranslator = defaultTranslator,
+): string {
   if (remainingPercent === null || !Number.isFinite(remainingPercent)) {
-    return REMAINING_UNAVAILABLE;
+    return localize(t, "widget.time.unavailable");
   }
   const clamped = Math.max(0, Math.min(100, remainingPercent));
-  return `${Math.round(clamped)}% remaining`;
+  return localize(t, "widget.time.remaining", {
+    value: String(Math.round(clamped)),
+  });
 }

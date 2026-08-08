@@ -5,6 +5,11 @@ import { FloatingWidget, hasFetchedQuota, statusChip } from "./FloatingWidget";
 import { translate } from "../../lib/i18n";
 import * as native from "../../lib/native";
 
+type RefreshHandler = (event: {
+  payload: native.RefreshProgressEvent;
+}) => void;
+let refreshEventHandler: RefreshHandler | null = null;
+
 vi.mock("../../lib/native", async (importOriginal) => {
   const actual = await importOriginal<typeof native>();
   return {
@@ -19,12 +24,22 @@ vi.mock("../../lib/native", async (importOriginal) => {
     fetchPetSpritesheetUrl: vi.fn(),
     hideWidgetWindow: vi.fn().mockResolvedValue(undefined),
     showMainWindow: vi.fn().mockResolvedValue(undefined),
-    refreshAll: vi.fn().mockResolvedValue({ usage: [], quota: [] }),
+    startRefresh: vi.fn().mockResolvedValue({
+      started: true,
+      already_running: false,
+    }),
   };
 });
 
 vi.mock("@tauri-apps/api/event", () => ({
-  listen: vi.fn().mockResolvedValue(() => {}),
+  listen: vi.fn().mockImplementation(
+    async (event: string, handler: RefreshHandler) => {
+      if (event === "refresh-progress") {
+        refreshEventHandler = handler;
+      }
+      return () => {};
+    },
+  ),
 }));
 
 /** A fixed reference point so reset countdowns are deterministic. */
@@ -109,7 +124,8 @@ describe("FloatingWidget", () => {
     vi.mocked(native.fetchPetSpritesheetUrl).mockResolvedValue(
       "blob:mock-sprout",
     );
-    vi.mocked(native.refreshAll).mockClear();
+    vi.mocked(native.startRefresh).mockClear();
+    refreshEventHandler = null;
     vi.mocked(native.hideWidgetWindow).mockClear();
     vi.mocked(native.showMainWindow).mockClear();
   });
@@ -137,7 +153,7 @@ describe("FloatingWidget", () => {
     expect(screen.getByText("72%")).toBeInTheDocument();
     expect(screen.getByText("Resets in 2h 15m")).toBeInTheDocument();
     expect(
-      screen.getByText("Sliding 5-hour token window"),
+      screen.getByText("Sliding 5-hour tokens window"),
     ).toBeInTheDocument();
 
     const bar = screen.getByRole("progressbar", {
@@ -148,7 +164,7 @@ describe("FloatingWidget", () => {
     expect(bar).toHaveAttribute("aria-valuemax", "100");
     expect(bar).toHaveAttribute(
       "aria-valuetext",
-      "72% remaining, resets in 2h 15m",
+      "72% remaining, Resets in 2h 15m",
     );
     expect(bar.firstElementChild).toHaveStyle({ width: "72%" });
   });
@@ -439,10 +455,10 @@ describe("FloatingWidget", () => {
     await waitFor(() => expect(screen.getByText("Claude")).toBeInTheDocument());
 
     await userEvent.click(screen.getByRole("button", { name: "Refresh quota" }));
-    expect(native.refreshAll).toHaveBeenCalledTimes(1);
+    expect(native.startRefresh).toHaveBeenCalledTimes(1);
 
     await userEvent.click(
-      screen.getByRole("button", { name: "Open dashboard" }),
+      screen.getByRole("button", { name: "Open" }),
     );
     expect(native.showMainWindow).toHaveBeenCalledTimes(1);
 
@@ -509,12 +525,12 @@ describe("FloatingWidget", () => {
 
     await userEvent.tab();
     expect(
-      screen.getByRole("button", { name: "Open dashboard" }),
+      screen.getByRole("button", { name: "Open" }),
     ).toHaveFocus();
 
     await userEvent.tab();
     expect(
-      screen.getByRole("combobox", { name: "Widget layout" }),
+      screen.getByRole("button", { name: "Widget layout" }),
     ).toHaveFocus();
 
     await userEvent.tab();
@@ -549,6 +565,17 @@ describe("FloatingWidget", () => {
     expect(vi.getTimerCount()).toBeGreaterThan(0);
 
     await userEvent.click(screen.getByRole("button", { name: "Refresh quota" }));
+    await act(async () => {
+      refreshEventHandler?.({
+        payload: {
+          phase: "completed",
+          completed: 1,
+          total: 1,
+          provider_id: null,
+          error_code: null,
+        },
+      });
+    });
     await waitFor(() =>
       expect(
         container.querySelector(".pet-react-celebrate"),
@@ -714,7 +741,7 @@ describe("FloatingWidget pet view", () => {
       expect(screen.getByText("Quota mood: Happy")).toBeInTheDocument(),
     );
     await waitFor(() =>
-      expect(container.querySelector(".pet-atlas")).not.toBeNull(),
+      expect(container.querySelector(".pet-atlas[data-sprite-version]")).not.toBeNull(),
     );
     const atlas = container.querySelector(".pet-atlas");
     expect(atlas).toHaveAttribute("data-sprite-version", "2");
@@ -767,10 +794,8 @@ describe("FloatingWidget pet view", () => {
     render(<FloatingWidget />);
     await waitFor(() => expect(screen.getByText("Claude")).toBeInTheDocument());
 
-    await userEvent.selectOptions(
-      screen.getByRole("combobox", { name: "Widget layout" }),
-      "pet",
-    );
+    await userEvent.click(screen.getByRole("button", { name: "Widget layout" }));
+    await userEvent.click(screen.getByRole("option", { name: "Pet" }));
     expect(native.setWidgetView).toHaveBeenCalledWith("pet");
     await waitFor(() =>
       expect(screen.getByText("Quota mood: Happy")).toBeInTheDocument(),
@@ -785,18 +810,14 @@ describe("FloatingWidget pet view", () => {
     const { container } = render(<FloatingWidget />);
     await waitFor(() => expect(screen.getByText("Claude")).toBeInTheDocument());
 
-    await userEvent.selectOptions(
-      screen.getByRole("combobox", { name: "Widget layout" }),
-      "rings",
-    );
+    await userEvent.click(screen.getByRole("button", { name: "Widget layout" }));
+    await userEvent.click(screen.getByRole("option", { name: "Rings" }));
     await waitFor(() =>
       expect(container.querySelectorAll(".w-ring")).toHaveLength(1),
     );
 
-    await userEvent.selectOptions(
-      screen.getByRole("combobox", { name: "Widget layout" }),
-      "bars",
-    );
+    await userEvent.click(screen.getByRole("button", { name: "Widget layout" }));
+    await userEvent.click(screen.getByRole("option", { name: "Bars" }));
     await waitFor(() =>
       expect(container.querySelectorAll(".w-bar")).toHaveLength(1),
     );
@@ -838,6 +859,17 @@ describe("FloatingWidget pet view", () => {
     );
 
     await userEvent.click(screen.getByRole("button", { name: "Refresh quota" }));
+    await act(async () => {
+      refreshEventHandler?.({
+        payload: {
+          phase: "completed",
+          completed: 1,
+          total: 1,
+          provider_id: null,
+          error_code: null,
+        },
+      });
+    });
     await waitFor(() =>
       expect(container.querySelector(".pet-react-celebrate")).not.toBeNull(),
     );
@@ -854,7 +886,7 @@ describe("FloatingWidget pet view", () => {
     vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
       dashboard([provider()]),
     );
-    vi.mocked(native.refreshAll).mockRejectedValue(
+    vi.mocked(native.startRefresh).mockRejectedValue(
       new Error("storage locked"),
     );
     const { container } = render(<FloatingWidget />);

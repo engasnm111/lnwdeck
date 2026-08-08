@@ -30,6 +30,90 @@ export async function fetchOverview(): Promise<OverviewData> {
   return invoke<OverviewData>("get_overview");
 }
 
+export type DashboardRange =
+  | "day"
+  | "week"
+  | "month"
+  | "year"
+  | "total"
+  | "custom";
+
+export interface DashboardQuery {
+  range: DashboardRange;
+  /** Inclusive local calendar start, formatted as YYYY-MM-DD. */
+  start?: string;
+  /** Inclusive local calendar end, formatted as YYYY-MM-DD. */
+  end?: string;
+  /** Empty/undefined means all providers. */
+  provider_id?: string;
+}
+
+export interface DashboardProviderUsage {
+  provider_id: string;
+  request_count: number;
+  tokens_input: number;
+  tokens_output: number;
+  total_tokens: number;
+}
+
+export interface DashboardTrendPoint {
+  bucket: string;
+  request_count: number;
+  tokens_input: number;
+  tokens_output: number;
+  total_tokens: number;
+}
+
+export interface DashboardHeatmapCell {
+  day: string;
+  request_count: number;
+  total_tokens: number;
+}
+
+export interface DashboardSessionProvider {
+  provider_id: string;
+  request_count: number;
+  tokens_input: number;
+  tokens_output: number;
+  total_tokens: number;
+}
+
+export interface DashboardSession {
+  session_hash: string;
+  display_name: string;
+  request_count: number;
+  tokens_input: number;
+  tokens_output: number;
+  total_tokens: number;
+  first_seen_at: string | null;
+  last_seen_at: string | null;
+  providers: DashboardSessionProvider[];
+}
+
+export interface UsageDashboardData {
+  range: DashboardRange;
+  generated_at: string;
+  start: string | null;
+  end: string | null;
+  duration_days: number;
+  request_count: number;
+  tokens_input: number;
+  tokens_output: number;
+  total_tokens: number;
+  provider_count: number;
+  session_count: number;
+  providers: DashboardProviderUsage[];
+  trend: DashboardTrendPoint[];
+  heatmap: DashboardHeatmapCell[];
+  sessions: DashboardSession[];
+}
+
+export async function fetchUsageDashboard(
+  query: DashboardQuery,
+): Promise<UsageDashboardData> {
+  return invoke<UsageDashboardData>("get_usage_dashboard", { query });
+}
+
 export interface AnalyticsRow {
   id: string;
   timestamp: string;
@@ -247,8 +331,38 @@ export interface RefreshCycle {
   quota: QuotaCollectionOutcome[];
 }
 
+export interface RefreshStartResult {
+  started: boolean;
+  already_running: boolean;
+}
+
+export type RefreshProgressPhase =
+  | "started"
+  | "progress"
+  | "completed"
+  | "partial"
+  | "failed";
+
+export interface RefreshProgressEvent {
+  phase: RefreshProgressPhase;
+  completed: number;
+  total: number;
+  provider_id: string | null;
+  error_code: string | null;
+}
+
 export async function refreshAll(): Promise<RefreshCycle> {
   return invoke<RefreshCycle>("refresh_all");
+}
+
+/** Starts the shared non-blocking refresh job used by the app, widget and tray. */
+export async function startRefresh(): Promise<RefreshStartResult> {
+  return invoke<RefreshStartResult>("start_refresh");
+}
+
+/** Requests a cooperative stop between provider refreshes. */
+export async function cancelRefresh(): Promise<void> {
+  return invoke<void>("cancel_refresh");
 }
 
 export async function refreshProvider(
@@ -495,6 +609,10 @@ export async function acknowledgeAlert(id: number): Promise<void> {
   return invoke<void>("acknowledge_alert", { id });
 }
 
+export async function markAllAlertsRead(): Promise<number> {
+  return invoke<number>("acknowledge_all_alerts");
+}
+
 export interface AppSettingsData {
   launch_at_startup: boolean;
   theme: "dark" | "light" | "system";
@@ -628,7 +746,7 @@ export async function setWidgetProviders(
   return invoke<string[]>("set_widget_providers", { providers });
 }
 
-/** Imports a community pet from a codex-pets.net URL or a bare pet id. */
+/** Imports a community pet from an official codex-pets.net URL. */
 export async function importWidgetPet(input: string): Promise<PetManifest> {
   return invoke<PetManifest>("import_widget_pet", { input });
 }

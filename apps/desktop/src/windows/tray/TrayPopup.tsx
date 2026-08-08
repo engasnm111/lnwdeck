@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { fetchOverview, OverviewData } from "../../lib/native";
+import { TokenValue } from "../../components/TokenValue";
+import { formatFullTokenCount } from "../../lib/token-format";
+import { useI18n } from "../../lib/i18n";
 import "./TrayPopup.css";
 
 export function TrayPopup() {
+  const { t } = useI18n();
   const [data, setData] = useState<OverviewData | null>(null);
 
   const load = useCallback(async () => {
@@ -22,6 +26,7 @@ export function TrayPopup() {
   const handleOpenDashboard = async () => {
     try {
       await invoke("show_main_window");
+      await invoke("hide_tray_popup");
     } catch {
       // Fallback
     }
@@ -67,25 +72,28 @@ export function TrayPopup() {
                 strokeLinecap="round"
               />
             </svg>
-            <span className="tray-brand-title">Inwdeck</span>
+            <span className="tray-brand-title">lnwdeck</span>
           </div>
-          <span className="tray-badge-ok">OK</span>
+          <span className="tray-badge-ok">{t("tray.ok")}</span>
         </div>
 
         {/* Metrics List */}
         {data ? (
           <div className="tray-metrics">
-            {/* Total Tokens */}
+            {/* Total token metric */}
             <div className="tray-metric-row">
               <div className="tray-metric-left">
                 <div className="tray-icon-container">
                   <span className="tray-icon-t">T</span>
                 </div>
-                <span className="tray-metric-label">Total Tokens</span>
+                <span className="tray-metric-label">{t("tray.totalTokens")}</span>
               </div>
-              <span className="tray-metric-value">
-                {totalTokens.toLocaleString()}
-              </span>
+              <TokenValue
+                value={totalTokens}
+                label={t("tray.totalTokens")}
+                exactLabel={t("tray.totalTokensExact")}
+                className="tray-metric-value"
+              />
             </div>
 
             {/* Total Cost (Estimated) */}
@@ -95,7 +103,7 @@ export function TrayPopup() {
                   <span className="tray-icon-dollar">$</span>
                 </div>
                 <span className="tray-metric-label">
-                  Total Cost (Estimated)
+                  {t("tray.costEstimated")}
                 </span>
               </div>
               <span className="tray-metric-value">$0.00</span>
@@ -121,10 +129,10 @@ export function TrayPopup() {
                     <path d="M12 12v9" />
                   </svg>
                 </div>
-                <span className="tray-metric-label">Requests</span>
+                <span className="tray-metric-label">{t("tray.requests")}</span>
               </div>
               <span className="tray-metric-value">
-                {data.total_events.toLocaleString()}
+                {formatFullTokenCount(data.total_events)}
               </span>
             </div>
 
@@ -148,13 +156,15 @@ export function TrayPopup() {
                     <line x1="6" y1="20" x2="6" y2="14" />
                   </svg>
                 </div>
-                <span className="tray-metric-label">Providers</span>
+                <span className="tray-metric-label">{t("tray.providers")}</span>
               </div>
-              <span className="tray-metric-value">{data.provider_count}</span>
+              <span className="tray-metric-value">
+                {formatFullTokenCount(data.provider_count)}
+              </span>
             </div>
           </div>
         ) : (
-          <div className="tray-loading">Loading...</div>
+          <div className="tray-loading">{t("tray.loading")}</div>
         )}
 
         {/* Action Button */}
@@ -163,13 +173,13 @@ export function TrayPopup() {
           className="tray-action-btn"
           onClick={handleOpenDashboard}
         >
-          Open Dashboard
+          {t("tray.openDashboard")}
         </button>
       </div>
 
       {/* Footer Status Bar */}
       <div className="tray-footer-bar">
-        <span className="tray-footer-status">running</span>
+        <span className="tray-footer-status">{t("tray.running")}</span>
         <span className="tray-badge-lnwdev">LNWDEV</span>
       </div>
     </div>

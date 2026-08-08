@@ -221,6 +221,20 @@ impl<'a> AlertRepository<'a> {
         Ok(updated > 0)
     }
 
+    /// Acknowledges every currently open, unread alert atomically.
+    pub fn acknowledge_all_open(&self) -> Result<usize, rusqlite::Error> {
+        let now = chrono::Utc::now().to_rfc3339();
+        let transaction = self.conn.unchecked_transaction()?;
+        let updated = transaction.execute(
+            "UPDATE alerts
+             SET acknowledged_at = ?1
+             WHERE resolved_at IS NULL AND acknowledged_at IS NULL",
+            [&now],
+        )?;
+        transaction.commit()?;
+        Ok(updated)
+    }
+
     /// Deletes resolved alerts older than `before`. Returns rows removed.
     pub fn prune_resolved(&self, before: &str) -> Result<usize, rusqlite::Error> {
         self.conn.execute(
@@ -387,6 +401,28 @@ mod tests {
         let storage = open_db();
         let repo = AlertRepository::new(&storage.conn);
         assert!(!repo.acknowledge(999).expect("acknowledge"));
+    }
+
+    #[test]
+    fn acknowledge_all_marks_only_open_unacknowledged_alerts_in_one_transaction() {
+        let storage = open_db();
+        let repo = AlertRepository::new(&storage.conn);
+        let acknowledged = repo.observe(&observation("already-seen")).expect("observe");
+        repo.acknowledge(acknowledged).expect("acknowledge");
+        repo.observe(&observation("needs-reading"))
+            .expect("observe");
+        repo.observe(&observation("will-resolve")).expect("observe");
+        repo.resolve_missing(&["already-seen".to_string(), "needs-reading".to_string()])
+            .expect("resolve");
+
+        assert_eq!(repo.acknowledge_all_open().expect("mark all"), 1);
+        let open = repo.open_alerts().expect("open");
+        assert!(open.iter().all(|alert| alert.acknowledged_at.is_some()));
+        assert!(open
+            .iter()
+            .find(|alert| alert.alert_key == "already-seen")
+            .and_then(|alert| alert.acknowledged_at.as_ref())
+            .is_some());
     }
 
     #[test]

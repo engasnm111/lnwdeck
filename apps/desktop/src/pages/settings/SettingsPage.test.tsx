@@ -12,21 +12,10 @@ vi.mock("../../lib/native", async (importOriginal) => {
     saveSettings: vi.fn(),
     setProviderKey: vi.fn(),
     deleteProviderKey: vi.fn(),
-    listWidgetPets: vi.fn(),
-    getWidgetPet: vi.fn(),
-    importWidgetPet: vi.fn(),
-    setWidgetPet: vi.fn(),
-    removeWidgetPet: vi.fn(),
     fetchWidgetSettings: vi.fn(),
     setWidgetView: vi.fn(),
     setWidgetSizePreset: vi.fn(),
     setLanguage: vi.fn(),
-    setPetStayInPlace: vi.fn(),
-    setPetPose: vi.fn(),
-    setPetSpeed: vi.fn(),
-    setPetSizePreset: vi.fn(),
-    setPetOpacity: vi.fn(),
-    setPetAutoSleep: vi.fn(),
   };
 });
 
@@ -80,25 +69,12 @@ describe("SettingsPage", () => {
     vi.mocked(native.saveSettings).mockReset();
     vi.mocked(native.setProviderKey).mockReset();
     vi.mocked(native.deleteProviderKey).mockReset();
-    vi.mocked(native.listWidgetPets).mockReset();
-    vi.mocked(native.getWidgetPet).mockReset();
-    vi.mocked(native.importWidgetPet).mockReset();
-    vi.mocked(native.setWidgetPet).mockReset();
-    vi.mocked(native.removeWidgetPet).mockReset();
     vi.mocked(native.fetchWidgetSettings).mockReset();
     vi.mocked(native.setWidgetView).mockReset();
     vi.mocked(native.setWidgetSizePreset).mockReset();
     vi.mocked(native.setWidgetSizePreset).mockResolvedValue("medium");
     vi.mocked(native.setLanguage).mockReset();
     vi.mocked(native.setLanguage).mockResolvedValue("en");
-    vi.mocked(native.setPetStayInPlace).mockReset();
-    vi.mocked(native.setPetPose).mockReset();
-    vi.mocked(native.setPetSpeed).mockReset();
-    vi.mocked(native.setPetSizePreset).mockReset();
-    vi.mocked(native.setPetOpacity).mockReset();
-    vi.mocked(native.setPetAutoSleep).mockReset();
-    vi.mocked(native.listWidgetPets).mockResolvedValue([]);
-    vi.mocked(native.getWidgetPet).mockResolvedValue(null);
     vi.mocked(native.fetchWidgetSettings).mockResolvedValue({
       opacity: 1,
       locked: false,
@@ -215,118 +191,6 @@ describe("SettingsPage", () => {
       ).toBeDisabled(),
     );
     expect(screen.getByLabelText("OpenRouter API key")).toBeDisabled();
-  });
-
-  it("imports a community pet from a codex-pets.net input", async () => {
-    vi.mocked(native.fetchSettings).mockResolvedValue(view());
-    vi.mocked(native.importWidgetPet).mockResolvedValue({
-      id: "sprout",
-      displayName: "Sprout",
-      description: "Fixture",
-      spritesheetPath: "spritesheet.webp",
-      spriteVersionNumber: 1,
-    });
-    vi.mocked(native.listWidgetPets).mockResolvedValue([
-      {
-        id: "sprout",
-        displayName: "Sprout",
-        description: "Fixture",
-        spritesheetPath: "spritesheet.webp",
-        spriteVersionNumber: 1,
-      },
-    ]);
-    render(<SettingsPage />);
-
-    const input = await screen.findByLabelText("Codex Pets URL or pet id");
-    await userEvent.type(input, "sprout");
-    await userEvent.click(screen.getByRole("button", { name: "Import" }));
-
-    await waitFor(() =>
-      expect(native.importWidgetPet).toHaveBeenCalledWith("sprout"),
-    );
-    await waitFor(() =>
-      expect(screen.getByText("Sprout")).toBeInTheDocument(),
-    );
-    expect(screen.getByRole("button", { name: "Use" })).toBeInTheDocument();
-  });
-
-  it("selects and removes installed pets through the backend", async () => {
-    vi.mocked(native.fetchSettings).mockResolvedValue(view());
-    const installed = [
-      {
-        id: "sprout",
-        displayName: "Sprout",
-        description: "Fixture",
-        spritesheetPath: "spritesheet.webp",
-        spriteVersionNumber: 1,
-      },
-    ];
-    vi.mocked(native.listWidgetPets).mockResolvedValue(installed);
-    vi.mocked(native.getWidgetPet).mockResolvedValue(null);
-    vi.mocked(native.setWidgetPet).mockResolvedValue("sprout");
-    render(<SettingsPage />);
-
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Use" })).toBeInTheDocument(),
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Use" }));
-    await waitFor(() =>
-      expect(native.setWidgetPet).toHaveBeenCalledWith("sprout"),
-    );
-    await waitFor(() =>
-      expect(screen.getAllByText("Active").length).toBeGreaterThan(0),
-    );
-
-    vi.mocked(native.listWidgetPets).mockResolvedValue([]);
-    const removeButtons = screen
-      .getAllByRole("button", { name: "Remove" })
-      .filter((button) => !button.hasAttribute("disabled"));
-    await userEvent.click(removeButtons[0]);
-    await waitFor(() =>
-      expect(native.removeWidgetPet).toHaveBeenCalledWith("sprout"),
-    );
-    await waitFor(() =>
-      expect(screen.getByText(/No community pets installed/)).toBeInTheDocument(),
-    );
-  });
-
-  it("reports a refused pet import without hiding the failure", async () => {
-    vi.mocked(native.fetchSettings).mockResolvedValue(view());
-    vi.mocked(native.importWidgetPet).mockRejectedValue(
-      new Error("Only https://codex-pets.net pet URLs are supported"),
-    );
-    render(<SettingsPage />);
-
-    const input = await screen.findByLabelText("Codex Pets URL or pet id");
-    await userEvent.type(input, "https://evil.example/pets/x");
-    await userEvent.click(screen.getByRole("button", { name: "Import" }));
-
-    await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Only https://codex-pets.net pet URLs are supported",
-      ),
-    );
-  });
-
-  it("applies desktop pet stay-in-place and pose changes immediately", async () => {
-    vi.mocked(native.fetchSettings).mockResolvedValue(view());
-    vi.mocked(native.setPetStayInPlace).mockResolvedValue(true);
-    vi.mocked(native.setPetPose).mockResolvedValue(false);
-    render(<SettingsPage />);
-
-    const stay = await screen.findByRole("switch", {
-      name: /Stay in place/i,
-    });
-    await userEvent.click(stay);
-    await waitFor(() =>
-      expect(native.setPetStayInPlace).toHaveBeenCalledWith(true),
-    );
-
-    const jump = screen.getByRole("switch", { name: /^Jump$/ });
-    await userEvent.click(jump);
-    await waitFor(() =>
-      expect(native.setPetPose).toHaveBeenCalledWith("pet_pose_jump", false),
-    );
   });
 
   it("switches the UI language through the backend", async () => {

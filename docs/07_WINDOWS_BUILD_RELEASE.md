@@ -41,12 +41,12 @@ Requirements:
 Artifacts:
 
 ```text
-lnwdeck_<version>_windows_x64_setup.exe
-lnwdeck_<version>_windows_x64_portable.zip
-lnwdeck_<version>_windows_arm64_setup.exe
-lnwdeck_<version>_windows_arm64_portable.zip
-lnwdeck_<version>_windows_x86_setup.exe
-lnwdeck_<version>_windows_x86_portable.zip
+lnwdeck_<version>_x64-setup.exe
+lnwdeck_<version>_x64_portable.zip
+lnwdeck_<version>_arm64-setup.exe
+lnwdeck_<version>_arm64_portable.zip
+lnwdeck_<version>_x86-setup.exe
+lnwdeck_<version>_x86_portable.zip
 SHA256SUMS
 latest.json
 SBOM files

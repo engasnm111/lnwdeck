@@ -161,6 +161,16 @@ pub fn acknowledge_alert(id: i64, state: State<'_, AppState>) -> Result<(), Stri
     }
 }
 
+/// Marks all open alerts as read in one storage transaction.
+#[tauri::command]
+pub fn acknowledge_all_alerts(state: State<'_, AppState>) -> Result<usize, String> {
+    let guard = state.ensure_storage()?;
+    let storage = guard.as_ref().ok_or("storage not initialized")?;
+    AlertRepository::new(&storage.conn)
+        .acknowledge_all_open()
+        .map_err(|error| format!("mark all alerts read: {error}"))
+}
+
 /// Settings plus the platform facts the page needs to render honestly.
 #[derive(Debug, Clone, Serialize)]
 pub struct SettingsView {
