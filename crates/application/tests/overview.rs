@@ -15,6 +15,8 @@ fn sample_event(id: &str, provider: &str, model: &str, input: u64, output: u64) 
         confidence: Confidence::High,
         data_source: "web".to_string(),
         cost: "0.005".to_string(),
+        session_hash: None,
+        project_hash: None,
     }
 }
 

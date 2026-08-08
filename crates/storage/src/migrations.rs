@@ -23,6 +23,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "005_budgets_alerts_settings",
         include_str!("../migrations/005_budgets_alerts_settings.sql"),
     ),
+    (
+        "006_sessions",
+        include_str!("../migrations/006_sessions.sql"),
+    ),
 ];
 
 /// Names of every migration known to this build, oldest first.

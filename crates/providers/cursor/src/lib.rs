@@ -373,6 +373,8 @@ pub fn events_from_rows(rows: &[CursorUsage]) -> Vec<UsageEvent> {
                 confidence: Confidence::High,
                 data_source: DATA_SOURCE.to_string(),
                 cost: format!("{:.4}", row.cost),
+                session_hash: None,
+                project_hash: None,
             })
         })
         .collect()

@@ -233,7 +233,7 @@ impl OpenCodeAdapter {
             seen += 1;
             let (
                 session_id,
-                _project_id,
+                project_id,
                 model,
                 cost,
                 tokens_input,
@@ -266,6 +266,14 @@ impl OpenCodeAdapter {
                 confidence: Confidence::High,
                 data_source: "opencode_db".to_string(),
                 cost: format!("{cost:.6}"),
+                session_hash: Some(
+                    self.hasher
+                        .hash(format!("opencode:session:{session_id}").as_bytes()),
+                ),
+                project_hash: Some(
+                    self.hasher
+                        .hash(format!("opencode:project:{project_id}").as_bytes()),
+                ),
             });
             parsed += 1;
             next_cursor = Some(time_updated.to_string());

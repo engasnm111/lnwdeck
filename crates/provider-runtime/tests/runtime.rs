@@ -19,6 +19,8 @@ fn sample_event(provider_id: &str) -> UsageEvent {
         confidence: Confidence::High,
         data_source: "web".to_string(),
         cost: "0.005".to_string(),
+        session_hash: None,
+        project_hash: None,
     }
 }
 

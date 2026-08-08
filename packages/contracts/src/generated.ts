@@ -13,6 +13,8 @@ export interface UsageEvent {
   confidence: Confidence;
   data_source: string;
   cost: string;
+  session_hash: string | null;
+  project_hash: string | null;
 }
 
 export interface UsageBatch {

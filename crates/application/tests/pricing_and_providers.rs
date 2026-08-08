@@ -124,6 +124,8 @@ fn cost_calculation_from_stored_usage_events() {
             tokens_output: 1000,
             cost: "0.018000".to_string(),
             confidence: Confidence::High,
+            session_hash: None,
+            project_hash: None,
         }],
     };
     repo.ingest_batch(&batch).unwrap();
@@ -157,6 +159,8 @@ fn missing_pricing_behavior_labeled_correctly() {
             tokens_output: 100,
             cost: "0.00".to_string(),
             confidence: Confidence::Medium,
+            session_hash: None,
+            project_hash: None,
         }],
     };
     repo.ingest_batch(&batch).unwrap();
@@ -169,12 +173,18 @@ fn missing_pricing_behavior_labeled_correctly() {
         100,
         &resolver,
     );
+    let estimate = calculated.expect("unknown models are estimated, never errors");
+    assert_eq!(
+        estimate.status,
+        lnwdeck_pricing::PricingStatus::Estimated,
+        "Unknown model gets a labeled estimate"
+    );
     assert!(
-        calculated.is_err(),
-        "Unknown model must fail pricing resolution gracefully"
+        estimate.cost.parse::<f64>().unwrap() > 0.0,
+        "the estimate is never zero"
     );
 
     let overview = QueryOverview::execute(&storage.conn).unwrap();
-    assert_eq!(overview.cost_status, "missing_pricing");
-    assert_eq!(overview.cost_formatted, "Unavailable");
+    assert_eq!(overview.cost_status, "estimated");
+    assert_ne!(overview.cost_formatted, "Unavailable");
 }

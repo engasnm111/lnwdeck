@@ -15,6 +15,15 @@ pub struct UsageEvent {
     pub confidence: Confidence,
     pub data_source: String,
     pub cost: String,
+    /// Keyed hash of the source's raw session identifier. `None` when the
+    /// source does not expose a session. Raw identifiers never leave the
+    /// adapter; only the hash is persisted.
+    #[serde(default)]
+    pub session_hash: Option<String>,
+    /// Keyed hash of the source's raw project/folder identifier. `None` when
+    /// the source does not expose a project. The raw path is never persisted.
+    #[serde(default)]
+    pub project_hash: Option<String>,
 }
 
 impl UsageEvent {
@@ -29,6 +38,8 @@ impl UsageEvent {
             confidence: Confidence::High,
             data_source: "web".to_string(),
             cost: "0.0025".to_string(),
+            session_hash: None,
+            project_hash: None,
         }
     }
 }

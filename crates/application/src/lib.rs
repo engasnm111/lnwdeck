@@ -7,5 +7,6 @@ pub mod overview;
 pub mod providers;
 pub mod quota;
 pub mod refresh;
+pub mod sessions;
 pub mod settings;
 pub mod usage_history;

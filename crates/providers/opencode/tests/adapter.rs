@@ -134,6 +134,22 @@ fn collection_normalizes_sessions_to_usage_events() {
     assert_eq!(first.confidence, lnwdeck_domain::Confidence::High);
     assert_eq!(first.id.len(), 64, "keyed hash fingerprint");
 
+    let session_hash = first
+        .session_hash
+        .as_deref()
+        .expect("session hash must be populated");
+    let project_hash = first
+        .project_hash
+        .as_deref()
+        .expect("project hash must be populated");
+    assert_eq!(session_hash.len(), 64, "session id is a keyed hash");
+    assert_eq!(project_hash.len(), 64, "project id is a keyed hash");
+    let serialized = serde_json::to_string(&batch).expect("serialize");
+    assert!(
+        !serialized.contains("sess_0001") && !serialized.contains("proj_0001"),
+        "raw session and project ids must never appear in normalized data"
+    );
+
     assert_eq!(
         result.next_cursor.as_deref(),
         Some("1700000100000"),
@@ -244,6 +260,8 @@ fn events_serialize_with_only_allowed_keys() {
         "confidence",
         "data_source",
         "cost",
+        "session_hash",
+        "project_hash",
     ];
     for key in &keys {
         assert!(allowed.contains(&key.as_str()), "unexpected key {key}");

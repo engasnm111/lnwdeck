@@ -30,8 +30,8 @@ impl<'a> UsageRepository<'a> {
             let timestamp = event.timestamp.to_rfc3339();
 
             let changed = tx.execute(
-                "INSERT OR IGNORE INTO usage_events (id, batch_id, timestamp, provider_id, model, tokens_input, tokens_output, confidence, data_source, cost)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                "INSERT OR IGNORE INTO usage_events (id, batch_id, timestamp, provider_id, model, tokens_input, tokens_output, confidence, data_source, cost, session_hash, project_hash)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
                 rusqlite::params![
                     event.id,
                     batch.batch_id,
@@ -43,6 +43,8 @@ impl<'a> UsageRepository<'a> {
                     format!("{:?}", event.confidence),
                     event.data_source,
                     event.cost,
+                    event.session_hash.as_deref().unwrap_or(""),
+                    event.project_hash.as_deref().unwrap_or(""),
                 ],
             )?;
             if changed == 1 {

@@ -460,6 +460,8 @@ pub fn usage_events(
                 confidence,
                 data_source: data_source.to_string(),
                 cost: String::new(),
+                session_hash: None,
+                project_hash: None,
             }
         })
         .collect()

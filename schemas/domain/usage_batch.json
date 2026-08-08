@@ -55,8 +55,24 @@
         "model": {
           "type": "string"
         },
+        "project_hash": {
+          "description": "Keyed hash of the source's raw project/folder identifier. `None` when the source does not expose a project. The raw path is never persisted.",
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "provider_id": {
           "type": "string"
+        },
+        "session_hash": {
+          "description": "Keyed hash of the source's raw session identifier. `None` when the source does not expose a session. Raw identifiers never leave the adapter; only the hash is persisted.",
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "timestamp": {
           "type": "string",

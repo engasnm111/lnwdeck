@@ -365,6 +365,8 @@ mod tests {
                         confidence: Confidence::High,
                         data_source: "fixture".to_string(),
                         cost: "0.001".to_string(),
+                        session_hash: None,
+                        project_hash: None,
                     },
                     UsageEvent {
                         id: "evt_2".to_string(),
@@ -376,6 +378,8 @@ mod tests {
                         confidence: Confidence::High,
                         data_source: "fixture".to_string(),
                         cost: "0.002".to_string(),
+                        session_hash: None,
+                        project_hash: None,
                     },
                 ],
             })

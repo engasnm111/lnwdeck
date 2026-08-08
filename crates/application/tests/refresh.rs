@@ -20,6 +20,8 @@ fn event(id: &str, model: &str, input: u64, output: u64) -> UsageEvent {
         confidence: Confidence::High,
         data_source: "fixture".to_string(),
         cost: "0.001".to_string(),
+        session_hash: None,
+        project_hash: None,
     }
 }
 

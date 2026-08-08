@@ -15,6 +15,8 @@ fn sample_batch() -> UsageBatch {
             confidence: Confidence::High,
             data_source: "web".to_string(),
             cost: "0.0015".to_string(),
+            session_hash: None,
+            project_hash: None,
         }],
     }
 }

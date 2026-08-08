@@ -13,6 +13,8 @@ const ALLOWED_FIELDS: &[&str] = &[
     "confidence",
     "data_source",
     "cost",
+    "session_hash",
+    "project_hash",
 ];
 
 fn json_value(event: &UsageEvent) -> Value {

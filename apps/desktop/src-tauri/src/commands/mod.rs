@@ -5,3 +5,4 @@ pub mod pets;
 pub mod pipeline;
 pub mod providers;
 pub mod quota;
+pub mod sessions;
