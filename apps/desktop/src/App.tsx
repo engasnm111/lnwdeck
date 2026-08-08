@@ -6,6 +6,7 @@ import { AnalyticsPage } from "./pages/analytics/AnalyticsPage";
 import { CostsPage } from "./pages/costs/CostsPage";
 import { BudgetsPage } from "./pages/budgets/BudgetsPage";
 import { ModelsPage } from "./pages/models/ModelsPage";
+import { SessionsPage } from "./pages/sessions/SessionsPage";
 import { AlertsPage } from "./pages/alerts/AlertsPage";
 import { PetPage } from "./pages/pet/PetPage";
 import { SettingsPage } from "./pages/settings/SettingsPage";
@@ -27,6 +28,7 @@ function App() {
         <Route path="costs" element={<CostsPage />} />
         <Route path="budgets" element={<BudgetsPage />} />
         <Route path="models" element={<ModelsPage />} />
+        <Route path="sessions" element={<SessionsPage />} />
         <Route path="alerts" element={<AlertsPage />} />
         <Route path="pet" element={<PetPage />} />
         <Route path="settings" element={<SettingsPage />} />

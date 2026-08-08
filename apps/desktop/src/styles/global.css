@@ -422,6 +422,32 @@ button {
     box-shadow var(--duration-fast) var(--ease-standard);
 }
 
+/*
+ * Native select popup.
+ *
+ * The dropdown list is rendered by the engine, not by CSS variables, so its
+ * background does not follow the translucent glass tokens. Force the engine
+ * color scheme on the control and paint the option rows with opaque theme
+ * colors, or a dark theme would show light text on the default white list.
+ */
+.ui-select {
+  color-scheme: dark;
+}
+
+.ui-select option {
+  background-color: #0b1120;
+  color: #e8edf7;
+}
+
+[data-theme="light"] .ui-select {
+  color-scheme: light;
+}
+
+[data-theme="light"] .ui-select option {
+  background-color: #ffffff;
+  color: #10162a;
+}
+
 .ui-select:hover:not(:disabled),
 .ui-input:hover:not(:disabled) {
   border-color: var(--text-muted);

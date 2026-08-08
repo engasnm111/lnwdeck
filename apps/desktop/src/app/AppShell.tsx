@@ -12,6 +12,7 @@ import {
   PetIcon,
   ProvidersIcon,
   RefreshIcon,
+  SessionsIcon,
   SettingsIcon,
   SystemIcon,
 } from "../components/Icons";
@@ -28,6 +29,7 @@ const navItems = [
   { to: "/costs", key: "nav.costs", icon: CostsIcon },
   { to: "/budgets", key: "nav.budgets", icon: BudgetsIcon },
   { to: "/models", key: "nav.models", icon: ModelsIcon },
+  { to: "/sessions", key: "nav.sessions", icon: SessionsIcon },
   { to: "/alerts", key: "nav.alerts", icon: AlertsIcon },
   { to: "/pet", key: "nav.pet", icon: PetIcon },
   { to: "/settings", key: "nav.settings", icon: SettingsIcon },

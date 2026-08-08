@@ -120,15 +120,56 @@ vi.mock("@tauri-apps/api/core", () => ({
               request_count: 5,
               tokens_input: 5000,
               tokens_output: 2000,
-              cost: null,
-              pricing_status: "no catalog entry",
+              cost: "0.012500",
+              pricing_status: "estimated",
             },
           ],
           priced_total: "0.000000",
           priced_rows: 0,
-          unpriced_rows: 1,
-          unpriced_tokens: 7000,
+          estimated_rows: 1,
+          unpriced_rows: 0,
+          unpriced_tokens: 0,
         };
+      case "get_sessions":
+        return {
+          window: "last_7d",
+          generated_at: "2026-08-04T00:00:00Z",
+          since: "2026-07-28T00:00:00Z",
+          request_count: 3,
+          tokens_input: 350,
+          tokens_output: 150,
+          cost: "0.010000",
+          projects: [
+            {
+              project_hash: "p1",
+              display_name: "Project 01",
+              request_count: 3,
+              tokens_input: 350,
+              tokens_output: 150,
+              cost: "0.010000",
+              first_seen_at: "2026-08-02T00:00:00Z",
+              last_seen_at: "2026-08-03T00:00:00Z",
+              sessions: [
+                {
+                  session_hash: "s1",
+                  display_name: "Session 01",
+                  provider_id: "opencode",
+                  request_count: 3,
+                  tokens_input: 350,
+                  tokens_output: 150,
+                  cost: "0.010000",
+                  first_seen_at: "2026-08-02T00:00:00Z",
+                  last_seen_at: "2026-08-03T00:00:00Z",
+                },
+              ],
+            },
+          ],
+          providers: ["opencode"],
+        };
+      case "rename_session":
+        return null;
+      case "rename_project":
+        return null;
       case "get_budgets":
         return { generated_at: "2026-08-04T00:00:00Z", budgets: [] };
       case "get_alerts":
