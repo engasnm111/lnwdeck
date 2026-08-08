@@ -2,6 +2,23 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [11.0.0] - 2026-08-09
+
+### Highlights
+
+- Costs page provider filter: the dropdown always lists every provider with
+  recorded events in the window, and selecting one narrows the table and the
+  priced total to that provider in every locale.
+- OpenCode implementations are shown under distinct names: `OpenCode (Go)` for
+  the billed Go implementation with credits/quota, and `OpenCode (Free)` for
+  legacy free-CLI records, so the two data sets are never confused.
+- Tray **Check for updates** reports its result in the themed tray popup: an
+  "up to date" banner with the running version when nothing newer exists, or a
+  failure banner when the check cannot complete. Translated in all nine locales.
+- Settings **Show the floating quota widget** now shows/hides the native widget
+  window immediately (same commands as the tray), instead of only persisting a
+  setting that applied at the next restart.
+
 ## [10.0.0] - 2026-08-08
 
 ### Highlights

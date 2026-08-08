@@ -134,6 +134,36 @@ describe("FloatingWidget", () => {
     vi.useRealTimers();
   });
 
+  it("uses compact icon-only header controls with localized hover explanations", async () => {
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([provider()]),
+    );
+    const { container } = render(<FloatingWidget />);
+
+    await waitFor(() => expect(screen.getByText("Claude")).toBeInTheDocument());
+
+    const actionButtons = container.querySelectorAll(
+      ".w-header-actions [data-widget-icon-action='true']",
+    );
+    expect(actionButtons).toHaveLength(6);
+    expect(screen.getByRole("button", { name: "Refresh quota" })).toHaveAttribute(
+      "title",
+      "Refresh quota",
+    );
+    expect(screen.getByRole("button", { name: "Open" })).toHaveAttribute(
+      "title",
+      "Open the dashboard window",
+    );
+    expect(container.querySelector(".w-view-trigger")).toHaveAttribute(
+      "data-widget-icon-action",
+      "true",
+    );
+    expect(container.querySelector(".w-picker-trigger")).toHaveAttribute(
+      "data-widget-icon-action",
+      "true",
+    );
+  });
+
   it("shows a loading state before any data arrives", () => {
     vi.mocked(native.fetchQuotaDashboard).mockImplementation(
       () => new Promise(() => {}),
@@ -254,7 +284,8 @@ describe("FloatingWidget", () => {
     );
     render(<FloatingWidget />);
 
-    await waitFor(() => expect(screen.getByText("Codex")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("OpenAI Codex")).toBeInTheDocument());
+    expect(screen.queryByText("Codex")).not.toBeInTheDocument();
     expect(screen.getByText("Resets in 4d 8h")).toBeInTheDocument();
     expect(screen.getByText("Resets tomorrow")).toBeInTheDocument();
     expect(screen.getByText("41%")).toBeInTheDocument();
@@ -429,10 +460,11 @@ describe("FloatingWidget", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Choose providers" }),
     );
+    expect(document.querySelector(".w-picker")?.parentElement).toBe(document.body);
     await userEvent.click(
       within(screen.getByRole("group", { name: "Providers shown" })).getByRole(
         "button",
-        { name: "Codex" },
+        { name: "OpenAI Codex" },
       ),
     );
 
@@ -442,6 +474,38 @@ describe("FloatingWidget", () => {
     ]);
     await waitFor(() =>
       expect(screen.getByText(/2 of 2 provider/)).toBeInTheDocument(),
+    );
+  });
+
+  it("keeps the provider filter outside the native drag region", async () => {
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([
+        provider(),
+        provider({ provider_id: "openai_codex", display_name: "Codex" }),
+      ]),
+    );
+    const { container } = render(<FloatingWidget />);
+
+    await waitFor(() => expect(screen.getByText("Claude")).toBeInTheDocument());
+
+    const header = container.querySelector(".w-header");
+    expect(header).not.toHaveAttribute("data-tauri-drag-region");
+    expect(container.querySelector(".w-brand")).toHaveAttribute(
+      "data-tauri-drag-region",
+    );
+
+    const filter = screen.getByRole("button", { name: "Choose providers" });
+    await userEvent.click(filter);
+    expect(filter).toHaveAttribute("aria-expanded", "true");
+    expect(
+      within(screen.getByRole("group", { name: "Providers shown" })).getByRole(
+        "button",
+        { name: "OpenAI Codex" },
+      ),
+    ).toBeEnabled();
+    expect(document.querySelector(".w-picker")).toHaveAttribute(
+      "data-surface",
+      "opaque",
     );
   });
 
@@ -472,6 +536,37 @@ describe("FloatingWidget", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Close widget" }));
     expect(native.hideWidgetWindow).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses one opaque surface for the widget instead of a stacked glow frame", async () => {
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([provider()]),
+    );
+    const { container } = render(<FloatingWidget />);
+
+    await waitFor(() => expect(screen.getByText("Claude")).toBeInTheDocument());
+
+    expect(container.querySelector(".w-root")).toHaveClass(
+      "w-root-single-surface",
+    );
+  });
+
+  it("stays disabled when refresh joins a job started by another surface", async () => {
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([provider()]),
+    );
+    vi.mocked(native.startRefresh).mockResolvedValue({
+      started: false,
+      already_running: true,
+    });
+    render(<FloatingWidget />);
+
+    await waitFor(() => expect(screen.getByText("Claude")).toBeInTheDocument());
+    const refreshButton = screen.getByRole("button", { name: "Refresh quota" });
+    await userEvent.click(refreshButton);
+
+    await waitFor(() => expect(native.startRefresh).toHaveBeenCalledTimes(1));
+    expect(refreshButton).toBeDisabled();
   });
 
   it("removes the drag region when locked and applies the stored opacity", async () => {
@@ -635,7 +730,7 @@ describe("FloatingWidget pet view", () => {
       "true",
     );
     expect(screen.getByText("Claude")).toBeInTheDocument();
-    expect(screen.getByText("Codex")).toBeInTheDocument();
+    expect(screen.getByText("OpenAI Codex")).toBeInTheDocument();
     expect(screen.getByText("72%")).toBeInTheDocument();
     expect(screen.getByText("41%")).toBeInTheDocument();
     // Every window carries its reset line; the exact countdown can shift by a
@@ -795,6 +890,7 @@ describe("FloatingWidget pet view", () => {
     await waitFor(() => expect(screen.getByText("Claude")).toBeInTheDocument());
 
     await userEvent.click(screen.getByRole("button", { name: "Widget layout" }));
+    expect(document.querySelector(".w-view-options")?.parentElement).toBe(document.body);
     await userEvent.click(screen.getByRole("option", { name: "Pet" }));
     expect(native.setWidgetView).toHaveBeenCalledWith("pet");
     await waitFor(() =>
@@ -811,6 +907,7 @@ describe("FloatingWidget pet view", () => {
     await waitFor(() => expect(screen.getByText("Claude")).toBeInTheDocument());
 
     await userEvent.click(screen.getByRole("button", { name: "Widget layout" }));
+    expect(document.querySelector(".w-view-options")?.parentElement).toBe(document.body);
     await userEvent.click(screen.getByRole("option", { name: "Rings" }));
     await waitFor(() =>
       expect(container.querySelectorAll(".w-ring")).toHaveLength(1),

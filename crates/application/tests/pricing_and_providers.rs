@@ -22,7 +22,7 @@ impl ProviderAdapter for Fixture {
 fn fixture_registry() -> AdapterRegistry {
     let mut registry = AdapterRegistry::new();
     for (id, name) in [
-        ("openai_codex", "Codex"),
+        ("openai_codex", "OpenAI Codex"),
         ("google_gemini", "Gemini"),
         ("kiro_ai", "Kiro"),
         ("anthropic_claude", "Claude"),
@@ -121,7 +121,10 @@ fn cost_calculation_from_stored_usage_events() {
             model: "claude-3-5-sonnet".to_string(),
             data_source: "file_log".to_string(),
             tokens_input: 1000,
+            tokens_cached: 0,
+            tokens_cache_write: 0,
             tokens_output: 1000,
+            tokens_reasoning: 0,
             cost: "0.018000".to_string(),
             confidence: Confidence::High,
             session_hash: None,
@@ -156,7 +159,10 @@ fn missing_pricing_behavior_labeled_correctly() {
             model: "unknown_unpriced_model_xyz".to_string(),
             data_source: "file_log".to_string(),
             tokens_input: 100,
+            tokens_cached: 0,
+            tokens_cache_write: 0,
             tokens_output: 100,
+            tokens_reasoning: 0,
             cost: "0.00".to_string(),
             confidence: Confidence::Medium,
             session_hash: None,

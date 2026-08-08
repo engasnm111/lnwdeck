@@ -143,7 +143,7 @@ export function AppShell() {
     setRefreshError(null);
     try {
       const result = await startRefresh();
-      if (!result.started) {
+      if (!result.started && !result.already_running) {
         setRefreshing(false);
       }
     } catch (error) {

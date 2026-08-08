@@ -633,10 +633,16 @@ button.token-value:hover {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
-  background: var(--bg-hover);
+  /* Keep sticky headers readable while rows scroll underneath. The app
+     surface is intentionally solid here; translucent glass lets body rows
+     bleed through the labels in dense analytics tables. */
+  background: var(--table-head-bg);
+  background-image: none;
+  color: var(--text-primary);
   border-bottom: 1px solid var(--border-subtle);
   position: sticky;
   top: 0;
+  z-index: 1;
 }
 
 .ui-table td {

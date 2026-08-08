@@ -221,6 +221,15 @@ mod tests {
     }
 
     #[test]
+    fn codex_turn_context_model_uses_catalog_pricing() {
+        let cost =
+            calculate_cost_with_provider("openai_codex", "gpt-5.3-codex", 1000, 1000, &resolver())
+                .unwrap();
+        assert_eq!(cost.cost, "0.015750");
+        assert_eq!(cost.status, PricingStatus::Priced);
+    }
+
+    #[test]
     fn provider_alias_and_variant_models_resolve_priced() {
         let alias = calculate_cost_with_provider(
             "anthropic_claude",

@@ -3,6 +3,7 @@ import {
   formatCompactTokenCount,
   formatFullTokenCount,
 } from "../lib/token-format";
+import "./TokenValue.css";
 
 export interface TokenValueProps {
   value: number;

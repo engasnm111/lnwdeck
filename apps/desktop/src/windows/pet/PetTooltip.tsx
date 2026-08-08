@@ -13,6 +13,7 @@ import { fetchQuotaDashboard, type QuotaDashboardData } from "../../lib/native";
 import { useI18n } from "../../lib/i18n";
 import { TokenValue } from "../../components/TokenValue";
 import { formatCompactTokenCount, formatFullTokenCount } from "../../lib/token-format";
+import { providerKindLabel } from "../../lib/providerText";
 
 interface QuotaBar {
   provider: string;
@@ -113,7 +114,6 @@ export function PetTooltip({ visible }: { visible: boolean }) {
                 exactLabel={t("petTooltip.tokens", {
                   count: formatFullTokenCount(totalTokens),
                 })}
-                suffix={` ${t("petTooltip.tokenUnit")}`}
               />
             </span>
           </div>
@@ -146,7 +146,10 @@ export function PetTooltip({ visible }: { visible: boolean }) {
                 </span>
                 <span className="pet-tooltip-bar-track pet-tooltip-bar-track-unknown" />
                 <span className="pet-tooltip-bar-pct">
-                  {t("petTooltip.used", { used: formatCompactTokenCount(row.used), kind: row.kind })}
+                  {t("petTooltip.used", {
+                    used: formatCompactTokenCount(row.used),
+                    kind: providerKindLabel(row.kind, t),
+                  })}
                 </span>
               </div>
             ))}

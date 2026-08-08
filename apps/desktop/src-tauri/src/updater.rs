@@ -41,6 +41,12 @@ struct UpdateCheckFailed {
     code: String,
 }
 
+/// Payload emitted when the running version is already the newest one.
+#[derive(Debug, Clone, Serialize)]
+struct UpdateUpToDate {
+    version: String,
+}
+
 fn current_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
@@ -187,10 +193,12 @@ pub fn check_and_install_silent(app: tauri::AppHandle) {
                         "UPDATE_CHECKED",
                         "no update is available",
                     );
+                    // "Already up to date" is a normal result, reported to the
+                    // tray popup as its own event, not as a failed check.
                     let _ = app.emit(
-                        "update-check-failed",
-                        UpdateCheckFailed {
-                            code: "UP_TO_DATE".to_string(),
+                        "update-up-to-date",
+                        UpdateUpToDate {
+                            version: current_version(),
                         },
                     );
                     return Ok(());

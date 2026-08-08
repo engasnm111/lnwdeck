@@ -157,11 +157,18 @@ impl QuerySessions {
         let mut total_requests = 0i64;
 
         for (project_hash, mut sessions) in grouped {
-            // Sessions ordered by usage, most first; stable tie-break by hash.
+            // The newest activity is the useful default in a session history.
+            // Token volume remains a secondary sort so a busy older session
+            // cannot hide the latest session at the top of the table.
             sessions.sort_by(|a, b| {
-                let at = a.tokens_input + a.tokens_output;
-                let bt = b.tokens_input + b.tokens_output;
-                bt.cmp(&at)
+                b.last_seen_at
+                    .as_deref()
+                    .cmp(&a.last_seen_at.as_deref())
+                    .then_with(|| {
+                        let at = a.tokens_input + a.tokens_output;
+                        let bt = b.tokens_input + b.tokens_output;
+                        bt.cmp(&at)
+                    })
                     .then_with(|| a.session_hash.cmp(&b.session_hash))
             });
 
@@ -432,14 +439,51 @@ mod tests {
         assert_eq!(p1.request_count, 3);
         assert_eq!(p1.tokens_input, 350);
         assert_eq!(p1.sessions.len(), 2, "both sessions of p1 are listed");
+        // s1 had activity 1h ago, s2 3h ago: newest activity leads even when
+        // the older session carries more tokens.
         assert_eq!(
             tokens(&p1.sessions[0]),
-            280,
-            "sessions inside a project are ordered by usage, most first"
+            220,
+            "sessions inside a project are ordered by newest activity first"
         );
-        assert_eq!(tokens(&p1.sessions[1]), 220);
+        assert_eq!(tokens(&p1.sessions[1]), 280);
         assert_eq!(p1.sessions[0].display_name, "Session 01");
         assert_eq!(p1.sessions[1].display_name, "Session 02");
+    }
+
+    #[test]
+    fn sessions_are_ordered_by_last_activity_before_token_volume() {
+        let storage = open_db();
+        insert_event(
+            &storage,
+            "older-heavy",
+            "opencode",
+            "glm-5",
+            10_000,
+            5_000,
+            "1.000000",
+            48,
+            "older",
+            "p1",
+        );
+        insert_event(
+            &storage,
+            "newer-light",
+            "opencode",
+            "glm-5",
+            10,
+            5,
+            "0.001000",
+            1,
+            "newer",
+            "p1",
+        );
+
+        let overview =
+            QuerySessions::execute(&storage.conn, HistoryWindow::All, None).expect("sessions");
+
+        assert_eq!(overview.projects[0].sessions[0].session_hash, "newer");
+        assert_eq!(overview.projects[0].sessions[1].session_hash, "older");
     }
 
     #[test]

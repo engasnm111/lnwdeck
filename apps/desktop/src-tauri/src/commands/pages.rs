@@ -57,13 +57,15 @@ pub fn get_usage_history(
 #[tauri::command]
 pub fn get_costs(
     window: Option<String>,
+    provider_id: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<CostBreakdown, String> {
     let window = parse_window(window)?;
     let guard = state.ensure_storage()?;
     let storage = guard.as_ref().ok_or("storage not initialized")?;
     let resolver = price_resolver(&storage.conn);
-    QueryCosts::execute(&storage.conn, window, &resolver).map_err(|e| format!("costs: {e}"))
+    QueryCosts::execute_with_provider(&storage.conn, window, provider_id.as_deref(), &resolver)
+        .map_err(|e| format!("costs: {e}"))
 }
 
 #[tauri::command]

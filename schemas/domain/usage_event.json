@@ -52,12 +52,33 @@
       "type": "string",
       "format": "date-time"
     },
+    "tokens_cache_write": {
+      "description": "Input tokens written into the provider cache, when the source exposes that breakdown.",
+      "default": 0,
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "tokens_cached": {
+      "description": "Non-cached input tokens. Cached input is kept separately so totals and pricing never double-count the same prompt bytes.",
+      "default": 0,
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
     "tokens_input": {
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
     },
     "tokens_output": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "tokens_reasoning": {
+      "description": "Reasoning tokens are a provider-reported subset of output tokens.",
+      "default": 0,
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0

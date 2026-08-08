@@ -50,6 +50,19 @@ pub struct TokenSample {
     pub model: Option<String>,
 }
 
+/// A normalized sample when a provider exposes cached, cache-write and
+/// reasoning token counters separately.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UsageBreakdownSample {
+    pub timestamp: DateTime<Utc>,
+    pub input_tokens: u64,
+    pub cached_tokens: u64,
+    pub cache_write_tokens: u64,
+    pub output_tokens: u64,
+    pub reasoning_tokens: u64,
+    pub model: Option<String>,
+}
+
 /// Result of a bounded scan.
 #[derive(Debug, Clone, Default)]
 pub struct ScanReport {
@@ -456,7 +469,55 @@ pub fn usage_events(
                 provider_id: provider_id.to_string(),
                 model,
                 tokens_input: sample.input_tokens,
+                tokens_cached: 0,
+                tokens_cache_write: 0,
                 tokens_output: sample.output_tokens,
+                tokens_reasoning: 0,
+                confidence,
+                data_source: data_source.to_string(),
+                cost: String::new(),
+                session_hash: None,
+                project_hash: None,
+            }
+        })
+        .collect()
+}
+
+/// Converts provider-specific token breakdown samples into normalized usage
+/// events. `input_tokens` is non-cached input; cached and cache-write input are
+/// stored separately, while reasoning remains a subset of output.
+pub fn usage_events_with_breakdown(
+    provider_id: &str,
+    data_source: &str,
+    samples: &[UsageBreakdownSample],
+    confidence: Confidence,
+) -> Vec<UsageEvent> {
+    samples
+        .iter()
+        .map(|sample| {
+            let model = sample
+                .model
+                .clone()
+                .unwrap_or_else(|| "unknown".to_string());
+            let fingerprint = format!(
+                "{provider_id}|{}|{model}|{}|{}|{}|{}|{}",
+                sample.timestamp.timestamp_millis(),
+                sample.input_tokens,
+                sample.cached_tokens,
+                sample.cache_write_tokens,
+                sample.output_tokens,
+                sample.reasoning_tokens,
+            );
+            UsageEvent {
+                id: format!("{provider_id}_{:016x}", fnv1a(fingerprint.as_bytes())),
+                timestamp: sample.timestamp,
+                provider_id: provider_id.to_string(),
+                model,
+                tokens_input: sample.input_tokens,
+                tokens_cached: sample.cached_tokens,
+                tokens_cache_write: sample.cache_write_tokens,
+                tokens_output: sample.output_tokens,
+                tokens_reasoning: sample.reasoning_tokens,
                 confidence,
                 data_source: data_source.to_string(),
                 cost: String::new(),

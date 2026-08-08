@@ -369,7 +369,10 @@ pub fn events_from_rows(rows: &[CursorUsage]) -> Vec<UsageEvent> {
                     row.model.clone()
                 },
                 tokens_input: row.input_tokens,
+                tokens_cached: 0,
+                tokens_cache_write: 0,
                 tokens_output: row.output_tokens,
+                tokens_reasoning: 0,
                 confidence: Confidence::High,
                 data_source: DATA_SOURCE.to_string(),
                 cost: format!("{:.4}", row.cost),

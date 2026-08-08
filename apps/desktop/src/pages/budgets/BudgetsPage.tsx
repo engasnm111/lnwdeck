@@ -20,6 +20,7 @@ import {
 } from "../../lib/native";
 import { formatCompact, formatTimestamp } from "../../lib/freshness";
 import { dataStateLabels, useI18n } from "../../lib/i18n";
+import { providerDisplayName } from "../../components/ProviderLogo";
 
 const PERIODS: BudgetPeriod[] = ["daily", "weekly", "monthly"];
 
@@ -56,7 +57,10 @@ function scopeLabel(
     return t("budgets.allProviders");
   }
   const id = progress.budget.scope.provider_id ?? "";
-  return providers.find((p) => p.provider_id === id)?.display_name ?? id;
+  const provider = providers.find((p) => p.provider_id === id);
+  return provider
+    ? providerDisplayName(provider)
+    : providerDisplayName({ provider_id: id, display_name: id });
 }
 
 /**
@@ -191,7 +195,7 @@ export function BudgetsPage() {
                         key={provider.provider_id}
                         value={provider.provider_id}
                       >
-                        {provider.display_name}
+                        {providerDisplayName(provider)}
                       </option>
                     ))}
                   </select>

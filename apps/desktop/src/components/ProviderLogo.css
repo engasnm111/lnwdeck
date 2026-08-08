@@ -1,0 +1,61 @@
+.provider-logo {
+  display: inline-grid;
+  width: 1.8rem;
+  height: 1.8rem;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--provider-color, var(--accent-primary)) 42%, transparent);
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--provider-color, var(--accent-primary)) 18%, var(--bg-input));
+  color: var(--text-primary);
+}
+
+.provider-logo img {
+  width: 1.05rem;
+  height: 1.05rem;
+  object-fit: contain;
+}
+
+.provider-logo-small {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 0.35rem;
+}
+
+.provider-logo-small img {
+  width: 0.78rem;
+  height: 0.78rem;
+}
+
+.provider-logo[data-provider-logo="all"] {
+  --provider-color: var(--chart-1);
+}
+
+.provider-logo[data-provider-logo="openai"] {
+  --provider-color: #8b5cf6;
+}
+
+.provider-logo[data-provider-logo="anthropic"] {
+  --provider-color: #f97316;
+}
+
+.provider-logo[data-provider-logo="google-gemini"] {
+  --provider-color: #38bdf8;
+}
+
+.provider-logo[data-provider-logo="cursor"] {
+  --provider-color: #60a5fa;
+}
+
+.provider-logo[data-provider-logo="opencode"] {
+  --provider-color: #22d3ee;
+}
+
+.provider-logo[data-provider-logo="github-copilot"] {
+  --provider-color: #f472b6;
+}
+
+.provider-logo[data-provider-logo="other"] {
+  --provider-color: var(--text-muted);
+}

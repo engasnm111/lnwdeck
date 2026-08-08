@@ -1,3 +1,4 @@
+use crate::commands::pipeline::{ensure_registry, load_or_create_hash_key};
 use crate::state::AppState;
 use lnwdeck_application::dashboard::{DashboardQuery, QueryDashboard, UsageDashboard};
 use tauri::State;
@@ -13,5 +14,8 @@ pub fn get_usage_dashboard(
 ) -> Result<UsageDashboard, String> {
     let storage_guard = state.ensure_storage()?;
     let storage = storage_guard.as_ref().ok_or("storage not initialized")?;
-    QueryDashboard::execute(&storage.conn, query).map_err(|error| error.to_string())
+    let hash_key = load_or_create_hash_key(&storage.conn)?;
+    let registry = ensure_registry(&state, &hash_key)?;
+    QueryDashboard::execute_with_registry(&storage.conn, query, &registry)
+        .map_err(|error| error.to_string())
 }

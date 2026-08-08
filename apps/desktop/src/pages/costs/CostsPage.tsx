@@ -11,6 +11,7 @@ import {
 import { fetchCosts, type CostBreakdownData, type HistoryWindow } from "../../lib/native";
 import { formatCompact, formatNumber } from "../../lib/freshness";
 import { dataStateLabels, useI18n } from "../../lib/i18n";
+import { modelDisplayName, providerDisplayName } from "../../components/ProviderLogo";
 
 const WINDOWS: Array<{ value: HistoryWindow; labelKey: string }> = [
   { value: "last_24h", labelKey: "costs.window24h" },
@@ -18,6 +19,17 @@ const WINDOWS: Array<{ value: HistoryWindow; labelKey: string }> = [
   { value: "last_30d", labelKey: "costs.window30d" },
   { value: "all", labelKey: "costs.windowAll" },
 ];
+
+function pricingStatusLabel(status: string, t: (key: string) => string): string {
+  switch (status.trim().toLowerCase()) {
+    case "priced":
+      return t("costs.priced");
+    case "estimated":
+      return t("costs.estimated");
+    default:
+      return t("costs.notPriced");
+  }
+}
 
 /**
  * Cost breakdown per provider and model.
@@ -29,6 +41,7 @@ const WINDOWS: Array<{ value: HistoryWindow; labelKey: string }> = [
 export function CostsPage() {
   const { t } = useI18n();
   const [window, setWindow] = useState<HistoryWindow>("last_30d");
+  const [providerId, setProviderId] = useState("");
   const [data, setData] = useState<CostBreakdownData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -37,7 +50,7 @@ export function CostsPage() {
     setLoading(true);
     setError(null);
     try {
-      setData(await fetchCosts(window));
+      setData(await fetchCosts(window, providerId || undefined));
     } catch (loadError) {
       setError(
         loadError instanceof Error ? loadError : new Error(String(loadError)),
@@ -45,7 +58,7 @@ export function CostsPage() {
     } finally {
       setLoading(false);
     }
-  }, [window]);
+  }, [window, providerId]);
 
   useEffect(() => {
     void load();
@@ -67,6 +80,22 @@ export function CostsPage() {
           value={window}
           onChange={setWindow}
         />
+        <label htmlFor="costs-provider-filter" style={{ display: "block", fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.25rem" }}>
+          {t("costs.providerFilter")}
+        </label>
+        <select
+          id="costs-provider-filter"
+          className="ui-select"
+          value={providerId}
+          onChange={(event) => setProviderId(event.target.value)}
+        >
+          <option value="">{t("costs.allProviders")}</option>
+          {(data?.providers ?? []).map((provider) => (
+            <option key={provider} value={provider}>
+              {providerDisplayName({ provider_id: provider, display_name: provider })}
+            </option>
+          ))}
+        </select>
       </Toolbar>
 
       <DataState
@@ -124,8 +153,8 @@ export function CostsPage() {
               >
                 {data.rows.map((row) => (
                   <tr key={`${row.provider_id}:${row.model}`}>
-                    <td>{row.provider_id}</td>
-                    <td>{row.model}</td>
+                    <td>{providerDisplayName({ provider_id: row.provider_id, display_name: row.provider_id })}</td>
+                    <td>{modelDisplayName(row.model, t("analytics.unknownModel"))}</td>
                     <td className="ui-table-numeric">
                       {formatNumber(row.request_count)}
                     </td>
@@ -141,16 +170,14 @@ export function CostsPage() {
                     <td>
                       <Badge
                         tone={
-                          row.pricing_status === "priced"
+                          row.pricing_status.trim().toLowerCase() === "priced"
                             ? "success"
-                            : row.pricing_status === "estimated"
+                            : row.pricing_status.trim().toLowerCase() === "estimated"
                               ? "warning"
                               : "danger"
                         }
                       >
-                        {row.pricing_status === "estimated"
-                          ? t("costs.estimated")
-                          : row.pricing_status}
+                        {pricingStatusLabel(row.pricing_status, t)}
                       </Badge>
                     </td>
                   </tr>

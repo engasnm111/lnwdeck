@@ -16,6 +16,8 @@ vi.mock("../../lib/native", async (importOriginal) => {
     setWidgetView: vi.fn(),
     setWidgetSizePreset: vi.fn(),
     setLanguage: vi.fn(),
+    showWidgetWindow: vi.fn(),
+    hideWidgetWindow: vi.fn(),
   };
 });
 
@@ -75,6 +77,10 @@ describe("SettingsPage", () => {
     vi.mocked(native.setWidgetSizePreset).mockResolvedValue("medium");
     vi.mocked(native.setLanguage).mockReset();
     vi.mocked(native.setLanguage).mockResolvedValue("en");
+    vi.mocked(native.showWidgetWindow).mockReset();
+    vi.mocked(native.showWidgetWindow).mockResolvedValue(undefined);
+    vi.mocked(native.hideWidgetWindow).mockReset();
+    vi.mocked(native.hideWidgetWindow).mockResolvedValue(undefined);
     vi.mocked(native.fetchWidgetSettings).mockResolvedValue({
       opacity: 1,
       locked: false,
@@ -203,5 +209,30 @@ describe("SettingsPage", () => {
     await waitFor(() =>
       expect(native.setLanguage).toHaveBeenCalledWith("th"),
     );
+  });
+
+  it("shows and hides the native widget window when toggled", async () => {
+    vi.mocked(native.fetchSettings).mockResolvedValue(view());
+    vi.mocked(native.saveSettings).mockImplementation(async (settings) =>
+      view({ settings }),
+    );
+    render(<SettingsPage />);
+
+    const toggle = await screen.findByRole("switch", {
+      name: /Show the floating quota widget/i,
+    });
+    expect(toggle).not.toBeChecked();
+
+    await userEvent.click(toggle);
+    await waitFor(() =>
+      expect(native.showWidgetWindow).toHaveBeenCalledTimes(1),
+    );
+    expect(native.hideWidgetWindow).not.toHaveBeenCalled();
+
+    await userEvent.click(toggle);
+    await waitFor(() =>
+      expect(native.hideWidgetWindow).toHaveBeenCalledTimes(1),
+    );
+    expect(native.showWidgetWindow).toHaveBeenCalledTimes(1);
   });
 });

@@ -32,6 +32,9 @@
   --bg-sidebar: rgba(10, 14, 28, 0.55);
   --bg-panel: rgba(255, 255, 255, 0.04);
   --bg-panel-elevated: rgba(255, 255, 255, 0.07);
+  /* Opaque surface for menus and popups that must not reveal content below. */
+  --bg-overlay: #111827;
+  --table-head-bg: #16213a;
   --bg-hover: rgba(255, 255, 255, 0.06);
   --bg-active: rgba(255, 255, 255, 0.1);
   --bg-input: rgba(255, 255, 255, 0.04);
@@ -142,6 +145,8 @@
   --bg-sidebar: rgba(255, 255, 255, 0.62);
   --bg-panel: rgba(255, 255, 255, 0.72);
   --bg-panel-elevated: rgba(255, 255, 255, 0.92);
+  --bg-overlay: #ffffff;
+  --table-head-bg: #e7edf8;
   --bg-hover: rgba(10, 14, 28, 0.05);
   --bg-active: rgba(10, 14, 28, 0.09);
   --bg-input: rgba(255, 255, 255, 0.85);
@@ -209,6 +214,8 @@
     --bg-sidebar: rgba(255, 255, 255, 0.62);
     --bg-panel: rgba(255, 255, 255, 0.72);
     --bg-panel-elevated: rgba(255, 255, 255, 0.92);
+    --bg-overlay: #ffffff;
+    --table-head-bg: #e7edf8;
     --bg-hover: rgba(10, 14, 28, 0.05);
     --bg-active: rgba(10, 14, 28, 0.09);
     --bg-input: rgba(255, 255, 255, 0.85);

@@ -294,6 +294,22 @@
   font-variant-numeric: tabular-nums;
 }
 
+.pet-tooltip-token-count .token-value {
+  display: inline;
+  padding: 1px 5px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.94);
+  background: transparent;
+}
+
+.pet-tooltip-token-count .token-value:hover,
+.pet-tooltip-token-count .token-value:focus-visible {
+  color: #fff;
+  background: rgba(34, 211, 238, 0.14);
+  border-color: rgba(34, 211, 238, 0.35);
+}
+
 .pet-tooltip-bars {
   display: flex;
   flex-direction: column;

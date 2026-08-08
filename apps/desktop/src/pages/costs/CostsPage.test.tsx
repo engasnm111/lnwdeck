@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { CostsPage } from "./CostsPage";
 import * as native from "../../lib/native";
 
@@ -38,6 +39,7 @@ const breakdown = (
   estimated_rows: 1,
   unpriced_rows: 0,
   unpriced_tokens: 0,
+  providers: ["anthropic_claude", "opencode"],
   ...overrides,
 });
 
@@ -56,6 +58,32 @@ describe("CostsPage", () => {
     expect(screen.getByText("0.002500")).toBeInTheDocument();
   });
 
+  it("uses canonical provider/model labels and a translated unpriced status", async () => {
+    vi.mocked(native.fetchCosts).mockResolvedValue(
+      breakdown({
+        rows: [
+          {
+            provider_id: "opencode",
+            model: "OpenCode - local_sqlite",
+            request_count: 1,
+            tokens_input: 1_000,
+            tokens_output: 0,
+            cost: "",
+            pricing_status: "no catalog entry",
+          },
+        ],
+        priced_rows: 0,
+        estimated_rows: 0,
+      }),
+    );
+    render(<CostsPage />);
+
+    expect((await screen.findAllByText("OpenCode (Go)")).length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("opencode")).not.toBeInTheDocument();
+    expect(screen.queryByText("OpenCode - local_sqlite")).not.toBeInTheDocument();
+    expect(screen.getAllByText("not priced").length).toBeGreaterThanOrEqual(2);
+  });
+
   it("reports an empty window instead of a zero cost", async () => {
     vi.mocked(native.fetchCosts).mockResolvedValue(
       breakdown({ rows: [], priced_rows: 0, estimated_rows: 0 }),
@@ -66,6 +94,21 @@ describe("CostsPage", () => {
       expect(screen.getByText("No costs recorded")).toBeInTheDocument(),
     );
     expect(screen.queryByText("0.003000")).not.toBeInTheDocument();
+  });
+
+  it("filters by provider through the backend and keeps the dropdown full", async () => {
+    vi.mocked(native.fetchCosts).mockResolvedValue(breakdown());
+    render(<CostsPage />);
+
+    const filter = await screen.findByLabelText("Provider");
+    expect(screen.getByRole("option", { name: "All providers" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "OpenCode (Go)" })).toBeInTheDocument();
+
+    await userEvent.selectOptions(filter, "opencode");
+    await waitFor(() =>
+      expect(native.fetchCosts).toHaveBeenCalledWith("last_30d", "opencode"),
+    );
+    expect(screen.getByRole("option", { name: "Claude" })).toBeInTheDocument();
   });
 
   it("surfaces a backend failure instead of rendering a table", async () => {

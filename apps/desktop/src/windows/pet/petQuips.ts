@@ -8,6 +8,7 @@
  */
 
 import { formatCompactTokenCount } from "../../lib/token-format";
+import type { LanguageCode } from "../../lib/i18n";
 
 export interface QuipData {
   todayTokens: number;
@@ -22,8 +23,16 @@ function pick<T>(items: readonly T[]): T {
   return items[Math.floor(Math.random() * items.length)];
 }
 
+interface PetQuips {
+  usedToday: string;
+  costToday: string;
+  quotaLeft: string;
+  plan: string;
+  idle: string[];
+}
+
 /** Quip lines per language; the first two slots are token/cost/quota lines. */
-const QUIPS: Record<string, { usedToday: string; costToday: string; quotaLeft: string; plan: string; idle: string[] }> = {
+const QUIPS: Record<LanguageCode, PetQuips> = {
   en: {
     usedToday: "Used {tokens} tokens today",
     costToday: "{tokens} tokens, {symbol}{cost} today",
@@ -55,7 +64,7 @@ function fill(template: string, vars: Record<string, string>): string {
   return text;
 }
 
-export function pickPetQuip(data: QuipData, language = "en"): string {
+export function pickPetQuip(data: QuipData, language: LanguageCode = "en"): string {
   const quips = QUIPS[language] ?? QUIPS.en;
   const lines: string[] = [];
   if (data.todayTokens > 0) {

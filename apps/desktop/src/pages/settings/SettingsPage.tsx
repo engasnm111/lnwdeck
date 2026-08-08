@@ -4,11 +4,13 @@ import {
   deleteProviderKey,
   fetchSettings,
   fetchWidgetSettings,
+  hideWidgetWindow,
   saveSettings,
   setLanguage,
   setProviderKey,
   setWidgetSizePreset,
   setWidgetView,
+  showWidgetWindow,
   type AppSettingsData,
   type SettingsViewData,
   type WidgetSizePreset,
@@ -193,6 +195,22 @@ export function SettingsPage() {
     [persistSoon],
   );
 
+  // The widget toggle drives the native window (like the tray) so the change
+  // takes effect immediately instead of only persisting a setting.
+  const handleWidgetVisibleChange = useCallback(async (visible: boolean) => {
+    setSaveError(null);
+    try {
+      if (visible) {
+        await showWidgetWindow();
+      } else {
+        await hideWidgetWindow();
+      }
+      setDraft((current) => (current ? { ...current, widget_visible: visible } : current));
+    } catch (error_) {
+      setSaveError(error_ instanceof Error ? error_.message : String(error_));
+    }
+  }, []);
+
   const handleStoreKey = useCallback(
     async (providerId: string) => {
       setKeyError(null);
@@ -356,7 +374,7 @@ export function SettingsPage() {
                   id="widget-visible"
                   label={t("settings.widgetVisible")}
                   checked={draft.widget_visible}
-                  onChange={(checked) => update("widget_visible", checked)}
+                  onChange={(checked) => void handleWidgetVisibleChange(checked)}
                 />
                 <Toggle
                   id="widget-locked"

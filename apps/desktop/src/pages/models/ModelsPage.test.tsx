@@ -46,6 +46,8 @@ describe("ModelsPage", () => {
     render(<ModelsPage />);
 
     await waitFor(() => expect(screen.getByText("glm-5")).toBeInTheDocument());
+    expect(screen.getAllByText("OpenCode (Go)").length).toBeGreaterThan(0);
+    expect(screen.queryByText("opencode")).not.toBeInTheDocument();
     expect(screen.getByText("100.0%")).toBeInTheDocument();
     expect(
       screen.getByRole("progressbar", { name: /glm-5 share of tokens/i }),

@@ -157,7 +157,9 @@ impl RefreshAll {
             }
         };
 
-        let mut result = adapter.collect_usage_with_cursor(cursor.as_deref());
+        let full_scan = matches!(adapter.id(), "openai_codex" | "opencode");
+        let mut result =
+            adapter.collect_usage_with_cursor(if full_scan { None } else { cursor.as_deref() });
         let mut outcome = result.outcome.clone();
 
         if let Some(batch) = result.batch.take() {
@@ -168,7 +170,22 @@ impl RefreshAll {
                 }
                 Ok(()) => {
                     let repo = UsageRepository::new(conn);
-                    match repo.ingest_batch_with_counts(&batch) {
+                    let ingestion = if full_scan {
+                        let (current_source, legacy_source) = if adapter.id() == "openai_codex" {
+                            ("local_jsonl_v2", "local_jsonl")
+                        } else {
+                            ("opencode_db", "opencode_db")
+                        };
+                        repo.replace_provider_batch(
+                            &batch,
+                            adapter.id(),
+                            current_source,
+                            legacy_source,
+                        )
+                    } else {
+                        repo.ingest_batch_with_counts(&batch)
+                    };
+                    match ingestion {
                         Ok((inserted, duplicates)) => {
                             outcome.events_inserted = inserted;
                             outcome.duplicates_skipped = duplicates;

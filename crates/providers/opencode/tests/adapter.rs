@@ -127,7 +127,10 @@ fn collection_normalizes_sessions_to_usage_events() {
         .find(|e| e.model == "opencode-go/test-model")
         .expect("first event");
     assert_eq!(first.tokens_input, 100);
-    assert_eq!(first.tokens_output, 55, "reasoning tokens added to output");
+    assert_eq!(first.tokens_cached, 10);
+    assert_eq!(first.tokens_cache_write, 3);
+    assert_eq!(first.tokens_output, 50);
+    assert_eq!(first.tokens_reasoning, 5);
     assert_eq!(first.cost, "0.001200");
     assert_eq!(first.provider_id, "opencode");
     assert_eq!(first.data_source, "opencode_db");
@@ -256,7 +259,10 @@ fn events_serialize_with_only_allowed_keys() {
         "provider_id",
         "model",
         "tokens_input",
+        "tokens_cached",
+        "tokens_cache_write",
         "tokens_output",
+        "tokens_reasoning",
         "confidence",
         "data_source",
         "cost",

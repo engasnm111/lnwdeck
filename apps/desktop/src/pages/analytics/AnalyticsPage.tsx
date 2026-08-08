@@ -3,6 +3,7 @@ import { fetchAnalytics, type AnalyticsRow } from "../../lib/native";
 import { DataState, Card, Badge, Button } from "@lnwdeck/ui";
 import { dataStateLabels, useI18n } from "../../lib/i18n";
 import { formatFullTokenCount } from "../../lib/token-format";
+import { modelDisplayName, providerDisplayName } from "../../components/ProviderLogo";
 
 /** Local timestamp as YYYY-MM-DD HH:mm:ss, e.g. 2026-08-07 08:52:12. */
 function formatEventTimestamp(value: string): string {
@@ -12,6 +13,34 @@ function formatEventTimestamp(value: string): string {
   }
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+function confidenceLabel(value: string, t: (key: string) => string): string {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "high" || normalized === "medium" || normalized === "low") {
+    return t(`analytics.${normalized}`);
+  }
+  return t("analytics.unknownConfidence");
+}
+
+function confidenceTone(value: string): "success" | "warning" | "danger" | "neutral" {
+  switch (value.trim().toLowerCase()) {
+    case "high":
+      return "success";
+    case "medium":
+      return "warning";
+    case "low":
+      return "danger";
+    default:
+      return "neutral";
+  }
+}
+
+function numericCost(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number.parseFloat(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 export function AnalyticsPage() {
@@ -50,10 +79,16 @@ export function AnalyticsPage() {
   }, [load]);
 
   const totalTokens = rows.reduce(
-    (s, r) => s + r.tokens_input + r.tokens_output,
+    (s, r) =>
+      s +
+      r.tokens_input +
+      r.tokens_cached +
+      r.tokens_cache_write +
+      r.tokens_output,
     0
   );
-  const totalCost = rows.reduce((s, r) => s + parseFloat(r.cost || "0"), 0);
+  const totalCost = rows.reduce((s, r) => s + (numericCost(r.cost) ?? 0), 0);
+  const hasPricedCosts = rows.some((row) => numericCost(row.cost) !== null);
 
   return (
     <div>
@@ -109,7 +144,7 @@ export function AnalyticsPage() {
               <option value="">{t("analytics.allProviders")}</option>
               {availableProviders.map((p) => (
                 <option key={p} value={p}>
-                  {p}
+                  {providerDisplayName({ provider_id: p, display_name: p })}
                 </option>
               ))}
             </select>
@@ -136,7 +171,7 @@ export function AnalyticsPage() {
               <option value="">{t("analytics.allModels")}</option>
               {availableModels.map((m) => (
                 <option key={m} value={m}>
-                  {m}
+                  {modelDisplayName(m, t("analytics.unknownModel"))}
                 </option>
               ))}
             </select>
@@ -210,7 +245,7 @@ export function AnalyticsPage() {
               {t("analytics.totalCost")}
             </span>
             <p style={{ fontSize: "1.25rem", fontWeight: 700 }}>
-              ${totalCost.toFixed(4)}
+              {hasPricedCosts ? `$${totalCost.toFixed(4)}` : t("costs.notPriced")}
             </p>
           </div>
           <div>
@@ -232,6 +267,7 @@ export function AnalyticsPage() {
                 <th scope="col">{t("system.table.provider")}</th>
                 <th scope="col">{t("models.colModel")}</th>
                 <th scope="col">{t("analytics.colTokensIn")}</th>
+                <th scope="col">{t("dashboard.cachedTokens")}</th>
                 <th scope="col">{t("analytics.colTokensOut")}</th>
                 <th scope="col">{t("analytics.confidence")}</th>
                 <th scope="col">{t("costs.colCost")}</th>
@@ -240,17 +276,24 @@ export function AnalyticsPage() {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id}>
-                  <td className="ui-table-numeric">{formatEventTimestamp(r.timestamp)}</td>
-                  <td>{r.provider_id}</td>
-                  <td>{r.model}</td>
+                  <td>{formatEventTimestamp(r.timestamp)}</td>
+                  <td>{providerDisplayName({ provider_id: r.provider_id, display_name: r.provider_id })}</td>
+                  <td>{modelDisplayName(r.model, t("analytics.unknownModel"))}</td>
                   <td>{formatFullTokenCount(r.tokens_input)}</td>
+                  <td>
+                    {formatFullTokenCount(r.tokens_cached + r.tokens_cache_write)}
+                  </td>
                   <td>{formatFullTokenCount(r.tokens_output)}</td>
                   <td>
-                    <Badge tone={r.confidence === "High" ? "success" : "warning"}>
-                      {r.confidence}
+                    <Badge tone={confidenceTone(r.confidence)}>
+                      {confidenceLabel(r.confidence, t)}
                     </Badge>
                   </td>
-                  <td>${parseFloat(r.cost || "0").toFixed(4)}</td>
+                  <td>
+                    {numericCost(r.cost) === null
+                      ? t("costs.notPriced")
+                      : `$${numericCost(r.cost)!.toFixed(4)}`}
+                  </td>
                 </tr>
               ))}
             </tbody>

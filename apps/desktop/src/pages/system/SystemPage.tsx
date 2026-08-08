@@ -10,6 +10,8 @@ import {
   type ProviderStateRow,
 } from "../../lib/native";
 import { dataStateLabels, useI18n } from "../../lib/i18n";
+import { providerDisplayName } from "../../components/ProviderLogo";
+import { providerSourceLabel } from "../../lib/providerText";
 
 interface ProviderRow {
   provider: ProviderStateRow;
@@ -294,9 +296,12 @@ export function SystemPage() {
                       const run = row.run;
                       return (
                         <tr key={row.provider.provider_id}>
-                          <td>{row.provider.display_name}</td>
+                          <td>{providerDisplayName({
+                            provider_id: row.provider.provider_id,
+                            display_name: row.provider.display_name,
+                          })}</td>
                           <td>{row.provider.detected ? t("common.yes") : t("common.no")}</td>
-                          <td>{row.provider.source_type || "—"}</td>
+                          <td>{providerSourceLabel(row.provider.source_type, t)}</td>
                           <td>{run?.collector_mode ?? "—"}</td>
                           <td>{formatTimestamp(run?.finished_at, language)}</td>
                           <td>{run?.source_records_seen ?? 0}</td>

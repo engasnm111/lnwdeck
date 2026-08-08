@@ -11,7 +11,18 @@ pub struct UsageEvent {
     pub provider_id: String,
     pub model: String,
     pub tokens_input: u64,
+    /// Non-cached input tokens. Cached input is kept separately so totals and
+    /// pricing never double-count the same prompt bytes.
+    #[serde(default)]
+    pub tokens_cached: u64,
+    /// Input tokens written into the provider cache, when the source exposes
+    /// that breakdown.
+    #[serde(default)]
+    pub tokens_cache_write: u64,
     pub tokens_output: u64,
+    /// Reasoning tokens are a provider-reported subset of output tokens.
+    #[serde(default)]
+    pub tokens_reasoning: u64,
     pub confidence: Confidence,
     pub data_source: String,
     pub cost: String,
@@ -34,7 +45,10 @@ impl UsageEvent {
             provider_id: "prov_openai".to_string(),
             model: "gpt-4o".to_string(),
             tokens_input: 150,
+            tokens_cached: 0,
+            tokens_cache_write: 0,
             tokens_output: 80,
+            tokens_reasoning: 0,
             confidence: Confidence::High,
             data_source: "web".to_string(),
             cost: "0.0025".to_string(),

@@ -129,6 +129,7 @@ vi.mock("@tauri-apps/api/core", () => ({
           estimated_rows: 1,
           unpriced_rows: 0,
           unpriced_tokens: 0,
+          providers: ["opencode"],
         };
       case "get_sessions":
         return {

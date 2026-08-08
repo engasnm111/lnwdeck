@@ -9,7 +9,17 @@ import {
   type QuotaDashboardData,
 } from "../lib/native";
 import { formatCompact, formatTimestamp } from "../lib/freshness";
+import { ProviderLogo, providerDisplayName } from "../components/ProviderLogo";
 import { dataStateLabels, useI18n } from "../lib/i18n";
+import {
+  providerAuthLabel,
+  providerCostLabel,
+  providerHealthLabel,
+  providerKindLabel,
+  providerQuotaSummaryLabel,
+  providerSourceLabel,
+  providerSupportLabel,
+} from "../lib/providerText";
 
 function healthTone(status: string) {
   if (status.startsWith("Error")) {
@@ -123,15 +133,16 @@ export function ProvidersPage() {
         <div className="grid-cards">
           {providers.map((provider) => {
             const card = quotaFor(provider.provider_id);
+            const displayName = providerDisplayName(provider);
             return (
               <Card
                 key={provider.provider_id}
-                title={provider.display_name}
-                subtitle={`${provider.vendor} - ${provider.source_type}`}
+                title={displayName}
+                subtitle={`${provider.vendor} - ${providerSourceLabel(provider.source_type, t)}`}
                 action={
                   <div className="row">
                     <Badge tone={healthTone(provider.health_status)}>
-                      {provider.health_status}
+                      {providerHealthLabel(provider.health_status, t)}
                     </Badge>
                     <Button
                       size="small"
@@ -139,7 +150,7 @@ export function ProvidersPage() {
                         void handleRefreshProvider(provider.provider_id)
                       }
                       disabled={refreshingId === provider.provider_id}
-                      aria-label={t("system.refreshProvider", { provider: provider.display_name })}
+                      aria-label={t("system.refreshProvider", { provider: displayName })}
                     >
                       {refreshingId === provider.provider_id
                         ? t("topbar.refreshing")
@@ -148,14 +159,17 @@ export function ProvidersPage() {
                   </div>
                 }
               >
+                <div className="provider-card-heading">
+                  <ProviderLogo providerId={provider.provider_id} displayName={displayName} vendor={provider.vendor} />
+                </div>
                 <div className="row">
                   <Badge tone={supportTone(provider.usage_support)}>
-                    {t("providers.historyLabel", { support: provider.usage_support })}
+                    {t("providers.historyLabel", { support: providerSupportLabel(provider.usage_support, t) })}
                   </Badge>
                   <Badge tone={supportTone(provider.quota_support)}>
-                    {t("providers.quotaLabel", { support: provider.quota_support })}
+                    {t("providers.quotaLabel", { support: providerSupportLabel(provider.quota_support, t) })}
                   </Badge>
-                  <Badge tone="neutral">{t("providers.authLabel", { requirement: provider.auth_requirement })}</Badge>
+                  <Badge tone="neutral">{t("providers.authLabel", { requirement: providerAuthLabel(provider.auth_requirement, t) })}</Badge>
                 </div>
 
                 <div className="channel-split">
@@ -185,7 +199,7 @@ export function ProvidersPage() {
                       <div className="meta-item">
                         <span className="meta-label">{t("providers.pricing")}</span>
                         <span className="meta-value">
-                          {provider.cost_support}
+                          {providerCostLabel(provider.cost_support, t)}
                         </span>
                       </div>
                     </div>
@@ -194,15 +208,15 @@ export function ProvidersPage() {
                   <div className="channel-block">
                     <div className="channel-title">
                       <span>{t("providers.quotaChannel")}</span>
-                      {card && <Badge tone="neutral">{card.source}</Badge>}
+                      {card && <Badge tone="neutral">{providerSourceLabel(card.source, t)}</Badge>}
                     </div>
                     {!card ? (
                       <p className="ui-inline-note">
-                        {provider.quota_summary}
+                        {providerQuotaSummaryLabel(provider.quota_summary, t)}
                       </p>
                     ) : card.windows.length === 0 ? (
                       <p className="ui-inline-note">
-                        {provider.quota_summary}
+                        {providerQuotaSummaryLabel(provider.quota_summary, t)}
                       </p>
                     ) : (
                       <div className="stack-tight">
@@ -212,13 +226,13 @@ export function ProvidersPage() {
                               <span>{window.label}</span>
                               <span className="ui-mono">
                                 {window.remaining_percent === null
-                                  ? t("providers.kindUsed", { used: formatCompact(window.used), kind: window.kind })
+                                  ? t("providers.kindUsed", { used: formatCompact(window.used), kind: providerKindLabel(window.kind, t) })
                                   : t("providers.percentLeft", { percent: String(Math.round(window.remaining_percent)) })}
                               </span>
                             </div>
-                            <ProgressBar
-                              percent={window.remaining_percent}
-                              label={t("providers.remainingLabel", { provider: provider.display_name, label: window.label })}
+                              <ProgressBar
+                                percent={window.remaining_percent}
+                                label={t("providers.remainingLabel", { provider: displayName, label: window.label })}
                             />
                           </div>
                         ))}

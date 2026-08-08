@@ -1,0 +1,31 @@
+@import "../styles/tokens.css";
+
+.token-value {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: inherit;
+}
+
+button.token-value {
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) ease,
+    background var(--duration-fast) ease;
+}
+
+button.token-value:hover {
+  background: var(--accent-subtle);
+  color: var(--text-primary);
+}
+
+button.token-value:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}

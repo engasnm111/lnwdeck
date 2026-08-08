@@ -42,7 +42,25 @@ const PET_WINDOW_HEIGHT: f64 = 400.0;
 /// Gap between the screen bottom and the pet window when it is shown.
 const PET_BOTTOM_MARGIN: i32 = 48;
 const TRAY_POPUP_WIDTH: f64 = 392.0;
-const TRAY_POPUP_HEIGHT: f64 = 390.0;
+const TRAY_POPUP_HEIGHT: f64 = 344.0;
+// Auxiliary surfaces own their interior background in CSS. On Windows the
+// transparent runtime primes a softbuffer surface before WebView2 is attached;
+// its background color ignores alpha, so supplying Color(0, 0, 0, 0) would
+// create the black rectangular frame that these windows are meant to avoid.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct RoundedAuxWindowConfig {
+    transparent: bool,
+    shadow: bool,
+    native_background: Option<(u8, u8, u8, u8)>,
+}
+
+const fn rounded_aux_window_config() -> RoundedAuxWindowConfig {
+    RoundedAuxWindowConfig {
+        transparent: true,
+        shadow: false,
+        native_background: None,
+    }
+}
 
 /// Widget appearance settings handed to the webview.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -294,6 +312,7 @@ pub fn restore_widget_state(app: &tauri::App) {
     }
 
     if widget_settings(&handle).visible {
+        let _ = widget.set_skip_taskbar(true);
         let _ = widget.show();
     }
 }
@@ -437,10 +456,12 @@ pub fn setup_windows(app: &tauri::App) {
         .build()
         .expect("failed to build main window");
     if !main_window_visible(app.handle()) {
+        let _ = main.set_skip_taskbar(true);
         let _ = main.hide();
     }
 
     let (width, height) = widget_size_dimensions(DEFAULT_WIDGET_SIZE);
+    let rounded_aux = rounded_aux_window_config();
     let mut widget_builder = WebviewWindowBuilder::new(
         app,
         WIDGET_LABEL,
@@ -459,13 +480,16 @@ pub fn setup_windows(app: &tauri::App) {
         .resizable(false)
         .skip_taskbar(true)
         .visible(false)
+        .transparent(rounded_aux.transparent)
+        .shadow(rounded_aux.shadow)
         .build()
         .expect("failed to build widget window");
 
     // Desktop pet: a small transparent, always-on-top window that follows the
     // pet as it walks. It is never full-screen, so clicks outside the pet hit
-    // the desktop normally. The webview background is explicitly transparent
-    // so no square frame is visible around the pet.
+    // the desktop normally. Keep the native surface unpainted; Windows ignores
+    // alpha in the softbuffer background color and would otherwise add a black
+    // rectangle around the sprite.
     let mut pet_builder =
         WebviewWindowBuilder::new(app, PET_LABEL, tauri::WebviewUrl::App("pet.html".into()));
     if let Some(args) = browser_args.as_deref() {
@@ -479,11 +503,10 @@ pub fn setup_windows(app: &tauri::App) {
         .resizable(false)
         .skip_taskbar(true)
         .visible(false)
-        .transparent(true)
+        .transparent(rounded_aux.transparent)
         // No DWM drop shadow: on an undecorated transparent window it renders as
         // a visible square outline around the pet.
-        .shadow(false)
-        .background_color(tauri::window::Color(0, 0, 0, 0))
+        .shadow(rounded_aux.shadow)
         .build()
         .expect("failed to build pet window");
 
@@ -508,9 +531,10 @@ pub fn setup_windows(app: &tauri::App) {
         .resizable(false)
         .skip_taskbar(true)
         .visible(false)
-        .transparent(true)
-        .shadow(false)
-        .background_color(tauri::window::Color(0, 0, 0, 0))
+        // The CSS surface remains opaque; native alpha is only for its rounded
+        // outer corners, preventing a rectangular black frame.
+        .transparent(rounded_aux.transparent)
+        .shadow(rounded_aux.shadow)
         .build()
         .expect("failed to build tray popup window");
 }
@@ -522,6 +546,7 @@ pub fn handle_close_request(window: &tauri::Window, api: &tauri::CloseRequestApi
             api.prevent_close();
             persist_main_window_visible(window.app_handle(), false);
             window.hide().ok();
+            window.set_skip_taskbar(true).ok();
         }
         // Closing the widget is the same as hiding it, and is remembered.
         WIDGET_LABEL => {
@@ -591,6 +616,7 @@ pub fn restore_pet_window_state(app: &tauri::App) {
             if let Some((x, y)) = default_pet_position(&pet_window) {
                 let _ = pet_window.set_position(PhysicalPosition::new(x, y));
             }
+            let _ = pet_window.set_skip_taskbar(true);
             let _ = pet_window.show();
         }
     }
@@ -618,6 +644,7 @@ pub fn show_widget(app: tauri::AppHandle) -> Result<(), String> {
     let widget = app
         .get_webview_window(WIDGET_LABEL)
         .ok_or("widget window not found")?;
+    widget.set_skip_taskbar(true).map_err(|e| e.to_string())?;
     widget.show().map_err(|e| e.to_string())?;
     widget.set_focus().map_err(|e| e.to_string())?;
     persist_visibility(&app, true)?;
@@ -736,9 +763,27 @@ pub fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
     let window = app
         .get_webview_window(MAIN_LABEL)
         .ok_or("main window not found")?;
+    // A hidden dashboard may still be minimized on Windows. Unminimize before
+    // showing it so tray navigation always restores a usable window.
+    let _ = window.unminimize();
+    let _ = window.set_skip_taskbar(false);
     window.show().map_err(|e| e.to_string())?;
     window.set_focus().map_err(|e| e.to_string())?;
     persist_main_window_visible(&app, true);
+    Ok(())
+}
+
+/// Opens the dashboard and closes the transient tray popup as one action.
+///
+/// Keeping both operations in one native command avoids a race where the
+/// popup loses focus between two IPC calls before the hidden dashboard has
+/// been restored.
+#[tauri::command]
+pub fn open_dashboard_from_tray(app: tauri::AppHandle) -> Result<(), String> {
+    show_main_window(app.clone())?;
+    if let Some(popup) = app.get_webview_window(TRAY_LABEL) {
+        let _ = popup.hide();
+    }
     Ok(())
 }
 
@@ -781,6 +826,7 @@ pub fn show_tray_popup(
     window
         .set_position(PhysicalPosition::new(x, y))
         .map_err(|e| e.to_string())?;
+    window.set_skip_taskbar(true).map_err(|e| e.to_string())?;
     window.show().map_err(|e| e.to_string())?;
     window.set_focus().map_err(|e| e.to_string())
 }
@@ -800,6 +846,9 @@ pub fn show_pet_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some((x, y)) = default_pet_position(&pet_window) {
         let _ = pet_window.set_position(PhysicalPosition::new(x, y));
     }
+    pet_window
+        .set_skip_taskbar(true)
+        .map_err(|e| e.to_string())?;
     pet_window.show().map_err(|e| e.to_string())?;
     let state = app.state::<AppState>();
     if let Ok(guard) = state.ensure_storage() {
@@ -1038,5 +1087,13 @@ mod tests {
             defaults.pet_id.is_empty(),
             "no pet selected means the built-in robot"
         );
+    }
+
+    #[test]
+    fn rounded_auxiliary_windows_use_alpha_chrome_without_a_native_frame() {
+        let config = rounded_aux_window_config();
+        assert!(config.transparent);
+        assert!(!config.shadow);
+        assert_eq!(config.native_background, None);
     }
 }

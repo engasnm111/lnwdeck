@@ -153,6 +153,22 @@ describe("AppShell", () => {
     ).toBeEnabled();
   });
 
+  it("keeps the refresh state when another surface already owns the shared job", async () => {
+    vi.mocked(native.startRefresh).mockResolvedValue({
+      started: false,
+      already_running: true,
+    });
+    renderShell();
+    const refreshButton = await screen.findByRole("button", {
+      name: "Refresh all providers",
+    });
+
+    await userEvent.click(refreshButton);
+
+    await waitFor(() => expect(native.startRefresh).toHaveBeenCalledTimes(1));
+    expect(refreshButton).toBeDisabled();
+  });
+
   it("applies the stored theme to the document", async () => {
     vi.mocked(native.fetchSettings).mockResolvedValue(settingsView("light"));
     renderShell();

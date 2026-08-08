@@ -248,6 +248,7 @@ pub fn run() {
             windows::set_widget_view,
             windows::set_widget_size_preset,
             windows::show_main_window,
+            windows::open_dashboard_from_tray,
             windows::hide_tray_popup,
             commands::pets::import_widget_pet,
             commands::pets::import_widget_pet_file,

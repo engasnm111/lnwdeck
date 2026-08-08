@@ -1,4 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   fetchQuotaDashboard,
@@ -32,12 +33,19 @@ import {
 import { PetMascot, type ImportedPet } from "./PetMascot";
 import { derivePetMood, type PetReaction } from "./petState";
 import { translate, useI18n } from "../../lib/i18n";
+import { providerDisplayName } from "../../components/ProviderLogo";
 import {
   BarsIcon,
   CalendarIcon,
+  CloseIcon,
   ClockIcon,
   DotIcon,
+  ExternalLinkIcon,
+  FilterIcon,
+  LockIcon,
+  RefreshIcon,
   SparkIcon,
+  WidgetLayoutIcon,
 } from "./WidgetIcons";
 
 /** Credits are carried in micro-credits by the OpenRouter adapter. */
@@ -345,10 +353,14 @@ function ProviderCard({
 }) {
   const { language, t } = useI18n();
   const chip = statusChip(provider.status, provider.error_code, t);
+  const displayName = providerDisplayName({
+    provider_id: provider.provider_id,
+    display_name: provider.display_name,
+  });
   return (
     <li className="w-card">
       <div className="w-card-head">
-        <span className="w-card-name">{provider.display_name}</span>
+        <span className="w-card-name">{displayName}</span>
         <span className={`w-chip w-chip-${chip.tone}`}>{chip.label}</span>
       </div>
 
@@ -360,7 +372,7 @@ function ProviderCard({
             <RingGauge
               key={window.window_key}
               window={window}
-              providerName={provider.display_name}
+              providerName={displayName}
               now={now}
               t={t}
               locale={language}
@@ -372,7 +384,7 @@ function ProviderCard({
           <BarRow
             key={window.window_key}
             window={window}
-            providerName={provider.display_name}
+            providerName={displayName}
             now={now}
             t={t}
             locale={language}
@@ -387,6 +399,26 @@ function ProviderCard({
   );
 }
 
+interface OverlayPosition {
+  top: number;
+  left: number;
+}
+
+function overlayPosition(
+  anchor: HTMLElement | null,
+  width: number,
+  height: number,
+): OverlayPosition {
+  if (!anchor || typeof window === "undefined") return { top: 8, left: 8 };
+  const rect = anchor.getBoundingClientRect();
+  const maxLeft = Math.max(8, window.innerWidth - width - 8);
+  const maxTop = Math.max(8, window.innerHeight - height - 8);
+  return {
+    top: Math.min(rect.bottom + 4, maxTop),
+    left: Math.min(Math.max(8, rect.right - width), maxLeft),
+  };
+}
+
 function WidgetViewMenu({
   value,
   onChange,
@@ -397,6 +429,7 @@ function WidgetViewMenu({
   t: (key: string, vars?: Record<string, string>) => string;
 }) {
   const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState<OverlayPosition>({ top: 8, left: 8 });
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -412,8 +445,15 @@ function WidgetViewMenu({
 
   useEffect(() => {
     if (!open) return undefined;
+    const updatePosition = () => {
+      setPosition(overlayPosition(triggerRef.current, 128, 150));
+    };
     const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target instanceof Element ? event.target : null;
+      const insidePortal = target?.closest("[data-widget-overlay]") !== null;
+      if (!rootRef.current?.contains(event.target as Node) && !insidePortal) {
+        setOpen(false);
+      }
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -421,9 +461,14 @@ function WidgetViewMenu({
         triggerRef.current?.focus();
       }
     };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
     return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
@@ -439,31 +484,15 @@ function WidgetViewMenu({
     optionRefs.current[next]?.focus();
   };
 
-  return (
-    <div className="w-view-menu" ref={rootRef}>
-      <button
-        type="button"
-        ref={triggerRef}
-        className="w-btn w-view-trigger"
-        aria-label={t("widget.action.layout")}
-        title={t("widget.action.layoutTitle")}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-        onKeyDown={(event) => {
-          if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            setOpen(true);
-          } else if (event.key === "ArrowUp") {
-            event.preventDefault();
-            setOpen(true);
-          }
-        }}
-      >
-        {options[currentIndex].label}
-      </button>
-      {open && (
-        <div className="w-view-options" role="listbox" aria-label={t("widget.action.layout")}>
+  const optionsSurface = open && typeof document !== "undefined"
+    ? createPortal(
+        <div
+          className="w-view-options"
+          data-widget-overlay="true"
+          role="listbox"
+          aria-label={t("widget.action.layout")}
+          style={{ top: position.top, left: position.left }}
+        >
           {options.map((option, index) => (
             <button
               type="button"
@@ -501,8 +530,36 @@ function WidgetViewMenu({
               {option.label}
             </button>
           ))}
-        </div>
-      )}
+        </div>,
+        document.body,
+      )
+    : null;
+
+  return (
+    <div className="w-view-menu" ref={rootRef}>
+      <button
+        type="button"
+        ref={triggerRef}
+        className="w-btn w-view-trigger"
+        data-widget-icon-action="true"
+        aria-label={t("widget.action.layout")}
+        title={t("widget.action.layoutTitle")}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setOpen(true);
+          } else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            setOpen(true);
+          }
+        }}
+      >
+        <WidgetLayoutIcon view={options[currentIndex].value} />
+      </button>
+      {optionsSurface}
     </div>
   );
 }
@@ -533,10 +590,43 @@ export function FloatingWidget() {
   });
   const [refreshing, setRefreshing] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerPosition, setPickerPosition] = useState<OverlayPosition>({ top: 8, left: 8 });
+  const pickerButtonRef = useRef<HTMLButtonElement | null>(null);
   const [reaction, setReaction] = useState<PetReaction>(null);
   const reactionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activePet, setActivePet] = useState<ImportedPet | null>(null);
   const unlistenRef = useRef<UnlistenFn[]>([]);
+
+  useEffect(() => {
+    if (!pickerOpen) return undefined;
+    const updatePosition = () => {
+      setPickerPosition(overlayPosition(pickerButtonRef.current, 276, 320));
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const inPicker = target?.closest(".w-picker") !== null;
+      if (!pickerButtonRef.current?.contains(event.target as Node) && !inPicker) {
+        setPickerOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setPickerOpen(false);
+        pickerButtonRef.current?.focus();
+      }
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [pickerOpen]);
 
   const load = useCallback(async () => {
     try {
@@ -714,7 +804,7 @@ export function FloatingWidget() {
     setError(null);
     try {
       const result = await startRefresh();
-      if (!result.started) {
+      if (!result.started && !result.already_running) {
         setRefreshing(false);
       }
     } catch (refreshError) {
@@ -723,7 +813,6 @@ export function FloatingWidget() {
           ? refreshError.message
           : t("widget.error.refresh"),
       );
-    } finally {
       setRefreshing(false);
     }
   }, [t]);
@@ -802,39 +891,49 @@ export function FloatingWidget() {
 
   return (
     <div
-      className="w-root"
+      className="w-root w-root-single-surface"
       data-locked={settings.locked ? "true" : "false"}
       data-view={settings.view}
       style={{ opacity: settings.opacity }}
     >
-      <header className="w-header" {...dragProps}>
+      <header className="w-header">
         <span className="w-brand" {...dragProps}>
           lnwdeck
         </span>
+        <span
+          className="w-header-drag-space"
+          aria-hidden="true"
+          {...dragProps}
+        />
         <div className="w-header-actions">
           <button
             type="button"
             className="w-btn"
+            data-widget-icon-action="true"
             onClick={() => void handleRefresh()}
             disabled={refreshing}
             aria-label={t("widget.action.refreshQuota")}
             title={t("widget.action.refreshQuota")}
           >
-            {refreshing ? t("widget.action.syncing") : t("widget.action.sync")}
+            <span className={refreshing ? "w-icon-spin" : ""}>
+              <RefreshIcon />
+            </span>
           </button>
           <button
             type="button"
             className="w-btn"
+            data-widget-icon-action="true"
             onClick={() => void showMainWindow()}
             aria-label={t("widget.action.open")}
             title={t("widget.action.openTitle")}
           >
-            {t("widget.action.open")}
+            <ExternalLinkIcon />
           </button>
           <WidgetViewMenu value={settings.view} onChange={(view) => void selectView(view)} t={t} />
           <button
             type="button"
             className={`w-btn ${settings.locked ? "w-btn-active" : ""}`.trim()}
+            data-widget-icon-action="true"
             onClick={() => void toggleLock()}
             aria-label={settings.locked ? t("widget.action.unlock") : t("widget.action.lock")}
             aria-pressed={settings.locked}
@@ -844,32 +943,45 @@ export function FloatingWidget() {
                 : t("widget.action.lockTitle")
             }
           >
-            {settings.locked ? t("widget.action.lock") : t("widget.action.unlock")}
+            <LockIcon locked={settings.locked} />
           </button>
           <button
             type="button"
-            className={`w-btn ${pickerOpen ? "w-btn-active" : ""}`.trim()}
+            ref={pickerButtonRef}
+            className={`w-btn w-picker-trigger ${pickerOpen ? "w-btn-active" : ""}`.trim()}
+            data-widget-icon-action="true"
+            data-widget-picker-trigger="true"
             onClick={() => setPickerOpen((open) => !open)}
             aria-label={t("widget.action.providers")}
             aria-expanded={pickerOpen}
+            aria-controls="w-provider-picker"
             title={t("widget.action.providersTitle")}
           >
-            {t("widget.action.filter")}
+            <FilterIcon />
           </button>
           <button
             type="button"
             className="w-btn w-btn-danger"
+            data-widget-icon-action="true"
             onClick={() => void hideWidgetWindow()}
             aria-label={t("widget.action.close")}
             title={t("widget.action.closeTitle")}
           >
-            {t("widget.action.close")}
+            <CloseIcon />
           </button>
         </div>
       </header>
 
-      {pickerOpen && (
-        <div className="w-picker">
+      {pickerOpen && typeof document !== "undefined" && createPortal(
+        <div
+          className="w-picker"
+          id="w-provider-picker"
+          data-widget-overlay="true"
+          data-surface="opaque"
+          role="dialog"
+          aria-labelledby="w-picker-title"
+          style={{ top: pickerPosition.top, left: pickerPosition.left }}
+        >
           <span className="w-picker-title" id="w-picker-title">
             {t("widget.providersShown")}
           </span>
@@ -895,13 +1007,17 @@ export function FloatingWidget() {
                     aria-pressed={pinned}
                     onClick={() => void toggleProvider(provider.provider_id)}
                   >
-                    {provider.display_name}
+                    {providerDisplayName({
+                      provider_id: provider.provider_id,
+                      display_name: provider.display_name,
+                    })}
                   </button>
                 );
               })}
             </div>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
 
       {settings.view === "pet" && (

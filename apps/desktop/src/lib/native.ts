@@ -50,9 +50,14 @@ export interface DashboardQuery {
 
 export interface DashboardProviderUsage {
   provider_id: string;
+  display_name: string;
+  vendor: string;
   request_count: number;
   tokens_input: number;
+  tokens_cached: number;
+  tokens_cache_write: number;
   tokens_output: number;
+  tokens_reasoning: number;
   total_tokens: number;
 }
 
@@ -60,7 +65,10 @@ export interface DashboardTrendPoint {
   bucket: string;
   request_count: number;
   tokens_input: number;
+  tokens_cached: number;
+  tokens_cache_write: number;
   tokens_output: number;
+  tokens_reasoning: number;
   total_tokens: number;
 }
 
@@ -72,9 +80,14 @@ export interface DashboardHeatmapCell {
 
 export interface DashboardSessionProvider {
   provider_id: string;
+  display_name: string;
+  vendor: string;
   request_count: number;
   tokens_input: number;
+  tokens_cached: number;
+  tokens_cache_write: number;
   tokens_output: number;
+  tokens_reasoning: number;
   total_tokens: number;
 }
 
@@ -83,7 +96,10 @@ export interface DashboardSession {
   display_name: string;
   request_count: number;
   tokens_input: number;
+  tokens_cached: number;
+  tokens_cache_write: number;
   tokens_output: number;
+  tokens_reasoning: number;
   total_tokens: number;
   first_seen_at: string | null;
   last_seen_at: string | null;
@@ -98,7 +114,10 @@ export interface UsageDashboardData {
   duration_days: number;
   request_count: number;
   tokens_input: number;
+  tokens_cached: number;
+  tokens_cache_write: number;
   tokens_output: number;
+  tokens_reasoning: number;
   total_tokens: number;
   provider_count: number;
   session_count: number;
@@ -120,9 +139,13 @@ export interface AnalyticsRow {
   provider_id: string;
   model: string;
   tokens_input: number;
+  tokens_cached: number;
+  tokens_cache_write: number;
   tokens_output: number;
-  confidence: "Low" | "Medium" | "High";
+  tokens_reasoning: number;
+  confidence: "Low" | "Medium" | "High" | "Unknown";
   cost: string;
+  pricing_status: "recorded" | "priced" | "estimated" | "unpriced";
 }
 
 export interface AnalyticsResult {
@@ -435,12 +458,18 @@ export interface CostBreakdownData {
   estimated_rows: number;
   unpriced_rows: number;
   unpriced_tokens: number;
+  /** Providers with recorded events in the window, for the filter dropdown. */
+  providers: string[];
 }
 
 export async function fetchCosts(
   window: HistoryWindow,
+  providerId?: string,
 ): Promise<CostBreakdownData> {
-  return invoke<CostBreakdownData>("get_costs", { window });
+  return invoke<CostBreakdownData>("get_costs", {
+    window,
+    providerId,
+  });
 }
 
 // ── Sessions ─────────────────────────────────────────────────────────────

@@ -18,6 +18,7 @@ import {
 } from "../../lib/native";
 import { formatCompact, formatNumber, formatTimestamp } from "../../lib/freshness";
 import { dataStateLabels, useI18n } from "../../lib/i18n";
+import { providerDisplayName } from "../../components/ProviderLogo";
 
 const WINDOWS: Array<{ value: HistoryWindow; labelKey: string }> = [
   { value: "last_24h", labelKey: "costs.window24h" },
@@ -126,7 +127,7 @@ export function SessionsPage() {
           <option value="">{t("sessions.allProviders")}</option>
           {(data?.providers ?? []).map((id) => (
             <option key={id} value={id}>
-              {id}
+              {providerDisplayName({ provider_id: id, display_name: id })}
             </option>
           ))}
         </select>
@@ -219,6 +220,7 @@ function ProjectCard({
         )
       }
     >
+      <div className="sessions-table-scroll">
       <Table
         caption={t("sessions.tableCaption", { project: title })}
         headers={[
@@ -242,7 +244,7 @@ function ProjectCard({
                 )}
               </div>
             </td>
-            <td>{session.provider_id}</td>
+            <td>{providerDisplayName({ provider_id: session.provider_id, display_name: session.provider_id })}</td>
             <td className="ui-table-numeric">{formatNumber(session.request_count)}</td>
             <td className="ui-table-numeric">{formatCompact(session.tokens_input)}</td>
             <td className="ui-table-numeric">{formatCompact(session.tokens_output)}</td>
@@ -261,6 +263,7 @@ function ProjectCard({
           </tr>
         ))}
       </Table>
+      </div>
     </Card>
   );
 }

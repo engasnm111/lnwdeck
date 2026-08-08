@@ -116,7 +116,7 @@ mod tests {
         let mut registry = AdapterRegistry::new();
         for (id, name) in [
             ("anthropic_claude", "Claude"),
-            ("openai_codex", "Codex"),
+            ("openai_codex", "OpenAI Codex"),
             ("opencode", "OpenCode"),
         ] {
             registry

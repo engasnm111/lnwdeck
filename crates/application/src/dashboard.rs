@@ -5,10 +5,12 @@
 //! privacy-safe `usage_events` projection; prompts, responses and raw paths
 //! never enter this module.
 
-use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, TimeZone, Utc};
+use chrono::{DateTime, Duration, Local, NaiveDate, TimeZone, Utc};
+use lnwdeck_provider_runtime::AdapterRegistry;
 use lnwdeck_storage::repositories::SessionRepository;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -47,9 +49,14 @@ pub struct DashboardQuery {
 #[derive(Debug, Clone, Serialize)]
 pub struct DashboardProviderUsage {
     pub provider_id: String,
+    pub display_name: String,
+    pub vendor: String,
     pub request_count: i64,
     pub tokens_input: i64,
+    pub tokens_cached: i64,
+    pub tokens_cache_write: i64,
     pub tokens_output: i64,
+    pub tokens_reasoning: i64,
     pub total_tokens: i64,
 }
 
@@ -58,7 +65,10 @@ pub struct DashboardTrendPoint {
     pub bucket: String,
     pub request_count: i64,
     pub tokens_input: i64,
+    pub tokens_cached: i64,
+    pub tokens_cache_write: i64,
     pub tokens_output: i64,
+    pub tokens_reasoning: i64,
     pub total_tokens: i64,
 }
 
@@ -72,9 +82,14 @@ pub struct DashboardHeatmapCell {
 #[derive(Debug, Clone, Serialize)]
 pub struct DashboardSessionProvider {
     pub provider_id: String,
+    pub display_name: String,
+    pub vendor: String,
     pub request_count: i64,
     pub tokens_input: i64,
+    pub tokens_cached: i64,
+    pub tokens_cache_write: i64,
     pub tokens_output: i64,
+    pub tokens_reasoning: i64,
     pub total_tokens: i64,
 }
 
@@ -84,7 +99,10 @@ pub struct DashboardSession {
     pub display_name: String,
     pub request_count: i64,
     pub tokens_input: i64,
+    pub tokens_cached: i64,
+    pub tokens_cache_write: i64,
     pub tokens_output: i64,
+    pub tokens_reasoning: i64,
     pub total_tokens: i64,
     pub first_seen_at: Option<String>,
     pub last_seen_at: Option<String>,
@@ -100,7 +118,10 @@ pub struct UsageDashboard {
     pub duration_days: i64,
     pub request_count: i64,
     pub tokens_input: i64,
+    pub tokens_cached: i64,
+    pub tokens_cache_write: i64,
     pub tokens_output: i64,
+    pub tokens_reasoning: i64,
     pub total_tokens: i64,
     pub provider_count: i64,
     pub session_count: i64,
@@ -127,33 +148,16 @@ fn local_midnight(date: NaiveDate) -> Result<DateTime<Utc>, String> {
         .ok_or_else(|| "local midnight is ambiguous".to_string())
 }
 
-fn next_month(date: NaiveDate) -> Result<NaiveDate, String> {
-    if date.month() == 12 {
-        NaiveDate::from_ymd_opt(date.year() + 1, 1, 1)
-    } else {
-        NaiveDate::from_ymd_opt(date.year(), date.month() + 1, 1)
-    }
-    .ok_or_else(|| "invalid month boundary".to_string())
-}
-
 fn bounds_for(query: &DashboardQuery, now: DateTime<Local>) -> Result<Bounds, String> {
     let today = now.date_naive();
+    let tomorrow = today
+        .succ_opt()
+        .ok_or_else(|| "invalid day boundary".to_string())?;
     let (start_date, end_date) = match query.range {
-        DashboardRange::Day => (Some(today), today.succ_opt()),
-        DashboardRange::Week => {
-            let monday = today - Duration::days(i64::from(today.weekday().num_days_from_monday()));
-            (Some(monday), monday.checked_add_days(chrono::Days::new(7)))
-        }
-        DashboardRange::Month => {
-            let first = NaiveDate::from_ymd_opt(today.year(), today.month(), 1)
-                .ok_or_else(|| "invalid month boundary".to_string())?;
-            (Some(first), Some(next_month(first)?))
-        }
-        DashboardRange::Year => {
-            let first = NaiveDate::from_ymd_opt(today.year(), 1, 1)
-                .ok_or_else(|| "invalid year boundary".to_string())?;
-            (Some(first), NaiveDate::from_ymd_opt(today.year() + 1, 1, 1))
-        }
+        DashboardRange::Day => (Some(today), Some(tomorrow)),
+        DashboardRange::Week => (Some(today - Duration::days(6)), Some(tomorrow)),
+        DashboardRange::Month => (Some(today - Duration::days(29)), Some(tomorrow)),
+        DashboardRange::Year => (Some(today - Duration::days(364)), Some(tomorrow)),
         DashboardRange::Total => (None, None),
         DashboardRange::Custom => {
             let start = query
@@ -206,50 +210,198 @@ fn span_days(bounds: &Bounds, trend: &[DashboardTrendPoint]) -> i64 {
     (last - first).num_days().abs() + 1
 }
 
+fn calendar_span(
+    bounds: &Bounds,
+    points: &[DashboardTrendPoint],
+) -> Option<(NaiveDate, NaiveDate)> {
+    if let (Some(start), Some(end)) = (bounds.start, bounds.end) {
+        let start = start.with_timezone(&Local).date_naive();
+        let end = end.with_timezone(&Local).date_naive();
+        return (start < end).then_some((start, end));
+    }
+
+    let first = points.first()?.bucket.parse::<NaiveDate>().ok()?;
+    let last = points.last()?.bucket.parse::<NaiveDate>().ok()?;
+    Some((first, last.succ_opt()?))
+}
+
+/// Includes zero-usage days in bounded ranges so each preset is a complete
+/// trailing calendar window, not a list of only the days with events.
+fn fill_calendar_buckets(
+    bounds: &Bounds,
+    points: Vec<DashboardTrendPoint>,
+) -> Vec<DashboardTrendPoint> {
+    let Some((mut day, end)) = calendar_span(bounds, &points) else {
+        return points;
+    };
+    let mut by_day = points
+        .into_iter()
+        .map(|point| (point.bucket.clone(), point))
+        .collect::<HashMap<_, _>>();
+    let mut filled = Vec::new();
+    while day < end {
+        let bucket = day.format("%Y-%m-%d").to_string();
+        filled.push(by_day.remove(&bucket).unwrap_or(DashboardTrendPoint {
+            bucket,
+            request_count: 0,
+            tokens_input: 0,
+            tokens_cached: 0,
+            tokens_cache_write: 0,
+            tokens_output: 0,
+            tokens_reasoning: 0,
+            total_tokens: 0,
+        }));
+        let Some(next) = day.succ_opt() else {
+            break;
+        };
+        day = next;
+    }
+    filled
+}
+
+fn provider_identity(
+    catalog: &HashMap<String, (String, String)>,
+    provider_id: &str,
+) -> (String, String) {
+    catalog
+        .get(provider_id)
+        .cloned()
+        .unwrap_or_else(|| ("Other provider".to_string(), "Other".to_string()))
+}
+
+fn total_tokens(input: i64, cached: i64, cache_write: i64, output: i64) -> i64 {
+    input
+        .saturating_add(cached)
+        .saturating_add(cache_write)
+        .saturating_add(output)
+}
+
+/// OpenCode used this provider id in older lnwdeck databases. Keep those
+/// historical rows in the same dashboard card and provider filter as the
+/// current canonical id without rewriting user history.
+const LEGACY_OPENCODE_PROVIDER_ID: &str = "opencode_cli";
+
+fn provider_filter_matches_sql() -> &'static str {
+    "(?3 = '' OR provider_id = ?3 OR (?3 = 'opencode' AND provider_id = 'opencode_cli'))"
+}
+
 pub struct QueryDashboard;
 
 impl QueryDashboard {
     pub fn execute(conn: &Connection, query: DashboardQuery) -> Result<UsageDashboard, String> {
+        Self::execute_inner(conn, query, None)
+    }
+
+    /// Executes the dashboard query with the runtime registry so provider
+    /// display names and vendors are resolved from the canonical descriptors.
+    pub fn execute_with_registry(
+        conn: &Connection,
+        query: DashboardQuery,
+        registry: &AdapterRegistry,
+    ) -> Result<UsageDashboard, String> {
+        Self::execute_inner(conn, query, Some(registry))
+    }
+
+    fn execute_inner(
+        conn: &Connection,
+        query: DashboardQuery,
+        registry: Option<&AdapterRegistry>,
+    ) -> Result<UsageDashboard, String> {
         let generated_at = Utc::now();
         let bounds = bounds_for(&query, generated_at.with_timezone(&Local))?;
         let start = bound_text(bounds.start, "0000-01-01T00:00:00Z");
         let end = bound_text(bounds.end, "9999-12-31T23:59:59Z");
         let provider = query.provider_id.unwrap_or_default();
         let params = rusqlite::params![start, end, provider];
+        let catalog = registry
+            .map(|registry| {
+                registry
+                    .descriptors()
+                    .into_iter()
+                    .map(|descriptor| {
+                        (
+                            descriptor.id.to_string(),
+                            (
+                                descriptor.display_name.to_string(),
+                                descriptor.vendor.to_string(),
+                            ),
+                        )
+                    })
+                    .collect::<HashMap<_, _>>()
+            })
+            .unwrap_or_default();
 
-        let (request_count, tokens_input, tokens_output): (i64, i64, i64) = conn
-            .query_row(
-                "SELECT COUNT(*), COALESCE(SUM(tokens_input), 0),
-                        COALESCE(SUM(tokens_output), 0)
-                 FROM usage_events
-                 WHERE timestamp >= ?1 AND timestamp < ?2
-                   AND (?3 = '' OR provider_id = ?3)",
-                params,
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-            )
+        let summary_sql = format!(
+            "SELECT COUNT(*), COALESCE(SUM(tokens_input), 0),
+                    COALESCE(SUM(tokens_cached), 0),
+                    COALESCE(SUM(tokens_cache_write), 0),
+                    COALESCE(SUM(tokens_output), 0),
+                    COALESCE(SUM(tokens_reasoning), 0)
+             FROM usage_events
+             WHERE julianday(timestamp) >= julianday(?1)
+               AND julianday(timestamp) < julianday(?2)
+               AND {filter}",
+            filter = provider_filter_matches_sql(),
+        );
+        let (
+            request_count,
+            tokens_input,
+            tokens_cached,
+            tokens_cache_write,
+            tokens_output,
+            tokens_reasoning,
+        ): (i64, i64, i64, i64, i64, i64) = conn
+            .query_row(&summary_sql, params, |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            })
             .map_err(|error| format!("dashboard summary: {error}"))?;
 
         let mut provider_stmt = conn
-            .prepare(
-                "SELECT provider_id, COUNT(*), COALESCE(SUM(tokens_input), 0),
-                        COALESCE(SUM(tokens_output), 0)
+            .prepare(&format!(
+                "SELECT CASE WHEN provider_id = '{legacy}' THEN 'opencode' ELSE provider_id END,
+                        COUNT(*), COALESCE(SUM(tokens_input), 0),
+                        COALESCE(SUM(tokens_cached), 0),
+                        COALESCE(SUM(tokens_cache_write), 0),
+                        COALESCE(SUM(tokens_output), 0),
+                        COALESCE(SUM(tokens_reasoning), 0)
                  FROM usage_events
-                 WHERE timestamp >= ?1 AND timestamp < ?2
-                   AND (?3 = '' OR provider_id = ?3)
-                 GROUP BY provider_id
-                 ORDER BY SUM(tokens_input + tokens_output) DESC, provider_id",
-            )
+                 WHERE julianday(timestamp) >= julianday(?1)
+                   AND julianday(timestamp) < julianday(?2)
+                   AND {filter}
+                 GROUP BY CASE WHEN provider_id = '{legacy}' THEN 'opencode' ELSE provider_id END
+                 ORDER BY SUM(tokens_input + tokens_cached + tokens_cache_write + tokens_output) DESC,
+                          provider_id",
+                legacy = LEGACY_OPENCODE_PROVIDER_ID,
+                filter = provider_filter_matches_sql(),
+            ))
             .map_err(|error| format!("dashboard providers: {error}"))?;
         let providers = provider_stmt
             .query_map(params, |row| {
+                let provider_id: String = row.get(0)?;
                 let input: i64 = row.get(2)?;
-                let output: i64 = row.get(3)?;
+                let cached: i64 = row.get(3)?;
+                let cache_write: i64 = row.get(4)?;
+                let output: i64 = row.get(5)?;
+                let reasoning: i64 = row.get(6)?;
+                let (display_name, vendor) = provider_identity(&catalog, &provider_id);
                 Ok(DashboardProviderUsage {
-                    provider_id: row.get(0)?,
+                    provider_id,
+                    display_name,
+                    vendor,
                     request_count: row.get(1)?,
                     tokens_input: input,
+                    tokens_cached: cached,
+                    tokens_cache_write: cache_write,
                     tokens_output: output,
-                    total_tokens: input + output,
+                    tokens_reasoning: reasoning,
+                    total_tokens: total_tokens(input, cached, cache_write, output),
                 })
             })
             .map_err(|error| format!("dashboard providers: {error}"))?
@@ -257,30 +409,43 @@ impl QueryDashboard {
             .map_err(|error| format!("dashboard providers: {error}"))?;
 
         let mut trend_stmt = conn
-            .prepare(
+            .prepare(&format!(
                 "SELECT date(timestamp, 'localtime') AS bucket, COUNT(*),
-                        COALESCE(SUM(tokens_input), 0), COALESCE(SUM(tokens_output), 0)
+                        COALESCE(SUM(tokens_input), 0),
+                        COALESCE(SUM(tokens_cached), 0),
+                        COALESCE(SUM(tokens_cache_write), 0),
+                        COALESCE(SUM(tokens_output), 0),
+                        COALESCE(SUM(tokens_reasoning), 0)
                  FROM usage_events
-                 WHERE timestamp >= ?1 AND timestamp < ?2
-                   AND (?3 = '' OR provider_id = ?3)
+                 WHERE julianday(timestamp) >= julianday(?1)
+                   AND julianday(timestamp) < julianday(?2)
+                   AND {filter}
                  GROUP BY bucket ORDER BY bucket",
-            )
+                filter = provider_filter_matches_sql(),
+            ))
             .map_err(|error| format!("dashboard trend: {error}"))?;
         let trend = trend_stmt
             .query_map(params, |row| {
                 let input: i64 = row.get(2)?;
-                let output: i64 = row.get(3)?;
+                let cached: i64 = row.get(3)?;
+                let cache_write: i64 = row.get(4)?;
+                let output: i64 = row.get(5)?;
+                let reasoning: i64 = row.get(6)?;
                 Ok(DashboardTrendPoint {
                     bucket: row.get(0)?,
                     request_count: row.get(1)?,
                     tokens_input: input,
+                    tokens_cached: cached,
+                    tokens_cache_write: cache_write,
                     tokens_output: output,
-                    total_tokens: input + output,
+                    tokens_reasoning: reasoning,
+                    total_tokens: total_tokens(input, cached, cache_write, output),
                 })
             })
             .map_err(|error| format!("dashboard trend: {error}"))?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|error| format!("dashboard trend: {error}"))?;
+        let trend = fill_calendar_buckets(&bounds, trend);
 
         let heatmap = trend
             .iter()
@@ -292,31 +457,51 @@ impl QueryDashboard {
             .collect::<Vec<_>>();
 
         let mut session_stmt = conn
-            .prepare(
-                "SELECT session_hash, provider_id, COUNT(*),
-                        COALESCE(SUM(tokens_input), 0), COALESCE(SUM(tokens_output), 0),
+            .prepare(&format!(
+                "SELECT session_hash,
+                        CASE WHEN provider_id = '{legacy}' THEN 'opencode' ELSE provider_id END,
+                        COUNT(*),
+                        COALESCE(SUM(tokens_input), 0),
+                        COALESCE(SUM(tokens_cached), 0),
+                        COALESCE(SUM(tokens_cache_write), 0),
+                        COALESCE(SUM(tokens_output), 0),
+                        COALESCE(SUM(tokens_reasoning), 0),
                         MIN(timestamp), MAX(timestamp)
                  FROM usage_events
-                 WHERE timestamp >= ?1 AND timestamp < ?2
-                   AND (?3 = '' OR provider_id = ?3)
-                 GROUP BY session_hash, provider_id",
-            )
+                 WHERE julianday(timestamp) >= julianday(?1)
+                   AND julianday(timestamp) < julianday(?2)
+                   AND {filter}
+                 GROUP BY session_hash,
+                          CASE WHEN provider_id = '{legacy}' THEN 'opencode' ELSE provider_id END",
+                legacy = LEGACY_OPENCODE_PROVIDER_ID,
+                filter = provider_filter_matches_sql(),
+            ))
             .map_err(|error| format!("dashboard sessions: {error}"))?;
         let session_rows = session_stmt
             .query_map(params, |row| {
+                let provider_id: String = row.get(1)?;
                 let input: i64 = row.get(3)?;
-                let output: i64 = row.get(4)?;
+                let cached: i64 = row.get(4)?;
+                let cache_write: i64 = row.get(5)?;
+                let output: i64 = row.get(6)?;
+                let reasoning: i64 = row.get(7)?;
+                let (display_name, vendor) = provider_identity(&catalog, &provider_id);
                 Ok((
                     row.get::<_, String>(0)?,
                     DashboardSessionProvider {
-                        provider_id: row.get(1)?,
+                        provider_id,
+                        display_name,
+                        vendor,
                         request_count: row.get(2)?,
                         tokens_input: input,
+                        tokens_cached: cached,
+                        tokens_cache_write: cache_write,
                         tokens_output: output,
-                        total_tokens: input + output,
+                        tokens_reasoning: reasoning,
+                        total_tokens: total_tokens(input, cached, cache_write, output),
                     },
-                    row.get::<_, Option<String>>(5)?,
-                    row.get::<_, Option<String>>(6)?,
+                    row.get::<_, Option<String>>(8)?,
+                    row.get::<_, Option<String>>(9)?,
                 ))
             })
             .map_err(|error| format!("dashboard sessions: {error}"))?
@@ -340,7 +525,10 @@ impl QueryDashboard {
                     display_name: String::new(),
                     request_count: 0,
                     tokens_input: 0,
+                    tokens_cached: 0,
+                    tokens_cache_write: 0,
                     tokens_output: 0,
+                    tokens_reasoning: 0,
                     total_tokens: 0,
                     first_seen_at: None,
                     last_seen_at: None,
@@ -348,8 +536,16 @@ impl QueryDashboard {
                 });
             entry.request_count += provider_usage.request_count;
             entry.tokens_input += provider_usage.tokens_input;
+            entry.tokens_cached += provider_usage.tokens_cached;
+            entry.tokens_cache_write += provider_usage.tokens_cache_write;
             entry.tokens_output += provider_usage.tokens_output;
-            entry.total_tokens += provider_usage.total_tokens;
+            entry.tokens_reasoning += provider_usage.tokens_reasoning;
+            entry.total_tokens = total_tokens(
+                entry.tokens_input,
+                entry.tokens_cached,
+                entry.tokens_cache_write,
+                entry.tokens_output,
+            );
             entry.first_seen_at = min_timestamp(entry.first_seen_at.take(), first_seen_at);
             entry.last_seen_at = max_timestamp(entry.last_seen_at.take(), last_seen_at);
             entry.providers.push(provider_usage);
@@ -357,9 +553,8 @@ impl QueryDashboard {
 
         let mut sessions = sessions.into_values().collect::<Vec<_>>();
         sessions.sort_by(|left, right| {
-            right
-                .total_tokens
-                .cmp(&left.total_tokens)
+            compare_last_seen_desc(&left.last_seen_at, &right.last_seen_at)
+                .then_with(|| right.total_tokens.cmp(&left.total_tokens))
                 .then_with(|| left.session_hash.cmp(&right.session_hash))
         });
         for (index, session) in sessions.iter_mut().enumerate() {
@@ -380,8 +575,16 @@ impl QueryDashboard {
             duration_days: span_days(&bounds, &trend),
             request_count,
             tokens_input,
+            tokens_cached,
+            tokens_cache_write,
             tokens_output,
-            total_tokens: tokens_input + tokens_output,
+            tokens_reasoning,
+            total_tokens: total_tokens(
+                tokens_input,
+                tokens_cached,
+                tokens_cache_write,
+                tokens_output,
+            ),
             provider_count: providers.len() as i64,
             session_count: sessions.len() as i64,
             providers,
@@ -396,6 +599,22 @@ fn min_timestamp(left: Option<String>, right: Option<String>) -> Option<String> 
     match (left, right) {
         (None, value) | (value, None) => value,
         (Some(left), Some(right)) => Some(left.min(right)),
+    }
+}
+
+fn compare_last_seen_desc(left: &Option<String>, right: &Option<String>) -> Ordering {
+    let left_parsed = left
+        .as_deref()
+        .and_then(|value| DateTime::parse_from_rfc3339(value).ok());
+    let right_parsed = right
+        .as_deref()
+        .and_then(|value| DateTime::parse_from_rfc3339(value).ok());
+
+    match (left_parsed, right_parsed) {
+        (Some(left), Some(right)) => right.cmp(&left),
+        (None, Some(_)) => Ordering::Greater,
+        (Some(_), None) => Ordering::Less,
+        (None, None) => right.cmp(left),
     }
 }
 

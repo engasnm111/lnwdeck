@@ -15,6 +15,7 @@ import {
 } from "../../lib/native";
 import { formatCompact, formatNumber, formatTimestamp } from "../../lib/freshness";
 import { dataStateLabels, useI18n } from "../../lib/i18n";
+import { modelDisplayName, providerDisplayName } from "../../components/ProviderLogo";
 
 const WINDOWS: Array<{ value: HistoryWindow; labelKey: string }> = [
   { value: "last_24h", labelKey: "costs.window24h" },
@@ -91,7 +92,7 @@ export function ModelsPage() {
           <option value="">{t("models.allProviders")}</option>
           {(data?.providers ?? []).map((id) => (
             <option key={id} value={id}>
-              {id}
+              {providerDisplayName({ provider_id: id, display_name: id })}
             </option>
           ))}
         </select>
@@ -169,8 +170,8 @@ export function ModelsPage() {
               >
                 {data.models.map((row) => (
                   <tr key={`${row.provider_id}:${row.model}`}>
-                    <td>{row.model}</td>
-                    <td>{row.provider_id}</td>
+                    <td>{modelDisplayName(row.model, t("analytics.unknownModel"))}</td>
+                    <td>{providerDisplayName({ provider_id: row.provider_id, display_name: row.provider_id })}</td>
                     <td className="ui-table-numeric">
                       {formatNumber(row.request_count)}
                     </td>

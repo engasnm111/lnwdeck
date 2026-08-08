@@ -150,6 +150,23 @@ describe("BudgetsPage", () => {
     );
   });
 
+  it("uses the full provider display name in provider selectors", async () => {
+    vi.mocked(native.fetchBudgets).mockResolvedValue({
+      generated_at: "2026-08-04T00:00:00Z",
+      budgets: [],
+    });
+    vi.mocked(native.fetchProviders).mockResolvedValue([
+      { ...providers[0], provider_id: "openai_codex", display_name: "openai_codex" },
+    ]);
+    render(<BudgetsPage />);
+
+    await waitFor(() => expect(screen.getByLabelText("Scope")).toBeInTheDocument());
+    await userEvent.selectOptions(screen.getByLabelText("Scope"), "provider");
+    expect(screen.getByLabelText("Provider")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "OpenAI Codex" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "openai_codex" })).not.toBeInTheDocument();
+  });
+
   it("keeps budget fields and actions in separate aligned rows", async () => {
     vi.mocked(native.fetchBudgets).mockResolvedValue({
       generated_at: "2026-08-04T00:00:00Z",

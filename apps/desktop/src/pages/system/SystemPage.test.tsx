@@ -136,7 +136,7 @@ describe("SystemPage Data Pipeline", () => {
 
     expect(screen.getByRole("row", { name: /OpenCode/ })).toBeInTheDocument();
     expect(screen.getAllByText("Detected").length).toBeGreaterThan(0);
-    expect(screen.getByText("sqlite")).toBeInTheDocument();
+    expect(screen.getByText("Local")).toBeInTheDocument();
     expect(screen.getByText("passive_scan")).toBeInTheDocument();
     expect(screen.getAllByText("15").length).toBeGreaterThan(0);
   });

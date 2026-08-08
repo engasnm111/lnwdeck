@@ -95,7 +95,7 @@ impl OpenCodeAdapter {
         let source_exists = self.db_path.is_file();
         let mut result = DetectionResult {
             provider_id: "opencode".to_string(),
-            display_name: "OpenCode".to_string(),
+            display_name: "OpenCode (Go)".to_string(),
             enabled: true,
             detected: false,
             detection_method: "local_sqlite".to_string(),
@@ -167,7 +167,8 @@ impl OpenCodeAdapter {
             "SELECT id, project_id, model, cost, tokens_input, tokens_output,
                     tokens_reasoning, tokens_cache_read, tokens_cache_write, time_updated
              FROM session
-             WHERE (tokens_input > 0 OR tokens_output > 0 OR cost > 0)
+             WHERE (tokens_input > 0 OR tokens_output > 0 OR tokens_reasoning > 0
+                    OR tokens_cache_read > 0 OR tokens_cache_write > 0 OR cost > 0)
                AND (?1 IS NULL OR time_updated > ?1)
              ORDER BY time_updated",
         ) {
@@ -194,8 +195,8 @@ impl OpenCodeAdapter {
             let tokens_input: i64 = row.get(4)?;
             let tokens_output: i64 = row.get(5)?;
             let tokens_reasoning: i64 = row.get(6)?;
-            let _tokens_cache_read: i64 = row.get(7)?;
-            let _tokens_cache_write: i64 = row.get(8)?;
+            let tokens_cache_read: i64 = row.get(7)?;
+            let tokens_cache_write: i64 = row.get(8)?;
             let time_updated: i64 = row.get(9)?;
             Ok((
                 session_id,
@@ -205,6 +206,8 @@ impl OpenCodeAdapter {
                 tokens_input,
                 tokens_output,
                 tokens_reasoning,
+                tokens_cache_read,
+                tokens_cache_write,
                 time_updated,
             ))
         }) {
@@ -239,6 +242,8 @@ impl OpenCodeAdapter {
                 tokens_input,
                 tokens_output,
                 tokens_reasoning,
+                tokens_cache_read,
+                tokens_cache_write,
                 time_updated,
             ) = match row {
                 Ok(values) => values,
@@ -262,7 +267,10 @@ impl OpenCodeAdapter {
                 provider_id: "opencode".to_string(),
                 model: normalize_model(model),
                 tokens_input: tokens_input.max(0) as u64,
-                tokens_output: (tokens_output + tokens_reasoning).max(0) as u64,
+                tokens_cached: tokens_cache_read.max(0) as u64,
+                tokens_cache_write: tokens_cache_write.max(0) as u64,
+                tokens_output: tokens_output.max(0) as u64,
+                tokens_reasoning: tokens_reasoning.max(0) as u64,
                 confidence: Confidence::High,
                 data_source: "opencode_db".to_string(),
                 cost: format!("{cost:.6}"),
@@ -518,7 +526,7 @@ impl ProviderAdapter for OpenCodeAdapter {
     fn descriptor(&self) -> AdapterDescriptor {
         AdapterDescriptor {
             id: "opencode",
-            display_name: "OpenCode",
+            display_name: "OpenCode (Go)",
             vendor: "OpenCode",
             source_kind: SourceKind::LocalSqlite,
             usage_support: ChannelSupport::LocalEstimate,

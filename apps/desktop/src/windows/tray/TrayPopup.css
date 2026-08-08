@@ -1,5 +1,6 @@
 /*
- * Tray popup — glass card using the same shared design tokens as Main.
+ * Tray popup — an opaque, rounded surface using the same shared design tokens
+ * as Main. This window must never reveal the desktop or another app through it.
  */
 
 html,
@@ -14,31 +15,68 @@ body,
 .tray-window {
   font-family: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui,
     -apple-system, sans-serif;
-  background-color: transparent;
-  padding: 16px;
-  width: 360px;
+  background: linear-gradient(
+    145deg,
+    var(--bg-overlay, #19243a) 0%,
+    var(--bg-app, #0b1020) 62%,
+    #151735 100%
+  );
+  padding: 0;
+  width: 100%;
+  height: 100%;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
   -webkit-user-select: none;
   user-select: none;
   color: var(--text-primary, #e8edf7);
 }
 
-.tray-card {
-  background: linear-gradient(
-    160deg,
-    var(--glass-fill-elevated, rgba(255, 255, 255, 0.07)),
-    var(--glass-fill, rgba(255, 255, 255, 0.03))
-  );
-  backdrop-filter: blur(24px) saturate(1.4);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+/* One blended rounded surface; child content must not create decorative
+   frames or shadows of its own. */
+.tray-window-flat {
+  padding: 18px 20px 14px;
   border-radius: 18px;
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
-  border-top-color: var(--glass-edge, rgba(255, 255, 255, 0.18));
+  overflow: hidden;
+  background: linear-gradient(
+    145deg,
+    var(--bg-overlay, #19243a) 0%,
+    var(--bg-app, #0b1020) 62%,
+    #151735 100%
+  );
+  border: 0;
+  box-shadow: none;
+}
+
+.tray-window-gradient {
+  border: 0;
+  box-shadow: none;
+}
+
+.tray-card {
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-overlay, #151c2e);
+  border-radius: 18px;
+  border: 1px solid var(--border-subtle, #2a3550);
   box-shadow: var(--shadow-popup, 0 12px 40px rgba(0, 0, 0, 0.55));
   padding: 22px 24px;
   display: flex;
   flex-direction: column;
   gap: 18px;
+}
+
+.tray-card-flat {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.tray-card-modern {
+  gap: 14px;
 }
 
 .tray-header {
@@ -75,10 +113,16 @@ body,
   background: rgba(34, 211, 238, 0.1);
 }
 
+.tray-badge-flat {
+  border: 0;
+  border-radius: 999px;
+  background: rgba(34, 211, 238, 0.12);
+}
+
 .tray-metrics {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   margin-top: 2px;
 }
 
@@ -137,8 +181,8 @@ body,
 
 .tray-action-btn {
   width: 100%;
-  padding: 11px 0;
-  margin-top: 4px;
+  padding: 10px 0;
+  margin-top: 0;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 10px;
@@ -151,9 +195,13 @@ body,
   outline: none;
 }
 
+.tray-action-btn-filled {
+  border: 0;
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+}
+
 .tray-action-btn:hover {
   background-color: rgba(255, 255, 255, 0.09);
-  border-color: rgba(34, 211, 238, 0.35);
   color: #e8edf7;
 }
 
@@ -171,8 +219,9 @@ body,
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: 10px;
-  padding-right: 4px;
+  margin-top: 0;
+  padding: 7px 10px 0;
+  border-top: 1px solid var(--border-subtle, #2a3550);
 }
 
 .tray-footer-status {
@@ -197,4 +246,74 @@ body,
   text-align: center;
   color: var(--text-muted, #64708c);
   font-size: 14px;
+}
+
+/* Update notice shown after a tray "Check for updates". Uses the same solid
+   dark surface as the popup; no translucent frames or desktop bleed. */
+.tray-update-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.35;
+  background: rgba(34, 211, 238, 0.12);
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  color: var(--text-primary, #e8edf7);
+}
+
+.tray-update-notice-error {
+  background: rgba(244, 63, 94, 0.14);
+  border-color: rgba(244, 63, 94, 0.45);
+}
+
+.tray-update-notice-icon {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(34, 211, 238, 0.25);
+  color: #22d3ee;
+}
+
+.tray-update-notice-error .tray-update-notice-icon {
+  background: rgba(244, 63, 94, 0.25);
+  color: #fb7185;
+}
+
+.tray-update-notice-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tray-update-notice-dismiss {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted, #64708c);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.tray-update-notice-dismiss:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary, #e8edf7);
+}
+
+.tray-update-notice-dismiss:focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: 1px;
 }

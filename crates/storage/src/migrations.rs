@@ -27,6 +27,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "006_sessions",
         include_str!("../migrations/006_sessions.sql"),
     ),
+    (
+        "007_usage_breakdown",
+        include_str!("../migrations/007_usage_breakdown.sql"),
+    ),
 ];
 
 /// Names of every migration known to this build, oldest first.

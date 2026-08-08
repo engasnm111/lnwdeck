@@ -39,6 +39,9 @@ pub struct CostBreakdown {
     pub unpriced_rows: usize,
     /// Tokens that could not be priced at all.
     pub unpriced_tokens: i64,
+    /// Providers with recorded events in the window, for the filter dropdown.
+    /// Always the full window set, regardless of the active filter.
+    pub providers: Vec<String>,
 }
 
 pub struct QueryCosts;
@@ -49,23 +52,38 @@ impl QueryCosts {
         window: HistoryWindow,
         resolver: &PriceResolver,
     ) -> Result<CostBreakdown, rusqlite::Error> {
+        Self::execute_with_provider(conn, window, None, resolver)
+    }
+
+    /// Reads costs for a window, optionally narrowed to one provider. The
+    /// available-provider list always covers the whole window so the filter
+    /// dropdown does not shrink to the currently selected provider.
+    pub fn execute_with_provider(
+        conn: &Connection,
+        window: HistoryWindow,
+        provider_id: Option<&str>,
+        resolver: &PriceResolver,
+    ) -> Result<CostBreakdown, rusqlite::Error> {
         let now = Utc::now();
         let since = window
             .since(now)
             .map(|value| value.to_rfc3339())
             .unwrap_or_else(|| "0000-01-01T00:00:00+00:00".to_string());
+        let filter = provider_id.unwrap_or("").to_string();
+        // An empty provider filter matches every provider.
+        let params = rusqlite::params![since, filter];
 
         let mut stmt = conn.prepare(
             "SELECT provider_id, model, COUNT(*),
                     COALESCE(SUM(tokens_input), 0), COALESCE(SUM(tokens_output), 0)
              FROM usage_events
-             WHERE timestamp >= ?1
+             WHERE timestamp >= ?1 AND (?2 = '' OR provider_id = ?2)
              GROUP BY provider_id, model
              ORDER BY SUM(tokens_input + tokens_output) DESC, model",
         )?;
 
         let raw = stmt
-            .query_map([since], |row| {
+            .query_map(params, |row| {
                 Ok((
                     row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
@@ -120,6 +138,14 @@ impl QueryCosts {
             });
         }
 
+        let mut provider_stmt = conn.prepare(
+            "SELECT DISTINCT provider_id FROM usage_events
+                          WHERE timestamp >= ?1 ORDER BY provider_id",
+        )?;
+        let providers = provider_stmt
+            .query_map([since], |row| row.get(0))?
+            .collect::<Result<Vec<String>, _>>()?;
+
         Ok(CostBreakdown {
             window,
             generated_at: now,
@@ -129,6 +155,7 @@ impl QueryCosts {
             estimated_rows,
             unpriced_rows,
             unpriced_tokens,
+            providers,
         })
     }
 }
@@ -234,5 +261,50 @@ mod tests {
         assert_eq!(breakdown.unpriced_rows, 0);
         assert_eq!(breakdown.priced_total, "0.006000");
         assert_eq!(breakdown.unpriced_tokens, 0);
+    }
+
+    #[test]
+    fn provider_filter_narrows_rows_but_keeps_all_providers_available() {
+        let storage = open_db();
+        insert_event(&storage, "e1", "anthropic_claude", "claude-test", 2000);
+        insert_event(&storage, "e2", "opencode", "glm-5", 500);
+
+        let all =
+            QueryCosts::execute(&storage.conn, HistoryWindow::Last30d, &resolver()).expect("costs");
+        assert_eq!(all.rows.len(), 2, "no filter returns every row");
+        assert_eq!(all.providers, vec!["anthropic_claude", "opencode"]);
+
+        let filtered = QueryCosts::execute_with_provider(
+            &storage.conn,
+            HistoryWindow::Last30d,
+            Some("opencode"),
+            &resolver(),
+        )
+        .expect("costs");
+        assert_eq!(
+            filtered.rows.len(),
+            1,
+            "the filter keeps only matching rows"
+        );
+        assert_eq!(filtered.rows[0].provider_id, "opencode");
+        assert_eq!(
+            filtered.providers,
+            vec!["anthropic_claude", "opencode"],
+            "the dropdown must not shrink to the selected provider"
+        );
+        assert_eq!(filtered.priced_total, "0.000500");
+
+        let none = QueryCosts::execute_with_provider(
+            &storage.conn,
+            HistoryWindow::Last30d,
+            Some("unknown_provider"),
+            &resolver(),
+        )
+        .expect("costs");
+        assert!(none.rows.is_empty(), "an unknown provider yields no rows");
+        assert!(
+            !none.providers.is_empty(),
+            "available providers still describe the window"
+        );
     }
 }

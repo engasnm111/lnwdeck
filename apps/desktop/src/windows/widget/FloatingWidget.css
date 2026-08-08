@@ -30,37 +30,24 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  /* The widget window is transparent over the desktop, so backdrop-filter
-     has nothing to blur: the card carries its own frosted navy glass. */
-  background: linear-gradient(
-    160deg,
-    rgba(22, 30, 56, 0.92) 0%,
-    rgba(9, 13, 26, 0.95) 55%
-  );
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-top-color: rgba(255, 255, 255, 0.2);
+  box-sizing: border-box;
+  /* One opaque surface keeps the widget readable over any desktop wallpaper. */
+  background: linear-gradient(160deg, #172038 0%, #10172a 56%, #0b1222 100%);
   border-radius: 14px;
-  box-shadow: var(--shadow-popup), 0 0 24px rgba(34, 211, 238, 0.12);
+  border: 0;
+  box-shadow: none;
   overflow: hidden;
 }
 
-/* A soft cyan-to-violet accent line along the top edge, mirroring the
-   dashboard's metric cards. */
+/* Kept as an explicit class so visual regressions cannot reintroduce a second
+   glow/frame around the single opaque surface. */
+.w-root-single-surface {
+  border: 0;
+  box-shadow: none;
+}
+
 .w-root::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 14%;
-  right: 14%;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(34, 211, 238, 0.55) 35%,
-    rgba(139, 92, 246, 0.55) 75%,
-    transparent
-  );
-  opacity: 0.8;
+  display: none;
   pointer-events: none;
 }
 
@@ -84,17 +71,24 @@ body {
   letter-spacing: -0.01em;
 }
 
+.w-header-drag-space {
+  min-width: 8px;
+  flex: 1 1 auto;
+  align-self: stretch;
+  cursor: grab;
+}
+
+.w-root[data-locked="true"] .w-header-drag-space {
+  display: none;
+}
+
 .w-header-actions {
   display: flex;
   align-items: center;
   gap: 2px;
   margin-left: auto;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.w-header-actions::-webkit-scrollbar {
-  display: none;
+  overflow: visible;
+  flex: none;
 }
 
 /* Small (300x300) preset: hide the brand so the controls fit. */
@@ -170,7 +164,34 @@ body {
 
 .w-view-select option {
   color: var(--text-primary);
-  background: var(--bg-panel-elevated);
+  background: var(--bg-overlay);
+}
+
+.w-btn[data-widget-icon-action="true"] {
+  width: 26px;
+  min-width: 26px;
+  padding: 0;
+  flex: 0 0 26px;
+}
+
+.w-btn[data-widget-icon-action="true"] svg,
+.w-btn[data-widget-icon-action="true"] > span {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.w-icon-spin {
+  display: inline-flex;
+  animation: w-icon-spin 0.9s linear infinite;
+}
+
+@keyframes w-icon-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .w-icon-spin { animation: none; }
 }
 
 .w-view-menu {
@@ -179,20 +200,21 @@ body {
 }
 
 .w-view-trigger {
-  min-width: 48px;
+  width: 26px;
+  min-width: 26px;
+  padding: 0;
   border-color: var(--border-subtle);
 }
 
 .w-view-options {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 4px);
-  right: 0;
+  position: fixed;
+  z-index: 1000;
   min-width: 112px;
+  max-width: calc(100vw - 16px);
   padding: 4px;
   border: 1px solid var(--border-strong);
   border-radius: 8px;
-  background: var(--bg-panel-elevated);
+  background: var(--bg-overlay);
   box-shadow: var(--shadow-lifted);
 }
 
@@ -562,7 +584,17 @@ body {
 /* Provider picker */
 
 .w-picker {
-  padding: 4px 12px 8px;
+  position: fixed;
+  z-index: 1000;
+  width: min(276px, calc(100vw - 16px));
+  max-height: min(320px, calc(100vh - 16px));
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--bg-overlay);
+  box-shadow: var(--shadow-lifted), 0 0 22px rgba(34, 211, 238, 0.12);
+  color-scheme: dark;
 }
 
 .w-picker-title {

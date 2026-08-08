@@ -3,7 +3,9 @@ use lnwdeck_domain::{
     Confidence, QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope, UsageBatch,
     DEFAULT_FRESHNESS,
 };
-use lnwdeck_provider_runtime::token_scan::{usage_events, TokenSample};
+use lnwdeck_provider_runtime::token_scan::{
+    usage_events_with_breakdown, TokenSample, UsageBreakdownSample,
+};
 use lnwdeck_provider_runtime::{
     AdapterDescriptor, AdapterHealth, AdapterHealthStatus, AuthKind, ChannelSupport,
     DetectionResult, Permission, ProviderAdapter, SourceKind,
@@ -21,11 +23,10 @@ const MAX_TOTAL_BYTES: u64 = 256 * 1024 * 1024;
 ///
 /// Reads token usage from the local Codex session JSONL files
 /// (`~/.codex/sessions/**/*.jsonl`) read-only. Modern Codex CLI rollouts
-/// publish one `event_msg/token_count` per turn with the session's CUMULATIVE
-/// token totals plus the real rate-limit windows; the adapter takes the last
-/// cumulative value per session (never summing, which would count every turn
-/// multiple times) and surfaces the published windows as native quota. Raw
-/// transcripts are never normalized.
+/// publish one `event_msg/token_count` per turn with both the session's
+/// CUMULATIVE token totals and the per-turn `last_token_usage` breakdown. The
+/// adapter uses the per-turn counters for usage and keeps cumulative totals for
+/// the rolling quota estimate. Raw transcripts are never normalized.
 pub struct CodexAdapter {
     sessions_dir: PathBuf,
     auth_path: PathBuf,
@@ -55,7 +56,7 @@ impl CodexAdapter {
     fn detection(&self) -> DetectionResult {
         let mut result = DetectionResult {
             provider_id: "openai_codex".to_string(),
-            display_name: "Codex".to_string(),
+            display_name: "OpenAI Codex".to_string(),
             enabled: true,
             detected: false,
             detection_method: "local_jsonl".to_string(),
@@ -121,8 +122,8 @@ impl CodexAdapter {
     /// One usage sample per session file: the last cumulative `token_count`
     /// record of that session. Summing every `token_count` line would count
     /// each turn's cumulative total multiple times.
-    fn scan_samples(&self) -> Result<Vec<TokenSample>, String> {
-        let mut samples = Vec::new();
+    fn scan_token_records(&self) -> Result<Vec<Vec<TokenCountRecord>>, String> {
+        let mut sessions = Vec::new();
         for file in collect_jsonl_files(&self.sessions_dir)? {
             let Ok(meta) = file.metadata() else {
                 continue;
@@ -133,12 +134,68 @@ impl CodexAdapter {
             let Ok(content) = std::fs::read_to_string(&file) else {
                 continue;
             };
+            let mut current_model = None;
+            let mut records = Vec::new();
+            for line in content.lines() {
+                if let Some(model) = model_from_metadata_line(line) {
+                    current_model = Some(model);
+                }
+                if let Some(mut record) = parse_token_count_line(line) {
+                    record.model = current_model.clone();
+                    records.push(record);
+                }
+            }
+            if !records.is_empty() {
+                sessions.push(records);
+            }
+        }
+        Ok(sessions)
+    }
+
+    /// Scans every token record and converts it into one sample per turn.
+    /// Modern Codex publishes `last_token_usage`; older fixtures are supported
+    /// by reconstructing a delta from cumulative input/output counters.
+    fn scan_usage_samples(&self) -> Result<Vec<UsageBreakdownSample>, String> {
+        let mut samples = Vec::new();
+        for records in self.scan_token_records()? {
+            let mut previous: Option<&TokenCountRecord> = None;
+            for record in &records {
+                let usage = record.last_usage.clone().unwrap_or_else(|| {
+                    let (input_tokens, output_tokens) = cumulative_delta(record, previous);
+                    UsageCounters {
+                        input: input_tokens,
+                        cached: 0,
+                        cache_write: 0,
+                        output: output_tokens,
+                        reasoning: 0,
+                    }
+                });
+                let input_tokens = usage.input.saturating_sub(usage.cached);
+                if input_tokens > 0 || usage.cached > 0 || usage.cache_write > 0 || usage.output > 0
+                {
+                    samples.push(UsageBreakdownSample {
+                        timestamp: record.timestamp,
+                        input_tokens,
+                        cached_tokens: usage.cached,
+                        cache_write_tokens: usage.cache_write,
+                        output_tokens: usage.output,
+                        reasoning_tokens: usage.reasoning,
+                        model: record.model.clone(),
+                    });
+                }
+                previous = Some(record);
+            }
+        }
+        samples.sort_by_key(|sample| sample.timestamp);
+        Ok(samples)
+    }
+
+    fn scan_samples(&self) -> Result<Vec<TokenSample>, String> {
+        let mut samples = Vec::new();
+        for records in self.scan_token_records()? {
             // Track the largest cumulative totals and the newest timestamp.
             let mut best: Option<(DateTime<Utc>, u64, u64)> = None;
-            for line in content.lines() {
-                let Some(record) = parse_token_count_line(line) else {
-                    continue;
-                };
+            for record in records {
                 match &mut best {
                     Some((ts, input, output)) => {
                         if record.input > *input {
@@ -296,11 +353,90 @@ impl Default for CodexAdapter {
 
 /// One parsed `token_count` record: the session's cumulative totals at that
 /// moment, plus the rate-limit windows when the CLI published them.
+#[derive(Debug, Clone)]
+struct UsageCounters {
+    input: u64,
+    cached: u64,
+    cache_write: u64,
+    output: u64,
+    reasoning: u64,
+}
+
+#[derive(Debug, Clone)]
 struct TokenCountRecord {
     timestamp: DateTime<Utc>,
     input: u64,
     output: u64,
+    last_usage: Option<UsageCounters>,
     rate_limits: Option<Value>,
+    model: Option<String>,
+}
+
+fn parse_usage_counters(value: Option<&Value>) -> Option<UsageCounters> {
+    let usage = value?.as_object()?;
+    let input = usage
+        .get("input_tokens")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let cached = usage
+        .get("cached_input_tokens")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let cache_write = usage
+        .get("cache_write_input_tokens")
+        .or_else(|| usage.get("cache_creation_input_tokens"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let output = usage
+        .get("output_tokens")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let reasoning = usage
+        .get("reasoning_output_tokens")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    if input == 0 && cached == 0 && cache_write == 0 && output == 0 && reasoning == 0 {
+        return None;
+    }
+    Some(UsageCounters {
+        input,
+        cached,
+        cache_write,
+        output,
+        reasoning,
+    })
+}
+
+fn non_empty_model(value: Option<&Value>) -> Option<String> {
+    let model = value?.as_str()?.trim();
+    (!model.is_empty()).then(|| model.to_string())
+}
+
+/// Extracts the effective model from Codex metadata without reading or
+/// retaining prompt/response content. `turn_context` is authoritative for
+/// the model used by the following turn; the other paths cover older/newer
+/// metadata shapes that expose the same identifier.
+fn model_from_metadata_line(line: &str) -> Option<String> {
+    let value: Value = serde_json::from_str(line).ok()?;
+    let kind = value.get("type").and_then(Value::as_str)?;
+    if !matches!(kind, "turn_context" | "session_meta") {
+        return None;
+    }
+    let payload = value.get("payload")?;
+    ["model", "model_slug", "model_id", "model_name"]
+        .iter()
+        .find_map(|key| non_empty_model(payload.get(*key)))
+        .or_else(|| {
+            payload
+                .get("collaboration_mode")
+                .and_then(|value| value.get("settings"))
+                .and_then(|settings| non_empty_model(settings.get("model")))
+        })
+        .or_else(|| {
+            payload
+                .get("model_settings")
+                .and_then(|settings| non_empty_model(settings.get("model")))
+        })
 }
 
 /// Parses one Codex session JSONL line carrying `event_msg/token_count`.
@@ -335,8 +471,23 @@ fn parse_token_count_line(line: &str) -> Option<TokenCountRecord> {
         timestamp: dt,
         input,
         output,
+        last_usage: parse_usage_counters(info.get("last_token_usage")),
         rate_limits: payload.get("rate_limits").cloned(),
+        model: None,
     })
+}
+
+fn cumulative_delta(current: &TokenCountRecord, previous: Option<&TokenCountRecord>) -> (u64, u64) {
+    let Some(previous) = previous else {
+        return (current.input, current.output);
+    };
+    if current.input < previous.input || current.output < previous.output {
+        return (current.input, current.output);
+    }
+    (
+        current.input - previous.input,
+        current.output - previous.output,
+    )
 }
 
 /// Window duration classification from the minutes Codex publishes.
@@ -409,7 +560,7 @@ impl ProviderAdapter for CodexAdapter {
     fn descriptor(&self) -> AdapterDescriptor {
         AdapterDescriptor {
             id: "openai_codex",
-            display_name: "Codex",
+            display_name: "OpenAI Codex",
             vendor: "OpenAI",
             source_kind: SourceKind::LocalJsonl,
             usage_support: ChannelSupport::LocalEstimate,
@@ -423,10 +574,15 @@ impl ProviderAdapter for CodexAdapter {
         if !self.sessions_dir.is_dir() {
             return Err("SOURCE_UNAVAILABLE".to_string());
         }
-        let samples = self.scan_samples()?;
+        let samples = self.scan_usage_samples()?;
         Ok(UsageBatch {
             batch_id: format!("codex_{}", chrono::Utc::now().timestamp()),
-            events: usage_events("openai_codex", "local_jsonl", &samples, Confidence::Medium),
+            events: usage_events_with_breakdown(
+                "openai_codex",
+                "local_jsonl_v2",
+                &samples,
+                Confidence::Medium,
+            ),
         })
     }
     fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
@@ -474,6 +630,49 @@ mod tests {
         )
     }
 
+    fn token_count_with_last_usage(
+        ts: &str,
+        total_input: u64,
+        total_output: u64,
+        last_input: u64,
+        last_cached: u64,
+        last_output: u64,
+        last_reasoning: u64,
+    ) -> String {
+        serde_json::json!({
+            "timestamp": ts,
+            "type": "event_msg",
+            "payload": {
+                "type": "token_count",
+                "info": {
+                    "last_token_usage": {
+                        "input_tokens": last_input,
+                        "cached_input_tokens": last_cached,
+                        "cache_write_input_tokens": 0,
+                        "output_tokens": last_output,
+                        "reasoning_output_tokens": last_reasoning,
+                        "total_tokens": last_input + last_output,
+                    },
+                    "total_token_usage": {
+                        "input_tokens": total_input,
+                        "output_tokens": total_output,
+                        "total_tokens": total_input + total_output,
+                    },
+                },
+            },
+        })
+        .to_string()
+    }
+
+    fn turn_context(ts: &str, model: &str) -> String {
+        serde_json::json!({
+            "timestamp": ts,
+            "type": "turn_context",
+            "payload": { "model": model }
+        })
+        .to_string()
+    }
+
     fn response_item(ts: &str) -> String {
         format!(
             r#"{{"type":"response_item","timestamp":"{ts}","payload":{{"type":"message","role":"assistant"}}}}"#
@@ -497,6 +696,14 @@ mod tests {
     #[test]
     fn id_is_correct() {
         assert_eq!(CodexAdapter::new().id(), "openai_codex");
+    }
+
+    #[test]
+    fn descriptor_uses_the_full_openai_codex_name() {
+        assert_eq!(
+            CodexAdapter::new().descriptor().display_name,
+            "OpenAI Codex"
+        );
     }
 
     #[test]
@@ -668,7 +875,7 @@ mod tests {
     }
 
     #[test]
-    fn collect_usage_emits_one_event_per_session_with_final_totals() {
+    fn collect_usage_emits_per_turn_deltas_for_a_session() {
         let dir = tempdir().expect("temp dir");
         let root = dir.path().join("sessions");
         std::fs::create_dir_all(&root).expect("create root");
@@ -683,14 +890,101 @@ mod tests {
 
         let adapter = CodexAdapter::with_paths(root.clone(), root.join("auth.json"));
         let batch = adapter.collect_usage().expect("usage");
-        assert_eq!(batch.events.len(), 1, "one session becomes one event");
+        assert_eq!(batch.events.len(), 2, "each cumulative change is one turn");
         assert_eq!(batch.events[0].provider_id, "openai_codex");
-        assert_eq!(batch.events[0].tokens_input, 700);
-        assert_eq!(batch.events[0].tokens_output, 250);
+        assert_eq!(batch.events[0].tokens_input, 300);
+        assert_eq!(batch.events[0].tokens_output, 100);
+        assert_eq!(batch.events[1].tokens_input, 400);
+        assert_eq!(batch.events[1].tokens_output, 150);
         assert!(
             batch.events[0].cost.is_empty(),
             "a collector must not invent a cost"
         );
+    }
+
+    #[test]
+    fn collect_usage_emits_cumulative_deltas_for_each_turn() {
+        let dir = tempdir().expect("temp dir");
+        let root = dir.path().join("sessions");
+        std::fs::create_dir_all(&root).expect("create root");
+        write_session(
+            &root,
+            "session.jsonl",
+            &[
+                &token_count(&now_minus(900), 1_000, 100, None),
+                &token_count(&now_minus(600), 1_600, 150, None),
+                &token_count(&now_minus(300), 2_200, 200, None),
+            ],
+        );
+
+        let adapter = CodexAdapter::with_paths(root, dir.path().join("auth.json"));
+        let batch = adapter.collect_usage().expect("usage");
+        assert_eq!(batch.events.len(), 3, "each cumulative change is one turn");
+        assert_eq!(
+            batch
+                .events
+                .iter()
+                .map(|event| event.tokens_input)
+                .sum::<u64>(),
+            2_200,
+            "input totals are reconstructed from cumulative deltas"
+        );
+        assert_eq!(
+            batch
+                .events
+                .iter()
+                .map(|event| event.tokens_output)
+                .sum::<u64>(),
+            200,
+            "output totals are reconstructed from cumulative deltas"
+        );
+    }
+
+    #[test]
+    fn collect_usage_uses_per_turn_breakdown_when_codex_publishes_it() {
+        let dir = tempdir().expect("temp dir");
+        let root = dir.path().join("sessions");
+        std::fs::create_dir_all(&root).expect("create root");
+        write_session(
+            &root,
+            "session.jsonl",
+            &[&token_count_with_last_usage(
+                &now_minus(60),
+                10_000,
+                400,
+                10_000,
+                9_000,
+                400,
+                120,
+            )],
+        );
+
+        let adapter = CodexAdapter::with_paths(root, dir.path().join("auth.json"));
+        let batch = adapter.collect_usage().expect("usage");
+        assert_eq!(batch.events.len(), 1);
+        assert_eq!(batch.events[0].tokens_input, 1_000);
+        assert_eq!(batch.events[0].tokens_cached, 9_000);
+        assert_eq!(batch.events[0].tokens_output, 400);
+        assert_eq!(batch.events[0].tokens_reasoning, 120);
+    }
+
+    #[test]
+    fn collect_usage_keeps_the_effective_model_from_turn_context() {
+        let dir = tempdir().expect("temp dir");
+        let root = dir.path().join("sessions");
+        std::fs::create_dir_all(&root).expect("create root");
+        write_session(
+            &root,
+            "session.jsonl",
+            &[
+                &turn_context(&now_minus(120), "gpt-5.3-codex"),
+                &token_count_with_last_usage(&now_minus(60), 10_000, 400, 10_000, 9_000, 400, 120),
+            ],
+        );
+
+        let adapter = CodexAdapter::with_paths(root, dir.path().join("auth.json"));
+        let batch = adapter.collect_usage().expect("usage");
+        assert_eq!(batch.events[0].model, "gpt-5.3-codex");
     }
 
     #[test]

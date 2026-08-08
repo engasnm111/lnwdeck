@@ -1,4 +1,4 @@
-# lnwdeck v10.0.0
+# lnwdeck v11.0.0
 
 Universal AI usage and quota tracker for Windows. lnwdeck reads the local
 artifacts already written by AI tools, records token counts and costs, and
@@ -21,19 +21,33 @@ sync is required.
 - Includes a floating quota widget and a transparent desktop pet, both using
   the same live provider data as the dashboard.
 
-## v10.0.0 dashboard
+## v11.0.0 dashboard
 
 The Overview page is a local TokenTracker-style analytics dashboard. It combines
 usage from every detected AI/provider without dropping partial results and
 supports **Day**, **Week**, **Month**, **Year**, **Total** and **Custom** ranges.
-Custom ranges use the user's local calendar as `[start, end)` and convert the
-bounds to UTC before querying. Provider filters apply to the full result.
+The preset ranges are trailing windows ending today in the user's local
+timezone: Day is today, Week is the latest 7 days, Month is the latest 30 days,
+and Year is the latest 365 days. Custom ranges use the local calendar as
+`[start, end)` and convert the bounds to UTC before querying. Provider filters
+apply to the full result.
 
 The page shows total/input/output tokens, duration, session count, provider cards
 for **All** and each provider, a usage-trend chart, an activity heatmap and a
-session table with one row per session plus provider breakdown. Selecting a
-provider icon filters the complete dashboard; selecting **All** restores the
-combined view.
+fixed-height **Daily breakdown** table with one row per calendar day. The table
+is ordered newest-first, never shows future calendar days, and follows the
+selected preset or custom date range. Selecting a provider icon filters the complete dashboard;
+selecting **All** restores the combined view. Detailed session history remains
+available in the separate Sessions page.
+
+The Costs page has the same provider filter: the dropdown always lists every
+provider with recorded events in the window, and selecting one narrows the
+table (and the priced total) to that provider while the dropdown itself stays
+complete.
+
+The two OpenCode implementations are shown under distinct names so their data
+is never confused: `OpenCode (Go)` for the billed Go implementation with
+credits/quota, and `OpenCode (Free)` for legacy free-CLI records.
 
 ### Token formatting
 
@@ -77,6 +91,9 @@ extra query/path data and malformed ids are rejected.
 - Left-clicking the native tray icon opens the popup beside the icon. The popup
   has localized metrics, compact/full token values and an Open dashboard action.
   The native tray menu and its `Sync now ({time})` label use the selected locale.
+  Choosing **Check for updates** from the tray reports the result in the popup:
+  a themed "up to date" banner with the running version when nothing newer
+  exists, or a failure banner when the check cannot complete.
 - Main UI, Widget, Pet, Tray popup, native tray, notifications, tooltips,
   placeholders, loading/empty/error states and ARIA labels are translated in
   English, Thai, Simplified Chinese, Japanese, Korean, German, French, Spanish
@@ -98,6 +115,10 @@ Roo Code, CodeBuddy, WorkBuddy, pi, oh-my-pi, Hermes, Ollama, OpenRouter and
 Grok. Each adapter declares its supported usage/quota channels. Unsupported or
 missing sources are reported honestly rather than recorded as successful empty
 collections.
+
+The Providers page and Dashboard use each adapter's full display name and
+vendor (for example, **OpenAI Codex**) and keep internal ids such as
+`openai_codex` out of user-facing labels.
 
 Credential-backed providers use Windows Credential Manager or the provider's
 own locally stored credential. Nothing is sent before the user explicitly
@@ -155,7 +176,7 @@ pnpm test:e2e
 pnpm tauri:dev
 ```
 
-## Building and verifying v10.0.0
+## Building and verifying v11.0.0
 
 Signed installers and updater artifacts require the Tauri signing key:
 
@@ -168,10 +189,10 @@ pnpm tauri:build
 pwsh ./scripts/package-portable.ps1 -Arch x64
 
 # Build the updater manifest from signed installers
-node scripts/generate-updater-json.mjs v10.0.0 <assets-dir> <assets-dir>/latest.json
+node scripts/generate-updater-json.mjs v11.0.0 <assets-dir> <assets-dir>/latest.json
 
 # Verify versions, release fixtures, signatures/manifest contract and metadata
-node scripts/check-release-version.mjs v10.0.0
+node scripts/check-release-version.mjs v11.0.0
 pnpm release:test
 ```
 
@@ -179,7 +200,7 @@ The release workflow builds x64, ARM64 and x86 installers and portable ZIPs.
 Each installer and portable ZIP has a `.sig`; the published assets also include
 `latest.json`, `SHA256SUMS`, a CycloneDX SBOM and GitHub build provenance. The
 complete release checklist and rollback procedure are in
-[docs/releases/v10.0.0.md](docs/releases/v10.0.0.md).
+[docs/releases/v11.0.0.md](docs/releases/v11.0.0.md).
 
 ## Privacy
 

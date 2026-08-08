@@ -32,7 +32,8 @@ impl QueryOverview {
             conn.query_row("SELECT COUNT(*) FROM usage_events", [], |row| row.get(0))?;
 
         let total_tokens_input: i64 = conn.query_row(
-            "SELECT COALESCE(SUM(tokens_input), 0) FROM usage_events",
+            "SELECT COALESCE(SUM(tokens_input + tokens_cached + tokens_cache_write), 0)
+             FROM usage_events",
             [],
             |row| row.get(0),
         )?;

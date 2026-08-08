@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { pickPetQuip } from "./petQuips";
+import { LANGUAGES, type LanguageCode } from "../../lib/i18n";
 
 describe("pickPetQuip", () => {
   it("reports real token usage when data exists", () => {
@@ -59,6 +60,42 @@ describe("pickPetQuip", () => {
         plan: null,
       });
       expect(quip).toBe("Used 1M tokens today");
+    } finally {
+      Math.random = original;
+    }
+  });
+
+  it("provides a localized click speech line for every supported language", () => {
+    const original = Math.random;
+    Math.random = () => 0;
+    const markers: Record<LanguageCode, string> = {
+      en: "Used",
+      th: "วันนี้ใช้ไป",
+      zh: "今天已使用",
+      ja: "今日",
+      ko: "오늘",
+      de: "Heute",
+      fr: "jetons utilisés",
+      es: "tokens usados",
+      ru: "Сегодня использовано",
+    };
+
+    try {
+      for (const { code } of LANGUAGES) {
+        const quip = pickPetQuip(
+          {
+            todayTokens: 12_500_000,
+            costUsd: 0,
+            currencySymbol: "$",
+            lowestRemainingPercent: null,
+            plan: null,
+          },
+          code,
+        );
+        expect(quip, `missing localized pet speech for ${code}`).toContain(
+          markers[code],
+        );
+      }
     } finally {
       Math.random = original;
     }

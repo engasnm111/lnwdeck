@@ -21,4 +21,4 @@ pub use permissions::{Permission, Permissions};
 pub use quota::{QuotaCollectionOutcome, QuotaCollectionResult};
 pub use registry::AdapterRegistry;
 pub use scheduler::AdaptiveScheduler;
-pub use token_scan::{ScanBounds, ScanReport, TokenSample};
+pub use token_scan::{ScanBounds, ScanReport, TokenSample, UsageBreakdownSample};

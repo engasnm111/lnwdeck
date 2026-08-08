@@ -119,7 +119,7 @@ fn usage_totals(
 ) -> Result<(i64, i64, i64, Option<String>), rusqlite::Error> {
     conn.query_row(
         "SELECT COUNT(*),
-                COALESCE(SUM(tokens_input + tokens_output), 0),
+                COALESCE(SUM(tokens_input + tokens_cached + tokens_cache_write + tokens_output), 0),
                 COALESCE(SUM(CASE WHEN cost IS NOT NULL AND cost <> '' THEN 1 ELSE 0 END), 0),
                 MAX(timestamp)
          FROM usage_events WHERE provider_id = ?1",

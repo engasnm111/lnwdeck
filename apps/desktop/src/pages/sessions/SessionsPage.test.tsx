@@ -103,7 +103,11 @@ describe("SessionsPage", () => {
     expect(screen.getByText("fix dropdown")).toBeInTheDocument();
     expect(screen.getByText("Session 01")).toBeInTheDocument();
     expect(screen.getByText("Session 02")).toBeInTheDocument();
+    expect(screen.getAllByText("OpenCode (Go)").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Claude").length).toBeGreaterThan(0);
+    expect(screen.queryByText("opencode")).not.toBeInTheDocument();
     expect(screen.getByText("0.100000")).toBeInTheDocument();
+    expect(document.querySelectorAll(".sessions-table-scroll")).toHaveLength(2);
   });
 
   it("labels the unassigned bucket and groups unassigned sessions", async () => {

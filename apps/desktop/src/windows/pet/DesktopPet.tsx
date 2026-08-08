@@ -462,7 +462,7 @@ export function DesktopPet() {
         setSpeech(quip);
         speechTimer.current = setTimeout(() => setSpeech(null), 3200);
       });
-  }, []);
+  }, [language]);
 
   const onPointerUp = useCallback(() => {
     dragging.current = false;
