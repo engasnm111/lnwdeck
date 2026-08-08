@@ -98,7 +98,7 @@ data.
 
 - Always on top, frameless, remembered position, opacity, layout and provider
   selection. The window size is **fixed** to one of three presets chosen in
-  Settings — Small (300x300), Medium (400x420) or Large (500x500) — and
+  Settings โ€” Small (300x300), Medium (400x420) or Large (500x500) โ€” and
   content scrolls inside the window when it outgrows the space.
 - Drag by the header, or by the pet stage in pet layout; Lock pins it in place.
   Refresh, Dashboard, layout picker, provider picker and Close are in the
@@ -113,7 +113,7 @@ data.
   built-in robot: import one in Settings from a pet URL or a `.codex-pet.zip`
   file. The package is downloaded only on that explicit action, over HTTPS,
   only from codex-pets.net, validated (manifest, WebP spritesheet, size
-  limits, no symlinks) and then stored locally — the widget animates it from
+  limits, no symlinks) and then stored locally โ€” the widget animates it from
   the local store and never loads a remote asset.
 - Every bar and ring exposes an ARIA progressbar with the percentage and the
   reset time, and every control is reachable by keyboard.
@@ -134,8 +134,8 @@ quota data the dashboard reads.
 
 - **Transparent pet window** that moves with the pet: the window is small and
   fixed-size, so clicks pass through everywhere except the pet itself. Size
-  presets are chosen in the Pet page — Small (200x300), Medium (280x400) or
-  Large (360x520) — and the sprite scales with the window.
+  presets are chosen in the Pet page โ€” Small (200x300), Medium (280x400) or
+  Large (360x520) โ€” and the sprite scales with the window.
 - **Walks on its own**: idle, walk left/right with an edge bounce, and
   auto-sleep after inactivity (toggleable). Speed and opacity are adjustable.
 - **Hover shows every quota window** the providers published: real remaining
@@ -171,15 +171,15 @@ records sanitized detections into the app's event log. Setup:
 
 ```powershell
 # 1. Build the extension, then load `apps/browser-extension` via
-#    chrome://extensions (Developer mode → Load unpacked).
+#    chrome://extensions (Developer mode โ’ Load unpacked).
 # 2. Register the host with the extension's real ID:
 pwsh ./scripts/register-native-host.ps1 -ChromeExtensionId <id> -EdgeExtensionId <id>
 ```
 
 ## Languages
 
-The UI ships in nine languages — English, Thai, Chinese, Japanese, Korean,
-German, French, Spanish and Russian — switchable instantly in Settings.
+The UI ships in nine languages โ€” English, Thai, Chinese, Japanese, Korean,
+German, French, Spanish and Russian โ€” switchable instantly in Settings.
 Timestamps follow the selected language's calendar and use a 24-hour clock
 with seconds (e.g. `07/08/2569 15:45:32` in Thai).
 
@@ -188,7 +188,7 @@ with seconds (e.g. `07/08/2569 15:45:32` in Thai).
 The UI follows the "Premium Dark Futuristic Glassmorphism" design language
 documented in [docs/DESIGN.md](docs/DESIGN.md): a near-black navy canvas
 (`#05070F`) lit by ambient cyan, blue and violet glows, frosted glass panels
-with thin glowing borders, a cyan → violet accent family, and an amber → red
+with thin glowing borders, a cyan โ’ violet accent family, and an amber โ’ red
 warm gradient reserved for primary CTAs. Dark is the default theme; light
 mirrors it faithfully. All motion animates only transform/opacity and is
 disabled under `prefers-reduced-motion`.
@@ -277,7 +277,7 @@ lnwdeck builds on the work of great open-source projects and communities:
 - [tokscale](https://github.com/junhoyoe/tokscale) - reference for reading
   Codex CLI usage records.
 - [codex-pets.net](https://codex-pets.net) - the community pet catalog that
-  ships the six bundled default pets and powers the pet import feature.
+  ships the eight bundled default pets and powers the pet import feature.
 - The [Tauri](https://tauri.app) project and its plugin ecosystem.
 
 ## License

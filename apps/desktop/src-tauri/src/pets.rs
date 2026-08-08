@@ -39,23 +39,27 @@ const PET_DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 ///
 /// The packages are vendored under `src-tauri/assets/pets/` and never fetched
 /// at runtime. Ids are the codex-pets.net manifest ids.
-pub const DEFAULT_PET_IDS: [&str; 6] = [
+pub const DEFAULT_PET_IDS: [&str; 8] = [
     "youyou",
     "old-bai",
     "a-ti",
     "sharkler",
     "solaire",
     "tennis-ball",
+    "friend-pixel-pet",
+    "yae-miko",
 ];
 
 /// The bundled packages, aligned with [`DEFAULT_PET_IDS`].
-const DEFAULT_PET_PACKAGES: [&[u8]; 6] = [
+const DEFAULT_PET_PACKAGES: [&[u8]; 8] = [
     include_bytes!("../assets/pets/youyou.zip"),
     include_bytes!("../assets/pets/old-bai.zip"),
     include_bytes!("../assets/pets/a-ti.zip"),
     include_bytes!("../assets/pets/sharkler.zip"),
     include_bytes!("../assets/pets/solaire.zip"),
     include_bytes!("../assets/pets/tennis-ball.zip"),
+    include_bytes!("../assets/pets/friend-pixel-pet.zip"),
+    include_bytes!("../assets/pets/yae-miko.zip"),
 ];
 
 /// `app_settings` key marking that the bundled defaults were installed once.
