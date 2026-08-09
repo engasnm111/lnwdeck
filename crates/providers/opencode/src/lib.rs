@@ -230,6 +230,18 @@ pub fn windows_from_dashboard_html(
         ));
     }
 
+    // Newer dashboard renders can omit one or more windows from the SSR
+    // hydration object while still rendering them as data-slot HTML. Recover
+    // only the missing windows so authoritative SSR values always win.
+    for fallback in windows_from_data_slots(html, now) {
+        if windows
+            .iter()
+            .all(|window| window.window_key != fallback.window_key)
+        {
+            windows.push(fallback);
+        }
+    }
+
     if windows.is_empty() {
         return Err("SOURCE_SCHEMA_MISMATCH".to_string());
     }
@@ -269,6 +281,121 @@ fn dashboard_object_segment<'a>(html: &'a str, object_key: &str) -> Option<&'a s
         }
     }
     None
+}
+
+fn windows_from_data_slots(html: &str, now: DateTime<Utc>) -> Vec<QuotaWindow> {
+    let mut windows = Vec::new();
+    for item in html.split("data-slot=\"usage-item\"").skip(1) {
+        let Some(label) = data_slot_text(item, "usage-label") else {
+            continue;
+        };
+        let label = strip_html_markup(label).to_ascii_lowercase();
+        let (window_key, display_label, scope) = if label.contains("rolling") {
+            ("5h", "5-hour", QuotaWindowScope::Rolling)
+        } else if label.contains("weekly") {
+            ("7d", "7-day", QuotaWindowScope::Weekly)
+        } else if label.contains("monthly") {
+            ("30d", "30-day", QuotaWindowScope::Monthly)
+        } else {
+            continue;
+        };
+
+        let Some(raw_percent) = data_slot_text(item, "usage-value").and_then(first_number) else {
+            continue;
+        };
+        let Some(used_percent) = normalize_dashboard_percent(raw_percent) else {
+            continue;
+        };
+        let reset_at = if item.contains("data-slot=\"reset-now\"") {
+            Some(now)
+        } else {
+            data_slot_text(item, "reset-time")
+                .and_then(human_duration_seconds)
+                .and_then(|seconds| dashboard_reset_at(now, seconds))
+        };
+        if reset_at.is_none() && !matches!(scope, QuotaWindowScope::Monthly) {
+            continue;
+        }
+
+        windows.push(QuotaWindow::from_percent(
+            window_key,
+            display_label,
+            scope,
+            QuotaKind::Credits,
+            used_percent,
+            reset_at,
+            Confidence::High,
+        ));
+    }
+    windows
+}
+
+fn data_slot_text<'a>(item: &'a str, slot: &str) -> Option<&'a str> {
+    let marker = format!("data-slot=\"{slot}\"");
+    let marker_start = item.find(&marker)?;
+    let after_marker = item.get(marker_start + marker.len()..)?;
+    let content_start = after_marker.find('>')? + 1;
+    let content = after_marker.get(content_start..)?;
+    let content_end = content.find("</")?;
+    Some(content[..content_end].trim())
+}
+
+fn strip_html_markup(value: &str) -> String {
+    let mut output = String::with_capacity(value.len());
+    let mut inside_tag = false;
+    for character in value.chars() {
+        match character {
+            '<' => inside_tag = true,
+            '>' => inside_tag = false,
+            _ if !inside_tag => output.push(character),
+            _ => {}
+        }
+    }
+    output
+}
+
+fn first_number(value: &str) -> Option<f64> {
+    let value = strip_html_markup(value);
+    let start = value.find(|character: char| character.is_ascii_digit())?;
+    let number = &value[start..];
+    let end = number
+        .find(|character: char| !(character.is_ascii_digit() || character == '.'))
+        .unwrap_or(number.len());
+    number[..end].parse().ok()
+}
+
+fn human_duration_seconds(value: &str) -> Option<f64> {
+    let value = strip_html_markup(value).to_ascii_lowercase();
+    let mut pending_number = None;
+    let mut total = 0.0;
+    let mut matched = false;
+    for token in value
+        .split(|character: char| !(character.is_ascii_alphanumeric() || character == '.'))
+        .filter(|token| !token.is_empty())
+    {
+        if let Ok(number) = token.parse::<f64>() {
+            pending_number = Some(number);
+            continue;
+        }
+        let Some(number) = pending_number.take() else {
+            continue;
+        };
+        let multiplier = if token.starts_with("day") {
+            86_400.0
+        } else if token.starts_with("hour") {
+            3_600.0
+        } else if token.starts_with("minute") {
+            60.0
+        } else if token.starts_with("second") {
+            1.0
+        } else {
+            pending_number = Some(number);
+            continue;
+        };
+        total += number * multiplier;
+        matched = true;
+    }
+    matched.then_some(total)
 }
 
 fn numeric_field(segment: &str, field: &str) -> Option<f64> {

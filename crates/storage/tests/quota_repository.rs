@@ -132,6 +132,30 @@ fn latest_all_keeps_same_provider_accounts_separate() {
 }
 
 #[test]
+fn latest_all_hides_legacy_default_after_a_fingerprinted_account_exists() {
+    let storage = open_test_db();
+    let repo = QuotaRepository::new(&storage.conn);
+    repo.upsert_report(&report("opencode", vec![window("5h", 42, 100)]))
+        .expect("legacy report");
+
+    let mut identified = report("opencode", vec![window("5h", 42, 100)]);
+    identified.account_fingerprint = Some("stable-account".to_string());
+    repo.upsert_report(&identified)
+        .expect("fingerprinted report");
+
+    let all = repo.latest_all().expect("latest all");
+    assert_eq!(
+        all.len(),
+        1,
+        "the legacy migration bucket must not render as a second account"
+    );
+    assert_eq!(
+        all[0].account_fingerprint.as_deref(),
+        Some("stable-account")
+    );
+}
+
+#[test]
 fn history_returns_window_snapshots_in_time_range() {
     let storage = open_test_db();
     let repo = QuotaRepository::new(&storage.conn);

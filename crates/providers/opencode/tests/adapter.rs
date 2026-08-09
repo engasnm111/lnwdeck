@@ -452,6 +452,57 @@ fn dashboard_parser_accepts_current_window_names_and_keeps_monthly_without_reset
 }
 
 #[test]
+fn dashboard_parser_recovers_monthly_from_data_slot_when_ssr_omits_it() {
+    let now = chrono::DateTime::parse_from_rfc3339("2026-08-09T10:00:00Z")
+        .expect("fixed timestamp")
+        .with_timezone(&chrono::Utc);
+    let html = r#"
+        <html><body>
+          <script>
+            {"rollingUsage":{"usagePercent":42,"resetInSec":60},
+             "weeklyUsage":{"usagePercent":18,"resetInSec":600}}
+          </script>
+          <div data-slot="usage-item">
+            <span data-slot="usage-label">Rolling Usage</span>
+            <span data-slot="usage-value">99%</span>
+            <span data-slot="reset-time">Resets in 1 hour</span>
+          </div>
+          <div data-slot="usage-item">
+            <span data-slot="usage-label">Weekly Usage</span>
+            <span data-slot="usage-value">99%</span>
+            <span data-slot="reset-time">Resets in 1 hour</span>
+          </div>
+          <div data-slot="usage-item">
+            <span data-slot="usage-label">Monthly Usage</span>
+            <span data-slot="usage-value">77%</span>
+            <span data-slot="reset-time">Resets in 26 days 17 hours</span>
+          </div>
+        </body></html>
+    "#;
+
+    let windows = windows_from_dashboard_html(html, now).expect("dashboard payload");
+    assert_eq!(windows.len(), 3);
+    assert_eq!(
+        windows
+            .iter()
+            .find(|window| window.window_key == "5h")
+            .expect("rolling window")
+            .used_percent,
+        Some(42.0),
+        "the fallback must not overwrite an authoritative SSR window"
+    );
+    let monthly = windows
+        .iter()
+        .find(|window| window.window_key == "30d")
+        .expect("monthly window recovered from rendered HTML");
+    assert_eq!(monthly.used_percent, Some(77.0));
+    assert_eq!(
+        monthly.reset_at,
+        Some(now + chrono::Duration::days(26) + chrono::Duration::hours(17))
+    );
+}
+
+#[test]
 fn malformed_dashboard_quota_cannot_turn_into_a_full_percentage() {
     let html = r#"<script>{"rollingUsage":{"usagePercent":"100"}}</script>"#;
     let error = windows_from_dashboard_html(

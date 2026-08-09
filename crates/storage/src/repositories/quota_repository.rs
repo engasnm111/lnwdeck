@@ -179,9 +179,18 @@ impl<'a> QuotaRepository<'a> {
     /// Latest report for every provider/account pair that has one.
     pub fn latest_all(&self) -> Result<Vec<QuotaReport>, rusqlite::Error> {
         let mut stmt = self.conn.prepare(
-            "SELECT provider_id, account_fingerprint, plan, status, source,
-                    collected_at, stale_at, error_code
-             FROM quota_reports ORDER BY provider_id, account_fingerprint",
+            "SELECT report.provider_id, report.account_fingerprint, report.plan,
+                    report.status, report.source, report.collected_at,
+                    report.stale_at, report.error_code
+             FROM quota_reports AS report
+             WHERE report.account_fingerprint <> ''
+                OR NOT EXISTS (
+                    SELECT 1
+                    FROM quota_reports AS identified
+                    WHERE identified.provider_id = report.provider_id
+                      AND identified.account_fingerprint <> ''
+                )
+             ORDER BY report.provider_id, report.account_fingerprint",
         )?;
         let rows = stmt.query_map([], |row| {
             Ok((
