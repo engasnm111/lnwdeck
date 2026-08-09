@@ -241,14 +241,6 @@ complete release checklist and rollback procedure are in
   accounting is not implemented.
 - The browser extension must be loaded manually in Chromium Developer mode.
 
-## Credits
-
-- [TokenTracker](https://github.com/xiufengsun/TokenTracker) for dashboard and
-  community pet UX references.
-- [codex-pets.net](https://codex-pets.net) for the official pet catalog and
-  bundled pet package format.
-- [Tauri](https://tauri.app), Rust and the open-source provider communities.
-
 ## License
 
 MIT. See [LICENSE](LICENSE).
