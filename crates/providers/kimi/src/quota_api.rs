@@ -26,6 +26,16 @@ struct Credentials {
     expires_at: Option<f64>,
 }
 
+/// Returns credential material only for deriving the installation-local
+/// account fingerprint. The raw value must never be logged, serialized, or
+/// returned to the UI.
+pub fn account_identity(roots: &[PathBuf]) -> Option<String> {
+    read_credentials(roots)
+        .ok()
+        .flatten()
+        .and_then(|credentials| credentials.access_token.or(credentials.refresh_token))
+}
+
 /// Fetches the provider-published Kimi Code quota windows.
 pub fn fetch_windows(
     roots: &[PathBuf],

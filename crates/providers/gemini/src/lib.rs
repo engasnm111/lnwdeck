@@ -144,6 +144,9 @@ impl ProviderAdapter for GeminiAdapter {
     fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
         self.quota_estimate()
     }
+    fn account_identity(&self) -> Option<String> {
+        quota_api::read_oauth(&self.oauth_path()).map(|oauth| oauth.access_token)
+    }
 
     fn health_check(&self) -> AdapterHealth {
         let detection = self.detection();

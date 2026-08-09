@@ -35,6 +35,11 @@ pub struct UsageEvent {
     /// the source does not expose a project. The raw path is never persisted.
     #[serde(default)]
     pub project_hash: Option<String>,
+    /// Keyed hash of the provider account identity. Reports collected from
+    /// the same account in different runtimes share this value; different
+    /// accounts are kept separate without exposing the raw credential.
+    #[serde(default)]
+    pub account_fingerprint: Option<String>,
 }
 
 impl UsageEvent {
@@ -54,6 +59,7 @@ impl UsageEvent {
             cost: "0.0025".to_string(),
             session_hash: None,
             project_hash: None,
+            account_fingerprint: None,
         }
     }
 }

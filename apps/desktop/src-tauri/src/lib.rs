@@ -16,6 +16,60 @@ const FIRST_REFRESH_DELAY: Duration = Duration::from_secs(15);
 /// How often the loop re-reads the interval while refreshing is disabled.
 const DISABLED_POLL_INTERVAL: Duration = Duration::from_secs(60);
 
+#[cfg(windows)]
+const SINGLE_INSTANCE_NAME: &str = "Local\\lnwdeck.app.lnwdeck.desktop";
+
+#[cfg(windows)]
+struct SingleInstanceGuard(windows_sys::Win32::Foundation::HANDLE);
+
+#[cfg(windows)]
+impl Drop for SingleInstanceGuard {
+    fn drop(&mut self) {
+        // The mutex handle is owned by this process for the whole Tauri run.
+        // Closing it releases the named mutex when the process exits.
+        unsafe {
+            let _ = windows_sys::Win32::Foundation::CloseHandle(self.0);
+        }
+    }
+}
+
+#[cfg(not(windows))]
+struct SingleInstanceGuard;
+
+/// Acquires the process-wide named mutex. A second launch exits before it can
+/// create windows, tray state, or a second refresh loop.
+fn acquire_single_instance() -> Option<SingleInstanceGuard> {
+    #[cfg(windows)]
+    {
+        use std::ptr::null;
+        use windows_sys::Win32::Foundation::{GetLastError, ERROR_ALREADY_EXISTS};
+        use windows_sys::Win32::System::Threading::CreateMutexW;
+
+        let name: Vec<u16> = SINGLE_INSTANCE_NAME
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect();
+        // SAFETY: the name is a nul-terminated UTF-16 string owned for the
+        // duration of the call; the returned handle is closed by the guard.
+        let handle = unsafe { CreateMutexW(null(), 0, name.as_ptr()) };
+        if handle.is_null() {
+            return None;
+        }
+        if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
+            unsafe {
+                let _ = windows_sys::Win32::Foundation::CloseHandle(handle);
+            }
+            return None;
+        }
+        Some(SingleInstanceGuard(handle))
+    }
+
+    #[cfg(not(windows))]
+    {
+        Some(SingleInstanceGuard)
+    }
+}
+
 /// Records a background event so a failure outside a user action is visible on
 /// the System page instead of disappearing.
 fn record_event(
@@ -123,6 +177,9 @@ fn run_refresh_cycle(app: &tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let Some(_single_instance_guard) = acquire_single_instance() else {
+        return;
+    };
     let db_path = default_db_path();
 
     tauri::Builder::default()

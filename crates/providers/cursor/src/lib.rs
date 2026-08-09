@@ -378,6 +378,7 @@ pub fn events_from_rows(rows: &[CursorUsage]) -> Vec<UsageEvent> {
                 cost: format!("{:.4}", row.cost),
                 session_hash: None,
                 project_hash: None,
+                account_fingerprint: None,
             })
         })
         .collect()
@@ -533,6 +534,13 @@ impl ProviderAdapter for CursorAdapter {
             report.plan = Some(membership.to_string());
         }
         Ok(Some(report))
+    }
+
+    fn account_identity(&self) -> Option<String> {
+        let token = self.access_token().ok()?;
+        self.user_id_from_cli_config()
+            .or_else(|| decode_jwt_sub(&token))
+            .or(Some(token))
     }
 
     fn health_check(&self) -> AdapterHealth {

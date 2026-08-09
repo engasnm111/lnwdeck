@@ -1,4 +1,4 @@
-# lnwdeck v11.0.4
+# lnwdeck v11.0.5
 
 Universal AI usage and quota tracker for Windows. lnwdeck reads the local
 artifacts already written by AI tools, records token counts and costs, and
@@ -20,6 +20,16 @@ sync is required.
 - Provides budgets, alerts, diagnostics and sanitized JSON export.
 - Includes a floating quota widget and a transparent desktop pet, both using
   the same live provider data as the dashboard.
+
+## v11.0.5 account-aware quota and desktop correctness
+
+This patch adds account-aware quota and usage storage, keeps different
+provider fingerprints separate, prevents duplicate desktop processes, and
+restores OpenCode Go's monthly window when the dashboard omits its reset time.
+The pet tooltip is wider and more compact so provider and window names remain
+readable. See [the release notes](docs/releases/v11.0.5.md) and the
+[provider setup guide](docs/PROVIDER_QUOTA_SETUP.md) for App/CMD/WSL and
+OpenCode Go setup details.
 
 ## v11.0.4 clean-runner verification correctness
 
@@ -241,7 +251,7 @@ pnpm test:e2e
 pnpm tauri:dev
 ```
 
-## Building and verifying v11.0.4
+## Building and verifying v11.0.5
 
 Signed installers and updater artifacts require the Tauri signing key:
 
@@ -254,10 +264,10 @@ pnpm tauri:build
 pwsh ./scripts/package-portable.ps1 -Arch x64
 
 # Build the updater manifest from signed installers
-node scripts/generate-updater-json.mjs v11.0.4 <assets-dir> <assets-dir>/latest.json
+node scripts/generate-updater-json.mjs v11.0.5 <assets-dir> <assets-dir>/latest.json
 
 # Verify versions, release fixtures, signatures/manifest contract and metadata
-node scripts/check-release-version.mjs v11.0.4
+node scripts/check-release-version.mjs v11.0.5
 pnpm release:test
 ```
 
@@ -265,7 +275,7 @@ The release workflow builds x64, ARM64 and x86 installers and portable ZIPs.
 Each installer and portable ZIP has a `.sig`; the published assets also include
 `latest.json`, `SHA256SUMS`, a CycloneDX SBOM and GitHub build provenance. The
 complete release checklist and rollback procedure are in
-[docs/releases/v11.0.4.md](docs/releases/v11.0.4.md).
+[docs/releases/v11.0.5.md](docs/releases/v11.0.5.md).
 
 ## Privacy
 

@@ -45,6 +45,7 @@ fn sample_event(provider: &str) -> UsageEvent {
         cost: "0.005".to_string(),
         session_hash: None,
         project_hash: None,
+        account_fingerprint: None,
     }
 }
 

@@ -66,18 +66,45 @@ impl ScanProviders {
                 .iter()
                 .find(|r| r.provider_id == id && r.collector_mode != "quota_collect")
                 .or_else(|| runs.iter().find(|r| r.provider_id == id));
-            let report = reports.iter().find(|r| r.provider_id == id);
-
+            let quota_run = runs
+                .iter()
+                .find(|r| r.provider_id == id && r.collector_mode == "quota_collect");
             let (event_count, total_tokens, priced_events, last_ts) = usage_totals(conn, id)?;
 
             let detected = state.map(|s| s.detected).unwrap_or(false);
+            let source_exists = state.map(|s| s.source_exists).unwrap_or(false);
             let enabled = state.map(|s| s.enabled).unwrap_or(true);
-            let last_error_code = run.map(|r| r.error_code.clone()).unwrap_or_default();
+            let raw_last_error_code = run
+                .map(|r| r.error_code.as_str())
+                .filter(|code| !code.is_empty())
+                .or_else(|| quota_run.map(|r| r.error_code.as_str()))
+                .unwrap_or("");
+            let last_error_code = if is_expected_provider_absence(raw_last_error_code) {
+                String::new()
+            } else {
+                raw_last_error_code.to_string()
+            };
+            // Do not keep displaying a previously valid quota after the latest
+            // scan proved that this machine has no connection for the provider.
+            let report = if !detected
+                && !source_exists
+                && quota_run
+                    .map(|r| is_expected_provider_absence(&r.error_code))
+                    .unwrap_or(false)
+            {
+                None
+            } else {
+                reports
+                    .iter()
+                    .filter(|r| r.provider_id == id)
+                    .max_by_key(|r| r.collected_at)
+            };
 
             let health_status = health_label(
                 &descriptor,
                 detected,
-                &last_error_code,
+                raw_last_error_code,
+                source_exists,
                 state.map(|s| s.detection_error_code.as_str()).unwrap_or(""),
             );
 
@@ -166,6 +193,7 @@ fn health_label(
     descriptor: &lnwdeck_provider_runtime::AdapterDescriptor,
     detected: bool,
     last_error_code: &str,
+    source_exists: bool,
     detection_error_code: &str,
 ) -> String {
     if descriptor.is_inert() {
@@ -177,17 +205,33 @@ fn health_label(
     if last_error_code == NOT_SUPPORTED {
         return "Not supported".to_string();
     }
-    if !last_error_code.is_empty() {
+    if !last_error_code.is_empty() && !is_expected_provider_absence(last_error_code) {
         return format!("Error ({last_error_code})");
     }
     if detected {
         return "Healthy".to_string();
     }
-    if detection_error_code.is_empty() {
+    if !source_exists
+        && (detection_error_code.is_empty()
+            || is_expected_provider_absence(detection_error_code)
+            || is_expected_provider_absence(last_error_code))
+    {
+        "Not connected".to_string()
+    } else if detection_error_code.is_empty() {
         "Source not found".to_string()
     } else {
         format!("Source not found ({detection_error_code})")
     }
+}
+
+/// Missing local integrations are expected when the same installation is
+/// opened on another machine. They should remain local to the provider card
+/// instead of being surfaced as a global refresh failure.
+fn is_expected_provider_absence(code: &str) -> bool {
+    matches!(
+        code,
+        "SOURCE_UNAVAILABLE" | "NOT_INSTALLED" | "NOT_CONFIGURED" | "UNSUPPORTED" | "NOT_SUPPORTED"
+    )
 }
 
 /// Resolves the quota fields of a provider card from a stored report.
@@ -434,7 +478,7 @@ mod tests {
             assert_eq!(card.event_count, 0);
             assert_eq!(card.cost_support, "No data");
         }
-        assert_eq!(cards[0].health_status, "Source not found");
+        assert_eq!(cards[0].health_status, "Not connected");
         assert_eq!(cards[0].usage_support, "local estimate");
         assert_eq!(cards[0].auth_requirement, "local files");
         assert_eq!(cards[1].usage_support, "not supported");
@@ -484,7 +528,7 @@ mod tests {
     }
 
     #[test]
-    fn collector_errors_surface_on_the_card() {
+    fn real_collector_errors_surface_on_the_card() {
         let storage = open_test_db();
         let diag = DiagnosticsRepository::new(&storage.conn);
         diag.insert_collector_run(&CollectorRunRow {
@@ -502,14 +546,56 @@ mod tests {
             events_inserted: 0,
             quota_snapshots_inserted: 0,
             warning_codes: Vec::new(),
-            error_code: "SOURCE_UNAVAILABLE".to_string(),
+            error_code: "AUTH_EXPIRED".to_string(),
             next_retry_at: None,
         })
         .expect("run");
 
         let cards = ScanProviders::execute(&storage.conn, &test_registry()).expect("scan");
-        assert_eq!(cards[0].health_status, "Error (SOURCE_UNAVAILABLE)");
-        assert_eq!(cards[0].last_error_code, "SOURCE_UNAVAILABLE");
+        assert_eq!(cards[0].health_status, "Error (AUTH_EXPIRED)");
+        assert_eq!(cards[0].last_error_code, "AUTH_EXPIRED");
+    }
+
+    #[test]
+    fn expected_provider_absence_is_not_a_refresh_error_or_stale_quota() {
+        let storage = open_test_db();
+        lnwdeck_storage::repositories::QuotaRepository::new(&storage.conn)
+            .upsert_report(&QuotaReport::new(
+                "opencode",
+                "cli_api",
+                vec![window("5h", 40, 100, None)],
+                chrono::Duration::hours(1),
+            ))
+            .expect("report");
+        DiagnosticsRepository::new(&storage.conn)
+            .insert_collector_run(&CollectorRunRow {
+                id: 0,
+                provider_id: "opencode".to_string(),
+                collector_mode: "quota_collect".to_string(),
+                started_at: "2026-08-04T00:00:00+00:00".to_string(),
+                finished_at: "2026-08-04T00:00:01+00:00".to_string(),
+                duration_ms: 1000,
+                source_records_seen: 0,
+                records_parsed: 0,
+                events_normalized: 0,
+                events_rejected: 0,
+                duplicates_skipped: 0,
+                events_inserted: 0,
+                quota_snapshots_inserted: 0,
+                warning_codes: Vec::new(),
+                error_code: "SOURCE_UNAVAILABLE".to_string(),
+                next_retry_at: None,
+            })
+            .expect("run");
+
+        let card = ScanProviders::execute(&storage.conn, &test_registry())
+            .expect("scan")
+            .into_iter()
+            .find(|card| card.provider_id == "opencode")
+            .expect("opencode card");
+        assert_eq!(card.health_status, "Not connected");
+        assert!(card.last_error_code.is_empty());
+        assert_eq!(card.quota_summary, "No quota data");
     }
 
     #[test]

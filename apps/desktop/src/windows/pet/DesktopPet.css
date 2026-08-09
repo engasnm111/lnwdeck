@@ -263,11 +263,11 @@
   );
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 14px;
-  padding: 10px 14px;
-  width: min(360px, calc(100vw - 16px));
-  min-width: min(240px, calc(100vw - 16px));
-  max-width: calc(100vw - 16px);
-  max-height: min(210px, calc(100vh - 120px));
+  padding: 8px 12px;
+  width: min(460px, calc(100vw - 8px));
+  min-width: min(280px, calc(100vw - 8px));
+  max-width: calc(100vw - 8px);
+  max-height: min(220px, calc(100vh - 120px));
   overflow-y: auto;
   backdrop-filter: blur(16px) saturate(140%);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
@@ -284,8 +284,8 @@
 }
 
 .pet-tooltip-tokens {
-  padding-bottom: 6px;
-  margin-bottom: 6px;
+  padding-bottom: 4px;
+  margin-bottom: 4px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
 
@@ -315,14 +315,14 @@
 .pet-tooltip-bars {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 3px;
 }
 
 .pet-tooltip-bar-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 64px 44px;
+  grid-template-columns: minmax(0, 1fr) 78px 52px;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
 }
 
 .pet-tooltip-bar-label {
@@ -336,7 +336,7 @@
 
 .pet-tooltip-bar-provider {
   min-width: 0;
-  font-size: 0.6rem;
+  font-size: 0.68rem;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.78);
   overflow: hidden;
@@ -346,7 +346,7 @@
 
 .pet-tooltip-bar-window {
   min-width: 0;
-  font-size: 0.56rem;
+  font-size: 0.6rem;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.58);
   white-space: nowrap;
@@ -354,7 +354,7 @@
 
 .pet-tooltip-bar-track {
   display: block;
-  width: 64px;
+  width: 78px;
   height: 4px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.14);
@@ -378,7 +378,7 @@
 }
 
 .pet-tooltip-bar-pct {
-  font-size: 0.55rem;
+  font-size: 0.58rem;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.55);
   text-align: right;

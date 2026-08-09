@@ -6,8 +6,9 @@ use lnwdeck_storage::repositories::{
 };
 use rusqlite::Connection;
 use serde::Serialize;
+use std::collections::BTreeMap;
 
-/// Dashboard read model for quota: one card per registered provider.
+/// Dashboard read model for quota: one card per registered provider/account.
 /// The frontend must not interpret raw provider payloads; all semantics are
 /// resolved here.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -20,6 +21,9 @@ pub struct QuotaDashboard {
 pub struct ProviderQuotaCard {
     pub provider_id: String,
     pub display_name: String,
+    /// Present when more than one fingerprinted account exists for this
+    /// provider. The raw fingerprint never crosses the native boundary.
+    pub account_index: Option<u32>,
     pub connection_state: ProviderConnectionState,
     /// Descriptor capability label: `supported`, `local estimate` or
     /// `not supported`. A local estimate must never be presented as quota.
@@ -54,7 +58,10 @@ pub enum ProviderConnectionState {
 /// dashboard credential. The historical window rows stay in storage.
 pub(crate) fn sanitize_legacy_opencode_report(report: QuotaReport) -> QuotaReport {
     if report.provider_id == "opencode" && report.source == "local_estimate" {
-        QuotaReport::failed("opencode", "provider_api", "NOT_CONFIGURED")
+        let account_fingerprint = report.account_fingerprint.clone();
+        let mut sanitized = QuotaReport::failed("opencode", "provider_api", "NOT_CONFIGURED");
+        sanitized.account_fingerprint = account_fingerprint;
+        sanitized
     } else {
         report
     }
@@ -77,32 +84,73 @@ impl QueryQuotaDashboard {
             .into_iter()
             .map(sanitize_legacy_opencode_report)
             .collect::<Vec<_>>();
+        let mut reports_by_provider: BTreeMap<String, Vec<QuotaReport>> = BTreeMap::new();
+        for report in reports {
+            reports_by_provider
+                .entry(report.provider_id.clone())
+                .or_default()
+                .push(report);
+        }
         let diagnostics = DiagnosticsRepository::new(conn);
         let states = diagnostics.provider_states()?;
         let runs = diagnostics.latest_runs()?;
         let descriptors = registry.descriptors();
-        let mut cards = Vec::with_capacity(descriptors.len() + reports.len());
+        let report_count = reports_by_provider.values().map(Vec::len).sum::<usize>();
+        let mut cards = Vec::with_capacity(descriptors.len() + report_count);
 
         for descriptor in &descriptors {
-            let report = reports.iter().find(|r| r.provider_id == descriptor.id);
             let state = states.iter().find(|s| s.provider_id == descriptor.id);
             let quota_run = runs
                 .iter()
                 .find(|r| r.provider_id == descriptor.id && r.collector_mode == "quota_collect");
-            let connection_state = connection_state_for(descriptor, state, quota_run, report);
-            cards.push(card_from_descriptor(descriptor, report, connection_state));
+            let provider_reports = reports_by_provider
+                .remove(descriptor.id)
+                .unwrap_or_default();
+            if provider_reports.is_empty() {
+                let connection_state = connection_state_for(descriptor, state, quota_run, None);
+                cards.push(card_from_descriptor(
+                    descriptor,
+                    None,
+                    connection_state,
+                    None,
+                ));
+            } else {
+                let account_index = (provider_reports.len() > 1).then_some(0u32);
+                for (index, report) in provider_reports.iter().enumerate() {
+                    let connection_state =
+                        connection_state_for(descriptor, state, quota_run, Some(report));
+                    let account_index = account_index.map(|_| index as u32 + 1);
+                    cards.push(card_from_descriptor(
+                        descriptor,
+                        Some(report),
+                        connection_state,
+                        account_index,
+                    ));
+                }
+            }
         }
 
         // Unknown ids (for example a provider removed in a later build) sort
         // last instead of being dropped, so stored data stays visible.
-        for report in reports {
-            if registry.rank(&report.provider_id).is_none() {
-                cards.push(card_from_report(report, registry));
+        for (provider_id, provider_reports) in reports_by_provider {
+            if registry.rank(&provider_id).is_none() {
+                let account_index = (provider_reports.len() > 1).then_some(0u32);
+                for (index, report) in provider_reports.into_iter().enumerate() {
+                    cards.push(card_from_report(
+                        report,
+                        registry,
+                        account_index.map(|_| index as u32 + 1),
+                    ));
+                }
             }
         }
-        // Unknown ids (for example a provider removed in a later build) sort
-        // last instead of being dropped, so stored data stays visible.
-        cards.sort_by_key(|card| registry.rank(&card.provider_id).unwrap_or(usize::MAX));
+        cards.sort_by_key(|card| {
+            (
+                registry.rank(&card.provider_id).unwrap_or(usize::MAX),
+                card.provider_id.clone(),
+                card.account_index.unwrap_or(0),
+            )
+        });
         Ok(QuotaDashboard {
             generated_at: Utc::now(),
             providers: cards,
@@ -199,6 +247,7 @@ fn card_from_descriptor(
     descriptor: &AdapterDescriptor,
     report: Option<&QuotaReport>,
     connection_state: ProviderConnectionState,
+    account_index: Option<u32>,
 ) -> ProviderQuotaCard {
     let now = Utc::now();
     let effective_report =
@@ -207,6 +256,7 @@ fn card_from_descriptor(
         Some(report) => ProviderQuotaCard {
             provider_id: descriptor.id.to_string(),
             display_name: descriptor.display_name.to_string(),
+            account_index,
             connection_state,
             quota_support: descriptor.quota_support.label().to_string(),
             status: report.status,
@@ -220,6 +270,7 @@ fn card_from_descriptor(
         None => ProviderQuotaCard {
             provider_id: descriptor.id.to_string(),
             display_name: descriptor.display_name.to_string(),
+            account_index,
             connection_state,
             quota_support: descriptor.quota_support.label().to_string(),
             status: QuotaStatus::Unavailable,
@@ -233,7 +284,11 @@ fn card_from_descriptor(
     }
 }
 
-fn card_from_report(report: QuotaReport, registry: &AdapterRegistry) -> ProviderQuotaCard {
+fn card_from_report(
+    report: QuotaReport,
+    registry: &AdapterRegistry,
+    account_index: Option<u32>,
+) -> ProviderQuotaCard {
     let provider_id = report.provider_id.clone();
     let display_name = registry
         .display_name(&provider_id)
@@ -242,6 +297,7 @@ fn card_from_report(report: QuotaReport, registry: &AdapterRegistry) -> Provider
     ProviderQuotaCard {
         provider_id,
         display_name,
+        account_index,
         connection_state: if report.is_usable() {
             ProviderConnectionState::Connected
         } else {
@@ -383,6 +439,40 @@ mod tests {
             .expect("opencode card");
         assert_eq!(card.display_name, "OpenCode");
         assert_eq!(card.connection_state, ProviderConnectionState::Connected);
+    }
+
+    #[test]
+    fn dashboard_keeps_different_account_fingerprints_as_separate_cards() {
+        let storage = open_test_db();
+        let repo = QuotaRepository::new(&storage.conn);
+        for (fingerprint, used) in [("account-a", 10), ("account-b", 70)] {
+            let mut report = QuotaReport::new(
+                "anthropic_claude",
+                "provider_api",
+                vec![window("5h", used, 100)],
+                chrono::Duration::hours(1),
+            );
+            report.account_fingerprint = Some(fingerprint.to_string());
+            repo.upsert_report(&report).expect("account report");
+        }
+
+        let dashboard =
+            QueryQuotaDashboard::execute(&storage.conn, &test_registry()).expect("dashboard");
+        let accounts: Vec<&ProviderQuotaCard> = dashboard
+            .providers
+            .iter()
+            .filter(|card| card.provider_id == "anthropic_claude")
+            .collect();
+        assert_eq!(accounts.len(), 2);
+        assert_eq!(
+            accounts
+                .iter()
+                .map(|card| card.account_index)
+                .collect::<Vec<_>>(),
+            vec![Some(1), Some(2)]
+        );
+        assert_eq!(accounts[0].windows[0].used, 10);
+        assert_eq!(accounts[1].windows[0].used, 70);
     }
 
     #[test]

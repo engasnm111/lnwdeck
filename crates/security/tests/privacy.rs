@@ -20,6 +20,7 @@ fn sample_batch() -> UsageBatch {
             cost: "0.0015".to_string(),
             session_hash: None,
             project_hash: None,
+            account_fingerprint: None,
         }],
     }
 }

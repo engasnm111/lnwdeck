@@ -529,6 +529,10 @@ impl ProviderAdapter for ZCodeAdapter {
         self.quota_estimate()
     }
 
+    fn account_identity(&self) -> Option<String> {
+        self.api_key().map(|credential| credential.key)
+    }
+
     fn health_check(&self) -> AdapterHealth {
         let detection = self.detection();
         if !detection.source_exists {

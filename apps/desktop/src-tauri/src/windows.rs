@@ -29,17 +29,17 @@ const DEFAULT_WIDGET_SIZE: &str = "medium";
 /// and the sprite; the pet window is never user-resized. The extra width keeps
 /// the hover quota tooltip readable without clipping provider window labels.
 pub const PET_SIZE_PRESETS: &[(&str, f64, f64)] = &[
-    ("small", 300.0, 300.0),
-    ("medium", 400.0, 400.0),
-    ("large", 500.0, 520.0),
+    ("small", 320.0, 340.0),
+    ("medium", 520.0, 420.0),
+    ("large", 640.0, 520.0),
 ];
 const DEFAULT_PET_SIZE: &str = "medium";
 /// The pet window is deliberately small: it moves WITH the pet, so only the
 /// pet's own surface intercepts clicks and the rest of the desktop stays
 /// usable. Full-screen transparent overlays block every click underneath.
-const PET_WINDOW_WIDTH: f64 = 400.0;
+const PET_WINDOW_WIDTH: f64 = 520.0;
 /// Tall enough for the sprite AND the hover tooltip above it (logical px).
-const PET_WINDOW_HEIGHT: f64 = 400.0;
+const PET_WINDOW_HEIGHT: f64 = 420.0;
 /// Gap between the screen bottom and the pet window when it is shown.
 const PET_BOTTOM_MARGIN: i32 = 48;
 const TRAY_POPUP_WIDTH: f64 = 392.0;
@@ -125,7 +125,7 @@ pub fn pet_size_dimensions(preset: &str) -> (f64, f64) {
                 .iter()
                 .find(|(key, _, _)| *key == DEFAULT_PET_SIZE)
                 .map(|(_, w, h)| (*w, *h))
-                .unwrap_or((400.0, 400.0))
+                .unwrap_or((520.0, 420.0))
         })
 }
 
@@ -1064,8 +1064,8 @@ mod tests {
 
     #[test]
     fn medium_pet_window_leaves_room_for_quota_window_labels() {
-        assert_eq!(pet_size_dimensions("medium"), (400.0, 400.0));
-        assert_eq!(pet_size_dimensions("unknown"), (400.0, 400.0));
+        assert_eq!(pet_size_dimensions("medium"), (520.0, 420.0));
+        assert_eq!(pet_size_dimensions("unknown"), (520.0, 420.0));
     }
 
     #[test]

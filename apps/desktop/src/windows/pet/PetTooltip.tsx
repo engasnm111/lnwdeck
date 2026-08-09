@@ -76,18 +76,24 @@ export function PetTooltip({ visible }: { visible: boolean }) {
   const usageRows: UsageRow[] = [];
   if (data) {
     for (const p of data.providers) {
+      const accountLabel = p.account_index == null
+        ? null
+        : t("providers.account", { number: String(p.account_index) });
+      const providerName = accountLabel
+        ? `${p.display_name} - ${accountLabel}`
+        : p.display_name;
       for (const w of p.windows) {
         if (w.remaining_percent !== null && Number.isFinite(w.remaining_percent)) {
           const pct = Math.max(0, Math.min(100, w.remaining_percent));
           bars.push({
-            provider: p.display_name,
+            provider: providerName,
             label: w.label,
             percent: pct,
             tone: pct < 20 ? "danger" : pct < 50 ? "warn" : "ok",
           });
         } else if (w.used > 0) {
           usageRows.push({
-            provider: p.display_name,
+            provider: providerName,
             label: w.label,
             used: w.used,
             kind: w.kind,

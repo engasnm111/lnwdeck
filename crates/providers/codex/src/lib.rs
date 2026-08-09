@@ -560,6 +560,10 @@ impl ProviderAdapter for CodexAdapter {
     fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
         self.quota_estimate()
     }
+    fn account_identity(&self) -> Option<String> {
+        let auth = usage_api::read_auth(&self.auth_path)?;
+        auth.account_id.or(Some(auth.access_token))
+    }
     fn health_check(&self) -> AdapterHealth {
         match self.detection().detected {
             true => AdapterHealth {

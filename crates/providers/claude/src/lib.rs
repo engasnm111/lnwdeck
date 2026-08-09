@@ -270,6 +270,9 @@ impl ProviderAdapter for ClaudeAdapter {
     fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
         self.quota_estimate()
     }
+    fn account_identity(&self) -> Option<String> {
+        usage_api::read_access_token(&self.credentials_path)
+    }
     fn health_check(&self) -> AdapterHealth {
         match self.detection().detected {
             true => AdapterHealth {

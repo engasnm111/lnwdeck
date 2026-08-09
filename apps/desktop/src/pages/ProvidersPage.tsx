@@ -105,8 +105,8 @@ export function ProvidersPage() {
     [load],
   );
 
-  const quotaFor = (providerId: string): ProviderQuotaCard | undefined =>
-    quota?.providers.find((card) => card.provider_id === providerId);
+  const quotaFor = (providerId: string): ProviderQuotaCard[] =>
+    quota?.providers.filter((card) => card.provider_id === providerId) ?? [];
 
   return (
     <div>
@@ -132,7 +132,7 @@ export function ProvidersPage() {
       >
         <div className="grid-cards">
           {providers.map((provider) => {
-            const card = quotaFor(provider.provider_id);
+            const cards = quotaFor(provider.provider_id);
             const displayName = providerDisplayName(provider);
             return (
               <Card
@@ -208,38 +208,68 @@ export function ProvidersPage() {
                   <div className="channel-block">
                     <div className="channel-title">
                       <span>{t("providers.quotaChannel")}</span>
-                      {card && <Badge tone="neutral">{providerSourceLabel(card.source, t)}</Badge>}
+                      {cards.length === 1 && (
+                        <Badge tone="neutral">{providerSourceLabel(cards[0]?.source ?? "", t)}</Badge>
+                      )}
                     </div>
-                    {!card ? (
+                    {cards.length === 0 ? (
                       <p className="ui-inline-note">
                         {providerQuotaSummaryLabel(provider.quota_summary, t)}
                       </p>
-                    ) : card.windows.length === 0 ? (
+                    ) : cards.every((card) => card.windows.length === 0) ? (
                       <p className="ui-inline-note">
                         {providerQuotaSummaryLabel(provider.quota_summary, t)}
                       </p>
                     ) : (
                       <div className="stack-tight">
-                        {card.windows.map((window) => (
-                          <div key={window.window_key} className="bar-row">
-                            <div className="bar-row-head">
-                              <span>{window.label}</span>
-                              <span className="ui-mono">
-                                {window.remaining_percent === null
-                                  ? t("providers.kindUsed", { used: formatCompact(window.used), kind: providerKindLabel(window.kind, t) })
-                                  : t("providers.percentLeft", { percent: String(Math.round(window.remaining_percent)) })}
+                        {cards.map((card) => {
+                          const accountLabel = card.account_index == null
+                            ? null
+                            : t("providers.account", { number: String(card.account_index) });
+                          const cardDisplayName = accountLabel
+                            ? `${displayName} - ${accountLabel}`
+                            : displayName;
+                          return (
+                            <div
+                              key={`${card.provider_id}-${card.account_index ?? "default"}`}
+                              className="stack-tight"
+                            >
+                              {accountLabel && (
+                                <div className="bar-row-head">
+                                  <span>{accountLabel}</span>
+                                  <span className="ui-mono">{providerSourceLabel(card.source, t)}</span>
+                                </div>
+                              )}
+                              {card.windows.length === 0 ? (
+                                <p className="ui-inline-note">
+                                  {providerQuotaSummaryLabel(provider.quota_summary, t)}
+                                </p>
+                              ) : card.windows.map((window) => (
+                                <div
+                                  key={`${card.account_index ?? "default"}-${window.window_key}`}
+                                  className="bar-row"
+                                >
+                                  <div className="bar-row-head">
+                                    <span>{window.label}</span>
+                                    <span className="ui-mono">
+                                      {window.remaining_percent === null
+                                        ? t("providers.kindUsed", { used: formatCompact(window.used), kind: providerKindLabel(window.kind, t) })
+                                        : t("providers.percentLeft", { percent: String(Math.round(window.remaining_percent)) })}
+                                    </span>
+                                  </div>
+                                  <ProgressBar
+                                    percent={window.remaining_percent}
+                                    label={t("providers.remainingLabel", { provider: cardDisplayName, label: window.label })}
+                                  />
+                                </div>
+                              ))}
+                              <span className="ui-inline-note">
+                                {t("providers.collectedAt", { time: formatTimestamp(card.collected_at, language) })}
+                                {card.plan ? t("providers.planSuffix", { plan: card.plan }) : ""}
                               </span>
                             </div>
-                              <ProgressBar
-                                percent={window.remaining_percent}
-                                label={t("providers.remainingLabel", { provider: displayName, label: window.label })}
-                            />
-                          </div>
-                        ))}
-                        <span className="ui-inline-note">
-                          {t("providers.collectedAt", { time: formatTimestamp(card.collected_at, language) })}
-                          {card.plan ? t("providers.planSuffix", { plan: card.plan }) : ""}
-                        </span>
+                          );
+                        })}
                       </div>
                     )}
                   </div>

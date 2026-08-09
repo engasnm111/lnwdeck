@@ -312,6 +312,8 @@ export type ProviderConnectionState =
 export interface ProviderQuotaCard {
   provider_id: string;
   display_name: string;
+  /** 1-based account label when a provider has multiple fingerprints. */
+  account_index?: number | null;
   connection_state: ProviderConnectionState;
   quota_support: "supported" | "local estimate" | "not supported";
   status: QuotaStatus;

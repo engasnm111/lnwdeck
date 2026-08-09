@@ -30,6 +30,17 @@ pub trait ProviderAdapter: Send + Sync {
         self.descriptor().display_name
     }
 
+    /// Returns the sensitive identity of the account behind this source.
+    ///
+    /// The application layer immediately converts this value into an
+    /// installation-keyed fingerprint. Implementations must never log,
+    /// serialize, or return this value to the UI; adapters that cannot prove
+    /// an account identity should return `None` and use the legacy account
+    /// bucket.
+    fn account_identity(&self) -> Option<String> {
+        None
+    }
+
     /// Collects usage events. Adapters that declare usage support must
     /// override this; the default refuses instead of returning an empty
     /// batch that would look like a successful collection.

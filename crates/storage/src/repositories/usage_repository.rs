@@ -1,5 +1,6 @@
 use lnwdeck_domain::UsageBatch;
 use rusqlite::Connection;
+use std::collections::HashSet;
 
 pub struct UsageRepository<'a> {
     conn: &'a Connection,
@@ -28,10 +29,11 @@ impl<'a> UsageRepository<'a> {
 
         for event in &batch.events {
             let timestamp = event.timestamp.to_rfc3339();
+            let account_fingerprint = event.account_fingerprint.as_deref().unwrap_or("");
 
             let changed = tx.execute(
-                "INSERT OR IGNORE INTO usage_events (id, batch_id, timestamp, provider_id, model, tokens_input, tokens_cached, tokens_cache_write, tokens_output, tokens_reasoning, confidence, data_source, cost, session_hash, project_hash)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+                "INSERT OR IGNORE INTO usage_events (id, batch_id, timestamp, provider_id, model, tokens_input, tokens_cached, tokens_cache_write, tokens_output, tokens_reasoning, confidence, data_source, cost, session_hash, project_hash, account_fingerprint)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
                 rusqlite::params![
                     event.id,
                     batch.batch_id,
@@ -48,6 +50,7 @@ impl<'a> UsageRepository<'a> {
                     event.cost,
                     event.session_hash.as_deref().unwrap_or(""),
                     event.project_hash.as_deref().unwrap_or(""),
+                    account_fingerprint,
                 ],
             )?;
             if changed == 1 {
@@ -76,17 +79,32 @@ impl<'a> UsageRepository<'a> {
             return Ok((0, 0));
         }
         let tx = self.conn.unchecked_transaction()?;
-        tx.execute(
-            "DELETE FROM usage_events
-             WHERE provider_id = ?1 AND data_source IN (?2, ?3)",
-            rusqlite::params![provider_id, current_source, legacy_source],
-        )?;
+        let account_fingerprints: HashSet<&str> = batch
+            .events
+            .iter()
+            .map(|event| event.account_fingerprint.as_deref().unwrap_or(""))
+            .collect();
+        for account_fingerprint in account_fingerprints {
+            tx.execute(
+                "DELETE FROM usage_events
+                 WHERE provider_id = ?1
+                   AND data_source IN (?2, ?3)
+                   AND account_fingerprint = ?4",
+                rusqlite::params![
+                    provider_id,
+                    current_source,
+                    legacy_source,
+                    account_fingerprint
+                ],
+            )?;
+        }
 
         let mut inserted = 0u64;
         for event in &batch.events {
+            let account_fingerprint = event.account_fingerprint.as_deref().unwrap_or("");
             inserted += tx.execute(
-                "INSERT OR IGNORE INTO usage_events (id, batch_id, timestamp, provider_id, model, tokens_input, tokens_cached, tokens_cache_write, tokens_output, tokens_reasoning, confidence, data_source, cost, session_hash, project_hash)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+                "INSERT OR IGNORE INTO usage_events (id, batch_id, timestamp, provider_id, model, tokens_input, tokens_cached, tokens_cache_write, tokens_output, tokens_reasoning, confidence, data_source, cost, session_hash, project_hash, account_fingerprint)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
                 rusqlite::params![
                     event.id,
                     batch.batch_id,
@@ -103,6 +121,7 @@ impl<'a> UsageRepository<'a> {
                     event.cost,
                     event.session_hash.as_deref().unwrap_or(""),
                     event.project_hash.as_deref().unwrap_or(""),
+                    account_fingerprint,
                 ],
             )? as u64;
         }

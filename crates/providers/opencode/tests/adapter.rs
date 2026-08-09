@@ -269,6 +269,7 @@ fn events_serialize_with_only_allowed_keys() {
     let json = serde_json::to_value(&batch.events[0]).expect("serialize");
     let keys: Vec<String> = json.as_object().expect("object").keys().cloned().collect();
     let allowed = [
+        "account_fingerprint",
         "id",
         "timestamp",
         "provider_id",
@@ -413,6 +414,40 @@ fn dashboard_parser_handles_nested_objects_and_string_numbers() {
             .expect("rolling window")
             .used_percent,
         Some(12.5)
+    );
+}
+
+#[test]
+fn dashboard_parser_accepts_current_window_names_and_keeps_monthly_without_reset() {
+    let now = chrono::DateTime::parse_from_rfc3339("2026-08-09T10:00:00Z")
+        .expect("fixed timestamp")
+        .with_timezone(&chrono::Utc);
+    let html = r#"
+        <script>
+          {"rolling5h":{"usagePercent":12.5,"resetInSec":3600},
+           "weekly":{"usage_percent":48,"resets_in_seconds":7200},
+           "monthly":{"usagePercent":0.25}}
+        </script>
+    "#;
+
+    let windows = windows_from_dashboard_html(html, now).expect("dashboard payload");
+    assert_eq!(windows.len(), 3);
+    assert_eq!(
+        windows
+            .iter()
+            .find(|window| window.window_key == "30d")
+            .expect("monthly window")
+            .used_percent,
+        Some(25.0)
+    );
+    assert_eq!(
+        windows
+            .iter()
+            .find(|window| window.window_key == "30d")
+            .expect("monthly window")
+            .reset_at,
+        None,
+        "a missing reset is unknown, but must not hide the real monthly percentage"
     );
 }
 

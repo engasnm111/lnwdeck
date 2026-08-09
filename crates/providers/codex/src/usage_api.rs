@@ -59,6 +59,39 @@ fn classify(seconds: Option<i64>) -> (&'static str, &'static str, QuotaWindowSco
     }
 }
 
+fn timestamp_from_number(value: f64) -> Option<chrono::DateTime<chrono::Utc>> {
+    if !value.is_finite() || value < 0.0 {
+        return None;
+    }
+    if value >= 10_000_000_000.0 {
+        chrono::DateTime::from_timestamp_millis(value.round() as i64)
+    } else {
+        chrono::DateTime::from_timestamp(value.round() as i64, 0)
+    }
+}
+
+fn timestamp_from_value(value: &serde_json::Value) -> Option<chrono::DateTime<chrono::Utc>> {
+    match value {
+        serde_json::Value::Number(number) => timestamp_from_number(number.as_f64()?),
+        serde_json::Value::String(text) => chrono::DateTime::parse_from_rfc3339(text)
+            .ok()
+            .map(|parsed| parsed.with_timezone(&chrono::Utc))
+            .or_else(|| {
+                text.trim()
+                    .parse::<f64>()
+                    .ok()
+                    .and_then(timestamp_from_number)
+            }),
+        _ => None,
+    }
+}
+
+fn absolute_reset_at(value: &serde_json::Value) -> Option<chrono::DateTime<chrono::Utc>> {
+    ["reset_at", "resets_at", "resetAt", "resetsAt"]
+        .iter()
+        .find_map(|key| value.get(*key).and_then(timestamp_from_value))
+}
+
 fn window_from(value: &serde_json::Value) -> Option<QuotaWindow> {
     let used_percent = value.get("used_percent").and_then(|value| value.as_f64())?;
     let seconds = value
@@ -71,13 +104,7 @@ fn window_from(value: &serde_json::Value) -> Option<QuotaWindow> {
         .and_then(|seconds| {
             chrono::Utc::now().checked_add_signed(chrono::Duration::seconds(seconds))
         })
-        .or_else(|| {
-            value
-                .get("resets_at")
-                .and_then(|value| value.as_str())
-                .and_then(|text| chrono::DateTime::parse_from_rfc3339(text).ok())
-                .map(|parsed| parsed.with_timezone(&chrono::Utc))
-        });
+        .or_else(|| absolute_reset_at(value));
     Some(QuotaWindow::from_percent(
         key,
         label,
@@ -206,6 +233,56 @@ mod tests {
         for window in &windows {
             window.check_invariants().expect("consistent");
         }
+    }
+
+    #[test]
+    fn numeric_reset_at_is_preserved() {
+        let body = serde_json::json!({
+            "rate_limit": {
+                "primary_window": {
+                    "used_percent": 46,
+                    "limit_window_seconds": 604800,
+                    "reset_at": 1_800_000_000
+                }
+            }
+        });
+
+        let windows = windows_from_payload(&body);
+
+        assert_eq!(
+            windows[0].reset_at.map(|value| value.timestamp()),
+            Some(1_800_000_000)
+        );
+    }
+
+    #[test]
+    fn numeric_reset_at_accepts_seconds_or_milliseconds() {
+        let body = serde_json::json!({
+            "rate_limit": {
+                "primary_window": {
+                    "used_percent": 46,
+                    "limit_window_seconds": 18000,
+                    "reset_at": 1_800_000_000
+                },
+                "secondary_window": {
+                    "used_percent": 17,
+                    "limit_window_seconds": 604800,
+                    "reset_at": 1_800_000_000_000i64
+                }
+            }
+        });
+
+        let windows = windows_from_payload(&body);
+
+        assert_eq!(windows.len(), 2);
+        assert_eq!(
+            windows[0].reset_at.map(|value| value.timestamp()),
+            Some(1_800_000_000)
+        );
+        assert_eq!(
+            windows[1].reset_at.map(|value| value.timestamp()),
+            Some(1_800_000_000)
+        );
     }
 
     #[test]

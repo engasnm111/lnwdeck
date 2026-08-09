@@ -40,6 +40,14 @@
         "tokens_output"
       ],
       "properties": {
+        "account_fingerprint": {
+          "description": "Keyed hash of the provider account identity. Reports collected from the same account in different runtimes share this value; different accounts are kept separate without exposing the raw credential.",
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "confidence": {
           "$ref": "#/definitions/Confidence"
         },

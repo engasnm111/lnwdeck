@@ -114,6 +114,24 @@ fn latest_all_returns_each_provider_once() {
 }
 
 #[test]
+fn latest_all_keeps_same_provider_accounts_separate() {
+    let storage = open_test_db();
+    let repo = QuotaRepository::new(&storage.conn);
+    for (fingerprint, used) in [("account-a", 20), ("account-b", 80)] {
+        let mut report = report("claude", vec![window("5h", used, 100)]);
+        report.account_fingerprint = Some(fingerprint.to_string());
+        repo.upsert_report(&report).expect("account report");
+    }
+
+    let all = repo.latest_all().expect("latest all");
+    assert_eq!(all.len(), 2);
+    assert_eq!(all[0].account_fingerprint.as_deref(), Some("account-a"));
+    assert_eq!(all[1].account_fingerprint.as_deref(), Some("account-b"));
+    assert_eq!(all[0].windows[0].used, 20);
+    assert_eq!(all[1].windows[0].used, 80);
+}
+
+#[test]
 fn history_returns_window_snapshots_in_time_range() {
     let storage = open_test_db();
     let repo = QuotaRepository::new(&storage.conn);

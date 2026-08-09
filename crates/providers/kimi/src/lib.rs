@@ -305,6 +305,10 @@ impl ProviderAdapter for KimiAdapter {
         )))
     }
 
+    fn account_identity(&self) -> Option<String> {
+        quota_api::account_identity(&self.roots)
+    }
+
     fn health_check(&self) -> AdapterHealth {
         let detection = self.detection();
         if !detection.source_exists {

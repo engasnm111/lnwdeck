@@ -15,6 +15,7 @@ export interface UsageEvent {
   cost: string;
   session_hash: string | null;
   project_hash: string | null;
+  account_fingerprint: string | null;
 }
 
 export interface UsageBatch {

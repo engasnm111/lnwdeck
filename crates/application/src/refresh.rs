@@ -1,5 +1,5 @@
 use lnwdeck_provider_runtime::{CollectionOutcome, ProviderAdapter, QuotaCollectionOutcome};
-use lnwdeck_security::PrivacyGuard;
+use lnwdeck_security::{IdentifierHasher, PrivacyGuard};
 use lnwdeck_storage::repositories::{
     CollectorRunRow, DiagnosticsRepository, ProviderStateRow, QuotaRepository,
     SyncCursorRepository, UsageRepository,
@@ -26,7 +26,17 @@ impl RefreshAll {
     /// outcome and one quota outcome; failures are isolated and recorded,
     /// never fatal.
     pub fn execute(conn: &Connection, adapters: &[&dyn ProviderAdapter]) -> RefreshCycleOutcome {
-        Self::execute_with_progress(conn, adapters, |_, _, _| true)
+        Self::execute_with_hash_key(conn, adapters, &[])
+    }
+
+    /// Runs a full refresh using the installation-local key to isolate
+    /// provider accounts. The key itself is never serialized or exposed.
+    pub fn execute_with_hash_key(
+        conn: &Connection,
+        adapters: &[&dyn ProviderAdapter],
+        hash_key: &[u8],
+    ) -> RefreshCycleOutcome {
+        Self::execute_with_progress_and_hash_key(conn, adapters, hash_key, |_, _, _| true)
     }
 
     /// Runs a full refresh and calls `on_provider` after each adapter finishes.
@@ -36,6 +46,21 @@ impl RefreshAll {
     pub fn execute_with_progress<F>(
         conn: &Connection,
         adapters: &[&dyn ProviderAdapter],
+        on_provider: F,
+    ) -> RefreshCycleOutcome
+    where
+        F: FnMut(&str, usize, usize) -> bool,
+    {
+        Self::execute_with_progress_and_hash_key(conn, adapters, &[], on_provider)
+    }
+
+    /// Runs a full refresh while deriving a stable, installation-local
+    /// account fingerprint for every adapter that exposes an account
+    /// identity.
+    pub fn execute_with_progress_and_hash_key<F>(
+        conn: &Connection,
+        adapters: &[&dyn ProviderAdapter],
+        hash_key: &[u8],
         mut on_provider: F,
     ) -> RefreshCycleOutcome
     where
@@ -47,7 +72,7 @@ impl RefreshAll {
         };
         let total = adapters.len();
         for (index, adapter) in adapters.iter().enumerate() {
-            let single = Self::refresh_provider(conn, *adapter);
+            let single = Self::refresh_provider_with_hash_key(conn, *adapter, hash_key);
             cycle.usage.extend(single.usage);
             cycle.quota.extend(single.quota);
             if !on_provider(adapter.id(), index + 1, total) {
@@ -62,18 +87,33 @@ impl RefreshAll {
         conn: &Connection,
         adapter: &dyn ProviderAdapter,
     ) -> RefreshCycleOutcome {
+        Self::refresh_provider_with_hash_key(conn, adapter, &[])
+    }
+
+    /// Refreshes one adapter using the installation-local account key.
+    pub fn refresh_provider_with_hash_key(
+        conn: &Connection,
+        adapter: &dyn ProviderAdapter,
+        hash_key: &[u8],
+    ) -> RefreshCycleOutcome {
+        let fingerprint = account_fingerprint(adapter, hash_key);
         RefreshCycleOutcome {
-            usage: vec![Self::refresh_adapter(conn, adapter)],
-            quota: vec![Self::refresh_quota(conn, adapter)],
+            usage: vec![Self::refresh_adapter(conn, adapter, fingerprint.as_deref())],
+            quota: vec![Self::refresh_quota(conn, adapter, fingerprint.as_deref())],
         }
     }
 
     /// Runs the quota channel for one adapter: collects the normalized
     /// report, validates it, persists it, and records a quota run.
-    fn refresh_quota(conn: &Connection, adapter: &dyn ProviderAdapter) -> QuotaCollectionOutcome {
+    fn refresh_quota(
+        conn: &Connection,
+        adapter: &dyn ProviderAdapter,
+        fingerprint: Option<&str>,
+    ) -> QuotaCollectionOutcome {
         let result = adapter.collect_quota_report();
 
-        if let Some(report) = result.report {
+        if let Some(mut report) = result.report {
+            report.account_fingerprint = fingerprint.map(str::to_string);
             if PrivacyGuard::validate_quota_report(&report).is_err() {
                 let outcome = QuotaCollectionOutcome::failure(
                     adapter.id(),
@@ -101,7 +141,11 @@ impl RefreshAll {
         result.outcome
     }
 
-    fn refresh_adapter(conn: &Connection, adapter: &dyn ProviderAdapter) -> CollectionOutcome {
+    fn refresh_adapter(
+        conn: &Connection,
+        adapter: &dyn ProviderAdapter,
+        fingerprint: Option<&str>,
+    ) -> CollectionOutcome {
         let diag = DiagnosticsRepository::new(conn);
         let cursor_repo = SyncCursorRepository::new(conn);
 
@@ -162,7 +206,8 @@ impl RefreshAll {
             adapter.collect_usage_with_cursor(if full_scan { None } else { cursor.as_deref() });
         let mut outcome = result.outcome.clone();
 
-        if let Some(batch) = result.batch.take() {
+        if let Some(mut batch) = result.batch.take() {
+            normalize_usage_batch(&mut batch, fingerprint);
             match PrivacyGuard::validate_usage_batch(&batch) {
                 Err(_) => {
                     outcome.events_rejected = batch.events.len() as u64;
@@ -256,5 +301,37 @@ impl RefreshAll {
             error_code: outcome.error_code.clone(),
             next_retry_at: None,
         })
+    }
+}
+
+/// Derives the only account identifier that is allowed to cross the storage
+/// boundary. A blank key is used by the legacy public refresh helpers in unit
+/// tests and deliberately leaves the default account bucket unchanged.
+fn account_fingerprint(adapter: &dyn ProviderAdapter, hash_key: &[u8]) -> Option<String> {
+    if hash_key.is_empty() {
+        return None;
+    }
+    let identity = adapter.account_identity()?;
+    let identity = identity.trim();
+    if identity.is_empty() {
+        return None;
+    }
+    let input = format!("account|{}|{identity}", adapter.id());
+    Some(IdentifierHasher::new(hash_key).hash(input.as_bytes()))
+}
+
+/// Namespaces event ids by account before ingestion. Several provider
+/// runtimes use the same local event id shape, so without this step a second
+/// account could be incorrectly treated as a duplicate of the first one.
+fn normalize_usage_batch(batch: &mut lnwdeck_domain::UsageBatch, fingerprint: Option<&str>) {
+    let Some(fingerprint) = fingerprint else {
+        return;
+    };
+    let event_hasher = IdentifierHasher::new(fingerprint.as_bytes());
+    for event in &mut batch.events {
+        let original_id = std::mem::take(&mut event.id);
+        let input = format!("event|{}|{original_id}", event.provider_id);
+        event.id = event_hasher.hash(input.as_bytes());
+        event.account_fingerprint = Some(fingerprint.to_string());
     }
 }

@@ -243,6 +243,21 @@ dollar cap from local message history. Missing or invalid credentials produce
 100% bar. A machine without an OpenCode installation is `not_detected`, not a
 refresh failure for the rest of the provider set.
 
+### Account identity and multiple runtimes
+
+The refresh application derives an installation-keyed account fingerprint from
+the provider's stable account/workspace subject when one is available. Raw
+tokens, cookies, API keys and account ids never enter the normalized batch,
+quota report, diagnostics or UI. Same-provider reports with different
+fingerprints are persisted and rendered as separate account cards; the same
+fingerprint remains one account when the source is shared by Windows App and
+CMD. WSL is a separate credential boundary, so its environment must be
+configured on the Windows side when the Windows desktop app is the collector.
+
+Adapters that expose only local usage artifacts and no account subject return
+the legacy default bucket. They must not invent an identity from a filesystem
+path or turn a usage-only scan into quota.
+
 ## 9. Contract tests
 
 Every adapter must pass:

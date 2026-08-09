@@ -163,34 +163,69 @@ pub fn windows_from_dashboard_html(
     }
 
     let definitions = [
-        ("rollingUsage", "5h", "5-hour", QuotaWindowScope::Rolling),
-        ("weeklyUsage", "7d", "7-day", QuotaWindowScope::Weekly),
-        ("monthlyUsage", "30d", "30-day", QuotaWindowScope::Monthly),
+        (
+            &["rollingUsage", "rolling5h", "rolling_5h", "fiveHour"],
+            "5h",
+            "5-hour",
+            QuotaWindowScope::Rolling,
+        ),
+        (
+            &["weeklyUsage", "weekly", "weekly7d", "rolling7d"],
+            "7d",
+            "7-day",
+            QuotaWindowScope::Weekly,
+        ),
+        (
+            &["monthlyUsage", "monthly", "monthly30d", "rolling30d"],
+            "30d",
+            "30-day",
+            QuotaWindowScope::Monthly,
+        ),
     ];
     let mut windows = Vec::with_capacity(definitions.len());
-    for (object_key, window_key, label, scope) in definitions {
-        let Some(segment) = dashboard_object_segment(html, object_key) else {
+    for (object_keys, window_key, label, scope) in definitions {
+        let Some(segment) = object_keys
+            .iter()
+            .find_map(|object_key| dashboard_object_segment(html, object_key))
+        else {
             continue;
         };
-        let Some(raw_percent) = numeric_field(segment, "usagePercent") else {
-            continue;
-        };
-        let Some(raw_reset_seconds) = numeric_field(segment, "resetInSec") else {
+        let Some(raw_percent) = numeric_field_any(segment, &["usagePercent", "usage_percent"])
+        else {
             continue;
         };
         let Some(used_percent) = normalize_dashboard_percent(raw_percent) else {
             continue;
         };
-        let Some(reset_at) = dashboard_reset_at(now, raw_reset_seconds) else {
+        // The monthly dashboard window has appeared without a reset field in
+        // some OpenCode Go responses. A missing reset time is unknown data,
+        // not a reason to discard the real utilization percentage.
+        let reset_at = numeric_field_any(
+            segment,
+            &[
+                "resetInSec",
+                "reset_in_sec",
+                "resetsInSeconds",
+                "resets_in_seconds",
+            ],
+        )
+        .and_then(|seconds| dashboard_reset_at(now, seconds))
+        .or_else(|| {
+            timestamp_field_any(segment, &["resetAt", "reset_at", "resetsAt", "resets_at"])
+        });
+        // A missing reset is currently observed only on the monthly Go
+        // window. Keep the strict requirement for rolling/weekly windows so a
+        // partial payload cannot turn into a misleading 100% bar.
+        if reset_at.is_none() && !matches!(scope, QuotaWindowScope::Monthly) {
             continue;
-        };
+        }
         windows.push(QuotaWindow::from_percent(
             window_key,
             label,
             scope,
             QuotaKind::Credits,
             used_percent,
-            Some(reset_at),
+            reset_at,
             Confidence::High,
         ));
     }
@@ -268,6 +303,57 @@ fn numeric_field(segment: &str, field: &str) -> Option<f64> {
         }
         if let Ok(parsed) = value[..end].parse::<f64>() {
             return Some(parsed);
+        }
+        search_from = start + field.len();
+    }
+    None
+}
+
+fn numeric_field_any(segment: &str, fields: &[&str]) -> Option<f64> {
+    fields
+        .iter()
+        .find_map(|field| numeric_field(segment, field))
+}
+
+fn timestamp_field_any(segment: &str, fields: &[&str]) -> Option<DateTime<Utc>> {
+    fields.iter().find_map(|field| {
+        let value = string_field(segment, field)?;
+        DateTime::parse_from_rfc3339(value.trim())
+            .ok()
+            .map(|parsed| parsed.with_timezone(&Utc))
+            .or_else(|| {
+                value.trim().parse::<f64>().ok().and_then(|seconds| {
+                    if seconds >= 10_000_000_000.0 {
+                        DateTime::from_timestamp_millis(seconds.round() as i64)
+                    } else {
+                        DateTime::from_timestamp(seconds.round() as i64, 0)
+                    }
+                })
+            })
+    })
+}
+
+fn string_field<'a>(segment: &'a str, field: &str) -> Option<&'a str> {
+    let mut search_from = 0;
+    while let Some(relative_start) = segment[search_from..].find(field) {
+        let start = search_from + relative_start;
+        let mut after = segment.get(start + field.len()..)?.trim_start();
+        if let Some(stripped) = after.strip_prefix('"') {
+            after = stripped.trim_start();
+        }
+        let Some(stripped) = after.strip_prefix(':').or_else(|| after.strip_prefix('=')) else {
+            search_from = start + field.len();
+            continue;
+        };
+        let value = stripped.trim_start();
+        if let Some(quoted) = value.strip_prefix('"') {
+            let end = quoted.find('"')?;
+            return Some(&quoted[..end]);
+        }
+        let end = value.find([',', '}', ']']).unwrap_or(value.len());
+        let value = value[..end].trim();
+        if !value.is_empty() {
+            return Some(value);
         }
         search_from = start + field.len();
     }
@@ -540,6 +626,7 @@ impl OpenCodeAdapter {
                     self.hasher
                         .hash(format!("opencode:project:{project_id}").as_bytes()),
                 ),
+                account_fingerprint: None,
             });
             parsed += 1;
             next_cursor = Some(time_updated.to_string());
@@ -633,6 +720,16 @@ impl ProviderAdapter for OpenCodeAdapter {
     }
     fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
         self.quota_estimate()
+    }
+
+    fn account_identity(&self) -> Option<String> {
+        // Workspace id is the stable account/workspace identity. The auth
+        // cookie is deliberately not used here because it rotates while the
+        // same OpenCode Go account remains logged in.
+        read_go_config()
+            .ok()
+            .flatten()
+            .map(|config| config.workspace_id)
     }
     fn health_check(&self) -> AdapterHealth {
         match self.detection() {

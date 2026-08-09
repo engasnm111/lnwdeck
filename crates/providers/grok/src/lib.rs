@@ -143,6 +143,10 @@ impl ProviderAdapter for GrokAdapter {
         self.fetch().map(Some)
     }
 
+    fn account_identity(&self) -> Option<String> {
+        self.api_key().ok()
+    }
+
     fn health_check(&self) -> AdapterHealth {
         match self.api_key() {
             Err(code) if code == "NOT_CONFIGURED" => AdapterHealth {

@@ -167,9 +167,10 @@ where
         lnwdeck_storage::Storage::open(&state.db_path).map_err(|e| format!("storage open: {e}"))?;
     let registry = ensure_registry(state, &hash_key)?;
     Ok(
-        lnwdeck_application::refresh::RefreshAll::execute_with_progress(
+        lnwdeck_application::refresh::RefreshAll::execute_with_progress_and_hash_key(
             &storage.conn,
             &registry.refs(),
+            &hash_key,
             |provider_id, completed, total| {
                 let keep_running = on_progress(provider_id, completed, total);
                 keep_running
@@ -431,10 +432,13 @@ pub async fn refresh_provider(
             let adapter = registry
                 .find(&provider_id)
                 .ok_or_else(|| format!("unknown provider: {provider_id}"))?;
-            Ok(lnwdeck_application::refresh::RefreshAll::refresh_provider(
-                &storage.conn,
-                adapter,
-            ))
+            Ok(
+                lnwdeck_application::refresh::RefreshAll::refresh_provider_with_hash_key(
+                    &storage.conn,
+                    adapter,
+                    &hash_key,
+                ),
+            )
         },
     )
     .await
@@ -568,6 +572,7 @@ mod tests {
                         cost: "0.001".to_string(),
                         session_hash: None,
                         project_hash: None,
+                        account_fingerprint: None,
                     },
                     UsageEvent {
                         id: "evt_2".to_string(),
@@ -584,6 +589,7 @@ mod tests {
                         cost: "0.002".to_string(),
                         session_hash: None,
                         project_hash: None,
+                        account_fingerprint: None,
                     },
                 ],
             })

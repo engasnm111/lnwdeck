@@ -231,6 +231,7 @@ describe("FloatingWidget", () => {
 
     await waitFor(() => expect(screen.getByText("No connection")).toBeInTheDocument());
     expect(screen.getByText("OpenCode (Go)")).toBeInTheDocument();
+    expect(screen.queryByText("SOURCE_UNAVAILABLE")).not.toBeInTheDocument();
     expect(screen.queryByText(/\d+%/)).not.toBeInTheDocument();
   });
 

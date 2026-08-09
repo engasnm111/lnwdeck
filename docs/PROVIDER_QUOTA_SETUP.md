@@ -130,6 +130,38 @@ lnwdeck จึงไม่ใช้ local token total เป็น quota โด�
 คำว่า `not supported` ในตารางเป็นผลลัพธ์ที่ตั้งใจ: ไม่ใช่ refresh failure และ
 ไม่ควรถูกแทนด้วย 0%, 100% หรือ limit ที่คำนวณจากจำนวน token
 
+## หลายบัญชีและ App / CMD / WSL
+
+lnwdeck แยกบัญชีด้วย fingerprint ที่สร้างจาก account identity ของ provider
+และกุญแจเฉพาะฐานข้อมูลเครื่องนั้น โดยไม่เก็บ token, cookie, API key หรือ
+account id ดิบลง SQLite, UI, log หรือ diagnostics
+
+- App กับ CMD บน Windows ที่ใช้ credential/source เดียวกันจะถูกรวมเป็นบัญชีเดียว
+- ถ้า provider เปิดเผย account id, workspace id หรือ user subject ระบบจะใช้ค่า
+  นั้นเพื่อให้ token ที่หมุนใหม่ของบัญชีเดิมยังรวมกันได้
+- ถ้า fingerprint ต่างกัน ระบบจะเก็บ quota และ event แยกกัน และ widget/หน้า
+  Providers จะแสดง `Account 1`, `Account 2` (หรือคำแปลของภาษาที่เลือก)
+- provider ที่เปิดเผยเพียง token ชั่วคราวอาจได้ fingerprint ใหม่เมื่อ provider
+  หมุน token; ให้ล็อกอินผ่าน credential source เดิมเพื่อหลีกเลี่ยงการแยกบัญชี
+
+WSL เป็น environment แยกจาก Windows: environment variable ใน WSL ไม่ถูกส่งเข้า
+process ของ lnwdeck ที่รันบน Windows และ Credential Manager ของ Windows ก็ไม่ใช่
+ไฟล์ credential ของ WSL โดยอัตโนมัติ ถ้าต้องการให้บัญชีเดียวกันถูกรวม ให้ทำตาม
+ขั้นตอนนี้บน Windows ด้วย:
+
+1. ล็อกอิน provider ใน WSL และตรวจสอบว่าเป็นบัญชีที่ต้องการ
+2. ล็อกอิน provider เดียวกันใน App/CMD Windows หรือคัดลอกเฉพาะขั้นตอน login ที่
+   provider รองรับไปยัง Windows (ห้ามคัดลอก token ลงเอกสารหรือ command history)
+3. สำหรับ OpenCode Go ให้ใส่ `OPENCODE_GO_WORKSPACE_ID` และ
+   `OPENCODE_GO_AUTH_COOKIE` ใน Settings ของ lnwdeck บน Windows หรือกำหนดใน
+   Windows PowerShell ตามขั้นตอนด้านบน ไม่ใช่กำหนดเฉพาะใน WSL
+4. ปิด lnwdeck ให้หมดจาก tray แล้วเปิดใหม่ จากนั้นกด Refresh providers
+5. ตรวจสอบว่า quota ที่เป็นบัญชีเดียวกันอยู่ใน card เดียว; ถ้าขึ้น Account 1/2
+   ให้ตรวจว่า provider ใช้คนละ account id/workspace หรือ credential คนละชุดจริง
+
+การอ่านข้อมูลเป็น passive read-only: lnwdeck ไม่สั่ง login แทนผู้ใช้ ไม่เขียนทับ
+ไฟล์ credential และไม่ส่งข้อมูลจาก WSL หรือ Windows ไป cloud ของ lnwdeck
+
 ## การแก้ปัญหาโดยดูสถานะ
 
 ### `ไม่มีการเชื่อมต่อ`

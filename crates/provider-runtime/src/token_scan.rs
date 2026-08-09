@@ -478,6 +478,7 @@ pub fn usage_events(
                 cost: String::new(),
                 session_hash: None,
                 project_hash: None,
+                account_fingerprint: None,
             }
         })
         .collect()
@@ -523,6 +524,7 @@ pub fn usage_events_with_breakdown(
                 cost: String::new(),
                 session_hash: None,
                 project_hash: None,
+                account_fingerprint: None,
             }
         })
         .collect()

@@ -2,6 +2,26 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [11.0.5] - 2026-08-10
+
+### Quota and account correctness
+
+- OpenCode Go now keeps the current monthly dashboard window even when its
+  reset timestamp is absent, and accepts current window/field aliases.
+- Codex reset timestamps support numeric seconds, numeric milliseconds and
+  RFC3339 values.
+- Provider account fingerprints keep same-provider accounts separate while
+  keeping raw credentials out of storage and UI.
+- A Windows named mutex prevents duplicate lnwdeck processes.
+- The pet quota tooltip is wider, denser and localized for account labels.
+
+### Migration and verification
+
+- Added migration `008_account_identity` with legacy data preserved in the
+  default account bucket.
+- Added account-aware storage/read-model regression coverage and updated the
+  provider setup guide with App/CMD/WSL instructions.
+
 ## [11.0.4] - 2026-08-09
 
 ### Verification correctness

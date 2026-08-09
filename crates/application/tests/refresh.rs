@@ -25,6 +25,7 @@ fn event(id: &str, model: &str, input: u64, output: u64) -> UsageEvent {
         cost: "0.001".to_string(),
         session_hash: None,
         project_hash: None,
+        account_fingerprint: None,
     }
 }
 
@@ -69,6 +70,9 @@ impl ProviderAdapter for SuccessAdapter {
     }
     fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
         Ok(None)
+    }
+    fn account_identity(&self) -> Option<String> {
+        Some("fixture-account".to_string())
     }
     fn health_check(&self) -> AdapterHealth {
         AdapterHealth {
@@ -262,6 +266,24 @@ fn refresh_is_idempotent_and_counts_duplicates() {
     assert_eq!(totals.events_seen, 4, "totals aggregate both runs");
     assert_eq!(totals.events_inserted, 2);
     assert_eq!(totals.duplicates_skipped, 2);
+}
+
+#[test]
+fn keyed_refresh_namespaces_usage_by_account() {
+    let storage = setup_db();
+    let adapters: Vec<&dyn ProviderAdapter> = vec![&SuccessAdapter];
+    RefreshAll::execute_with_hash_key(&storage.conn, &adapters, b"installation-key");
+
+    let stored: (String, String) = storage
+        .conn
+        .query_row(
+            "SELECT id, account_fingerprint FROM usage_events LIMIT 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("namespaced event");
+    assert_ne!(stored.0, "evt_1");
+    assert!(!stored.1.is_empty());
 }
 
 #[test]

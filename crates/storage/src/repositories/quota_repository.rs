@@ -18,14 +18,15 @@ pub enum QuotaUpsert {
 #[derive(Debug, Clone, PartialEq)]
 pub struct QuotaHistoryEntry {
     pub collected_at: DateTime<Utc>,
+    pub account_fingerprint: Option<String>,
     pub window: QuotaWindow,
 }
 
 /// Persistence for normalized quota reports and their windows.
 ///
-/// The latest report per provider lives in `quota_reports`; every window
-/// snapshot is appended to `quota_windows` so callers can query history and
-/// prune old data without losing the current state.
+/// The latest report per `(provider, account)` lives in `quota_reports`; every
+/// window snapshot is appended to `quota_windows` so callers can query history
+/// and prune old data without losing the current state.
 pub struct QuotaRepository<'a> {
     conn: &'a Connection,
 }
@@ -35,18 +36,21 @@ impl<'a> QuotaRepository<'a> {
         Self { conn }
     }
 
-    /// Stores or replaces the latest report for a provider. Older reports
+    /// Stores or replaces the latest report for a provider account. Older reports
     /// never clobber newer ones: when the incoming report is older than the
     /// stored one, it is ignored and `Replaced` is returned. A failed report
     /// never clobbers an existing usable snapshot; the collector run stores
     /// that failure separately for diagnostics.
     pub fn upsert_report(&self, report: &QuotaReport) -> Result<QuotaUpsert, rusqlite::Error> {
         let collected_at = report.collected_at.to_rfc3339();
+        let account_fingerprint = report.account_fingerprint.as_deref().unwrap_or("");
         let stored: Option<(String, String)> = self
             .conn
             .query_row(
-                "SELECT collected_at, status FROM quota_reports WHERE provider_id = ?1",
-                [&report.provider_id],
+                "SELECT collected_at, status
+                 FROM quota_reports
+                 WHERE provider_id = ?1 AND account_fingerprint = ?2",
+                params![report.provider_id, account_fingerprint],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .optional()?;
@@ -70,7 +74,7 @@ impl<'a> QuotaRepository<'a> {
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
                 report.provider_id,
-                report.account_fingerprint.as_deref().unwrap_or(""),
+                account_fingerprint,
                 report.plan.as_deref().unwrap_or(""),
                 status_to_str(report.status),
                 report.source,
@@ -81,18 +85,20 @@ impl<'a> QuotaRepository<'a> {
         )?;
 
         tx.execute(
-            "DELETE FROM quota_windows WHERE provider_id = ?1 AND collected_at = ?2",
-            params![report.provider_id, collected_at],
+            "DELETE FROM quota_windows
+             WHERE provider_id = ?1 AND account_fingerprint = ?2 AND collected_at = ?3",
+            params![report.provider_id, account_fingerprint, collected_at],
         )?;
 
         for window in &report.windows {
             tx.execute(
                 "INSERT INTO quota_windows
-                    (provider_id, window_key, label, scope, kind, used, quota_limit, remaining,
+                    (provider_id, account_fingerprint, window_key, label, scope, kind, used, quota_limit, remaining,
                      used_percent, remaining_percent, reset_at, is_unlimited, confidence, collected_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
                 params![
                     report.provider_id,
+                    account_fingerprint,
                     window.window_key,
                     window.label,
                     scope_to_str(window.scope),
@@ -113,14 +119,17 @@ impl<'a> QuotaRepository<'a> {
         Ok(QuotaUpsert::Inserted)
     }
 
-    /// Latest stored report for one provider, if any.
+    /// Latest stored report for one provider, across all known accounts.
     pub fn latest_report(&self, provider_id: &str) -> Result<Option<QuotaReport>, rusqlite::Error> {
         let row = self
             .conn
             .query_row(
                 "SELECT provider_id, account_fingerprint, plan, status, source,
                         collected_at, stale_at, error_code
-                 FROM quota_reports WHERE provider_id = ?1",
+                 FROM quota_reports
+                 WHERE provider_id = ?1
+                 ORDER BY collected_at DESC, account_fingerprint
+                 LIMIT 1",
                 [provider_id],
                 |row| {
                     Ok((
@@ -152,7 +161,7 @@ impl<'a> QuotaRepository<'a> {
         };
 
         let collected_dt = parse_rfc3339(&collected_at);
-        let windows = self.windows_for(&provider_id, &collected_at)?;
+        let windows = self.windows_for(&provider_id, &fingerprint, &collected_at)?;
 
         Ok(Some(QuotaReport {
             provider_id,
@@ -167,12 +176,12 @@ impl<'a> QuotaRepository<'a> {
         }))
     }
 
-    /// Latest report for every provider that has one.
+    /// Latest report for every provider/account pair that has one.
     pub fn latest_all(&self) -> Result<Vec<QuotaReport>, rusqlite::Error> {
         let mut stmt = self.conn.prepare(
             "SELECT provider_id, account_fingerprint, plan, status, source,
                     collected_at, stale_at, error_code
-             FROM quota_reports ORDER BY provider_id",
+             FROM quota_reports ORDER BY provider_id, account_fingerprint",
         )?;
         let rows = stmt.query_map([], |row| {
             Ok((
@@ -199,7 +208,7 @@ impl<'a> QuotaRepository<'a> {
                 stale_at,
                 error_code,
             ) = row?;
-            let windows = self.windows_for(&provider_id, &collected_at)?;
+            let windows = self.windows_for(&provider_id, &fingerprint, &collected_at)?;
             reports.push(QuotaReport {
                 provider_id,
                 account_fingerprint: (!fingerprint.is_empty()).then_some(fingerprint),
@@ -223,29 +232,30 @@ impl<'a> QuotaRepository<'a> {
         since: DateTime<Utc>,
     ) -> Result<Vec<QuotaHistoryEntry>, rusqlite::Error> {
         let mut stmt = self.conn.prepare(
-            "SELECT window_key, label, scope, kind, used, quota_limit, remaining,
+            "SELECT account_fingerprint, window_key, label, scope, kind, used, quota_limit, remaining,
                     used_percent, remaining_percent, reset_at, is_unlimited, confidence, collected_at
              FROM quota_windows
              WHERE provider_id = ?1 AND collected_at >= ?2
              ORDER BY collected_at, id",
         )?;
         let rows = stmt.query_map(params![provider_id, since.to_rfc3339()], |row| {
-            let reset_at: Option<String> = row.get(9)?;
+            let reset_at: Option<String> = row.get(10)?;
             Ok(QuotaHistoryEntry {
-                collected_at: parse_rfc3339(&row.get::<_, String>(12)?),
+                collected_at: parse_rfc3339(&row.get::<_, String>(13)?),
+                account_fingerprint: nonempty(row.get::<_, String>(0)?),
                 window: QuotaWindow {
-                    window_key: row.get(0)?,
-                    label: row.get(1)?,
-                    scope: parse_scope(&row.get::<_, String>(2)?),
-                    kind: parse_kind(&row.get::<_, String>(3)?),
-                    used: row.get::<_, i64>(4)? as u64,
-                    limit: row.get::<_, Option<i64>>(5)?.map(|value| value as u64),
-                    remaining: row.get::<_, Option<i64>>(6)?.map(|value| value as u64),
-                    used_percent: row.get(7)?,
-                    remaining_percent: row.get(8)?,
+                    window_key: row.get(1)?,
+                    label: row.get(2)?,
+                    scope: parse_scope(&row.get::<_, String>(3)?),
+                    kind: parse_kind(&row.get::<_, String>(4)?),
+                    used: row.get::<_, i64>(5)? as u64,
+                    limit: row.get::<_, Option<i64>>(6)?.map(|value| value as u64),
+                    remaining: row.get::<_, Option<i64>>(7)?.map(|value| value as u64),
+                    used_percent: row.get(8)?,
+                    remaining_percent: row.get(9)?,
                     reset_at: reset_at.map(|s| parse_rfc3339(&s)),
-                    is_unlimited: row.get::<_, i64>(10)? != 0,
-                    confidence: parse_confidence(&row.get::<_, String>(11)?),
+                    is_unlimited: row.get::<_, i64>(11)? != 0,
+                    confidence: parse_confidence(&row.get::<_, String>(12)?),
                 },
             })
         })?;
@@ -270,13 +280,16 @@ impl<'a> QuotaRepository<'a> {
     }
 
     /// Deletes window snapshots older than `before` while keeping the latest
-    /// snapshot of each `(provider_id, window_key)`. Returns rows removed.
+    /// snapshot of each `(provider_id, account_fingerprint, window_key)`.
+    /// Returns rows removed.
     pub fn prune(&self, before: DateTime<Utc>) -> Result<usize, rusqlite::Error> {
         let deleted = self.conn.execute(
             "DELETE FROM quota_windows
              WHERE collected_at < ?1
                AND id NOT IN (
-                   SELECT MAX(id) FROM quota_windows GROUP BY provider_id, window_key
+                   SELECT MAX(id)
+                   FROM quota_windows
+                   GROUP BY provider_id, account_fingerprint, window_key
                )",
             [before.to_rfc3339()],
         )?;
@@ -286,32 +299,36 @@ impl<'a> QuotaRepository<'a> {
     fn windows_for(
         &self,
         provider_id: &str,
+        account_fingerprint: &str,
         collected_at: &str,
     ) -> Result<Vec<QuotaWindow>, rusqlite::Error> {
         let mut stmt = self.conn.prepare(
             "SELECT window_key, label, scope, kind, used, quota_limit, remaining,
                     used_percent, remaining_percent, reset_at, is_unlimited, confidence
              FROM quota_windows
-             WHERE provider_id = ?1 AND collected_at = ?2
+             WHERE provider_id = ?1 AND account_fingerprint = ?2 AND collected_at = ?3
              ORDER BY id",
         )?;
-        let rows = stmt.query_map(params![provider_id, collected_at], |row| {
-            let reset_at: Option<String> = row.get(9)?;
-            Ok(QuotaWindow {
-                window_key: row.get(0)?,
-                label: row.get(1)?,
-                scope: parse_scope(&row.get::<_, String>(2)?),
-                kind: parse_kind(&row.get::<_, String>(3)?),
-                used: row.get::<_, i64>(4)? as u64,
-                limit: row.get::<_, Option<i64>>(5)?.map(|value| value as u64),
-                remaining: row.get::<_, Option<i64>>(6)?.map(|value| value as u64),
-                used_percent: row.get(7)?,
-                remaining_percent: row.get(8)?,
-                reset_at: reset_at.map(|s| parse_rfc3339(&s)),
-                is_unlimited: row.get::<_, i64>(10)? != 0,
-                confidence: parse_confidence(&row.get::<_, String>(11)?),
-            })
-        })?;
+        let rows = stmt.query_map(
+            params![provider_id, account_fingerprint, collected_at],
+            |row| {
+                let reset_at: Option<String> = row.get(9)?;
+                Ok(QuotaWindow {
+                    window_key: row.get(0)?,
+                    label: row.get(1)?,
+                    scope: parse_scope(&row.get::<_, String>(2)?),
+                    kind: parse_kind(&row.get::<_, String>(3)?),
+                    used: row.get::<_, i64>(4)? as u64,
+                    limit: row.get::<_, Option<i64>>(5)?.map(|value| value as u64),
+                    remaining: row.get::<_, Option<i64>>(6)?.map(|value| value as u64),
+                    used_percent: row.get(7)?,
+                    remaining_percent: row.get(8)?,
+                    reset_at: reset_at.map(|s| parse_rfc3339(&s)),
+                    is_unlimited: row.get::<_, i64>(10)? != 0,
+                    confidence: parse_confidence(&row.get::<_, String>(11)?),
+                })
+            },
+        )?;
 
         let mut windows = Vec::new();
         for row in rows {
@@ -319,6 +336,10 @@ impl<'a> QuotaRepository<'a> {
         }
         Ok(windows)
     }
+}
+
+fn nonempty(value: String) -> Option<String> {
+    (!value.is_empty()).then_some(value)
 }
 
 fn status_to_str(status: QuotaStatus) -> &'static str {

@@ -129,6 +129,7 @@ fn cost_calculation_from_stored_usage_events() {
             confidence: Confidence::High,
             session_hash: None,
             project_hash: None,
+            account_fingerprint: None,
         }],
     };
     repo.ingest_batch(&batch).unwrap();
@@ -167,6 +168,7 @@ fn missing_pricing_behavior_labeled_correctly() {
             confidence: Confidence::Medium,
             session_hash: None,
             project_hash: None,
+            account_fingerprint: None,
         }],
     };
     repo.ingest_batch(&batch).unwrap();

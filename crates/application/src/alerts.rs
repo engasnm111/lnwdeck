@@ -85,9 +85,10 @@ impl EvaluateAlerts {
         // Quota: low remaining, expired auth, rate limiting, collection errors.
         for report in QuotaRepository::new(conn).latest_all()? {
             let name = display_name(&report.provider_id);
+            let account_key = report.account_fingerprint.as_deref().unwrap_or("default");
             match report.status {
                 QuotaStatus::AuthExpired => observations.push(AlertObservation {
-                    alert_key: format!("auth:{}", report.provider_id),
+                    alert_key: format!("auth:{}:{}", report.provider_id, account_key),
                     kind: AlertKind::AuthExpired,
                     severity: AlertSeverity::Critical,
                     provider_id: report.provider_id.clone(),
@@ -96,7 +97,7 @@ impl EvaluateAlerts {
                     error_code: report.error_code.clone().unwrap_or_default(),
                 }),
                 QuotaStatus::RateLimited => observations.push(AlertObservation {
-                    alert_key: format!("rate:{}", report.provider_id),
+                    alert_key: format!("rate:{}:{}", report.provider_id, account_key),
                     kind: AlertKind::RateLimited,
                     severity: AlertSeverity::Warning,
                     provider_id: report.provider_id.clone(),
@@ -121,7 +122,10 @@ impl EvaluateAlerts {
                     AlertSeverity::Warning
                 };
                 observations.push(AlertObservation {
-                    alert_key: format!("quota:{}:{}", report.provider_id, window.window_key),
+                    alert_key: format!(
+                        "quota:{}:{}:{}",
+                        report.provider_id, account_key, window.window_key
+                    ),
                     kind: AlertKind::QuotaThreshold,
                     severity,
                     provider_id: report.provider_id.clone(),

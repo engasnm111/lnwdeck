@@ -18,6 +18,7 @@ export function providerHealthLabel(status: string, t: Translate): string {
   if (value === "healthy") return t("providers.status.healthy");
   if (value === "not configured") return t("providers.status.notConfigured");
   if (value === "not supported") return t("providers.status.notSupported");
+  if (value === "not connected") return t("providers.status.notConnected");
   if (value === "source not found") return t("providers.status.sourceNotFound");
   const error = /^error \((.+)\)$/i.exec(status.trim());
   if (error) return t("providers.status.error", { error: error[1] });

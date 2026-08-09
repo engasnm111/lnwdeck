@@ -31,6 +31,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "007_usage_breakdown",
         include_str!("../migrations/007_usage_breakdown.sql"),
     ),
+    (
+        "008_account_identity",
+        include_str!("../migrations/008_account_identity.sql"),
+    ),
 ];
 
 /// Names of every migration known to this build, oldest first.

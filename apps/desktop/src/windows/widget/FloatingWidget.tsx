@@ -412,11 +412,20 @@ function ProviderCard({
     provider_id: provider.provider_id,
     display_name: provider.display_name,
   });
+  const accountLabel = provider.account_index == null
+    ? null
+    : t("providers.account", { number: String(provider.account_index) });
+  const labeledDisplayName = accountLabel
+    ? `${displayName} - ${accountLabel}`
+    : displayName;
+  const visibleErrorCode = isNonActionableRefreshError(provider.error_code)
+    ? null
+    : provider.error_code;
   return (
     <li className="w-card">
       <div className="w-card-head">
-        <span className="w-card-name" title={displayName} aria-label={displayName}>
-          {displayName}
+        <span className="w-card-name" title={labeledDisplayName} aria-label={labeledDisplayName}>
+          {labeledDisplayName}
         </span>
         <span className={`w-chip w-chip-${chip.tone}`}>{chip.label}</span>
       </div>
@@ -427,9 +436,9 @@ function ProviderCard({
         <div className="w-rings">
           {provider.windows.map((window) => (
             <RingGauge
-              key={window.window_key}
+              key={`${provider.account_index ?? "default"}-${window.window_key}`}
               window={window}
-              providerName={displayName}
+              providerName={labeledDisplayName}
               now={now}
               t={t}
               locale={language}
@@ -439,9 +448,9 @@ function ProviderCard({
       ) : (
         provider.windows.map((window) => (
           <BarRow
-            key={window.window_key}
+            key={`${provider.account_index ?? "default"}-${window.window_key}`}
             window={window}
-            providerName={displayName}
+            providerName={labeledDisplayName}
             now={now}
             t={t}
             locale={language}
@@ -449,8 +458,8 @@ function ProviderCard({
         ))
       )}
 
-      {provider.error_code && (
-        <p className="w-card-code">{provider.error_code}</p>
+      {visibleErrorCode && (
+        <p className="w-card-code">{visibleErrorCode}</p>
       )}
     </li>
   );
@@ -1089,16 +1098,22 @@ export function FloatingWidget() {
                   provider_id: provider.provider_id,
                   display_name: provider.display_name,
                 });
+                const accountLabel = provider.account_index == null
+                  ? null
+                  : t("providers.account", { number: String(provider.account_index) });
+                const labeledDisplayName = accountLabel
+                  ? `${displayName} - ${accountLabel}`
+                  : displayName;
                 return (
                   <button
-                    key={provider.provider_id}
+                    key={`${provider.provider_id}-${provider.account_index ?? "default"}`}
                     type="button"
                     className="w-tag"
-                    title={displayName}
+                    title={labeledDisplayName}
                     aria-pressed={pinned}
                     onClick={() => void toggleProvider(provider.provider_id)}
                   >
-                    {displayName}
+                    {labeledDisplayName}
                   </button>
                 );
               })}
@@ -1153,7 +1168,7 @@ export function FloatingWidget() {
           <ul className="w-cards" aria-label={t("widget.providerQuota")}>
             {visibleProviders.map((provider) => (
               <ProviderCard
-                key={provider.provider_id}
+                key={`${provider.provider_id}-${provider.account_index ?? "default"}`}
                 provider={provider}
                 view={settings.view === "rings" ? "rings" : "bars"}
                 now={now}
