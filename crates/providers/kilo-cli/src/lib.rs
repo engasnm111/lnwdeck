@@ -3,13 +3,10 @@
 //! kilo.ai's CLI is an OpenCode fork that keeps the identical OpenCode
 //! SQLite schema at `~/.local/share/kilo/kilo.db`. Every assistant row in the
 //! `message` table is a billed turn, so the shared OpenCode-fork reader is
-//! used without a provider filter. Quota is a usage-only local estimate with
-//! real consumption and an unknown limit.
+//! used without a provider filter. No provider-published quota source is
+//! wired to this adapter; local usage remains useful but quota is unsupported.
 
-use lnwdeck_domain::{
-    Confidence, QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope, UsageBatch,
-    DEFAULT_FRESHNESS,
-};
+use lnwdeck_domain::{Confidence, QuotaReport, UsageBatch};
 use lnwdeck_provider_runtime::opencode_fork::{self, MessageSample};
 use lnwdeck_provider_runtime::token_scan::{usage_events, ScanBounds};
 use lnwdeck_provider_runtime::{
@@ -86,51 +83,6 @@ impl KiloCliAdapter {
         }
         result
     }
-
-    fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
-        if !self.db_path.is_file() {
-            return Ok(None);
-        }
-        let samples = opencode_fork::to_token_samples(&self.samples()?);
-        if samples.is_empty() {
-            return Ok(None);
-        }
-        let now = chrono::Utc::now();
-        let windows = [
-            ("5h", "5-hour", QuotaWindowScope::Rolling, 5 * 3600i64),
-            ("7d", "7-day", QuotaWindowScope::Weekly, 7 * 24 * 3600),
-            ("30d", "30-day", QuotaWindowScope::Monthly, 30 * 24 * 3600),
-        ]
-        .into_iter()
-        .map(|(key, label, scope, seconds)| {
-            let used = samples
-                .iter()
-                .filter(|sample| {
-                    sample.timestamp > now - chrono::Duration::seconds(seconds)
-                        && sample.timestamp <= now
-                })
-                .fold(0u64, |acc, sample| {
-                    acc.saturating_add(sample.input_tokens)
-                        .saturating_add(sample.output_tokens)
-                });
-            QuotaWindow::usage_only(
-                key,
-                label,
-                scope,
-                QuotaKind::Tokens,
-                used,
-                None,
-                Confidence::Medium,
-            )
-        })
-        .collect();
-        Ok(Some(QuotaReport::new(
-            PROVIDER_ID,
-            "local_estimate",
-            windows,
-            DEFAULT_FRESHNESS,
-        )))
-    }
 }
 
 impl ProviderAdapter for KiloCliAdapter {
@@ -141,7 +93,7 @@ impl ProviderAdapter for KiloCliAdapter {
             vendor: "kilo.ai",
             source_kind: SourceKind::LocalSqlite,
             usage_support: ChannelSupport::LocalEstimate,
-            quota_support: ChannelSupport::LocalEstimate,
+            quota_support: ChannelSupport::Unsupported,
             auth: AuthKind::LocalFiles,
             adapter_version: ADAPTER_VERSION,
         }
@@ -164,7 +116,7 @@ impl ProviderAdapter for KiloCliAdapter {
     }
 
     fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
-        self.quota_estimate()
+        Ok(None)
     }
 
     fn health_check(&self) -> AdapterHealth {
@@ -236,9 +188,10 @@ mod tests {
         let batch = adapter.collect_usage().expect("usage");
         assert_eq!(batch.events.len(), 2);
         assert!(batch.events.iter().all(|e| e.provider_id == PROVIDER_ID));
-        let report = adapter.collect_quota().expect("quota").expect("report");
-        assert_eq!(report.windows.len(), 3);
-        assert!(report.windows[0].used > 0);
+        assert!(
+            adapter.collect_quota().expect("quota").is_none(),
+            "local Kilo CLI records are not a published quota"
+        );
     }
 
     #[test]

@@ -122,8 +122,60 @@ export function statusChip(
  * configured, not authenticated, rate limited, or an error) hides the
  * provider until it recovers. Mirrors the domain's `QuotaStatus::is_usable`.
  */
-export function hasFetchedQuota(status: QuotaStatus): boolean {
-  return status === "fresh" || status === "stale";
+export function hasFetchedQuota(
+  status: QuotaStatus,
+  connectionState: ProviderQuotaCard["connection_state"] = "connected",
+  quotaSupport: ProviderQuotaCard["quota_support"] = "supported",
+  source = "provider_api",
+): boolean {
+  return (
+    (status === "fresh" || status === "stale") &&
+    connectionState === "connected" &&
+    quotaSupport === "supported" &&
+    source !== "local_estimate"
+  );
+}
+
+/** Missing local integrations are expected on a multi-machine installation. */
+export function isNonActionableRefreshError(errorCode: string | null): boolean {
+  return (
+    errorCode === "SOURCE_UNAVAILABLE" ||
+    errorCode === "NOT_INSTALLED" ||
+    errorCode === "NOT_CONFIGURED" ||
+    errorCode === "NOT_SUPPORTED" ||
+    errorCode === "UNSUPPORTED"
+  );
+}
+
+function providerStatusChip(
+  provider: ProviderQuotaCard,
+  t: (key: string, vars?: Record<string, string>) => string,
+): StatusChip {
+  if (provider.connection_state === "not_detected") {
+    return {
+      label: t("widget.status.noConnection"),
+      tone: "muted",
+      detail: t("widget.status.noConnectionDetail"),
+    };
+  }
+  if (provider.connection_state === "unsupported") {
+    return {
+      label: t("widget.status.unavailable"),
+      tone: "muted",
+      detail: t("widget.status.notSupported"),
+    };
+  }
+  if (
+    provider.quota_support === "local estimate" ||
+    provider.source === "local_estimate"
+  ) {
+    return {
+      label: t("widget.status.usageOnly"),
+      tone: "muted",
+      detail: t("widget.status.usageOnlyDetail"),
+    };
+  }
+  return statusChip(provider.status, provider.error_code, t);
 }
 
 /** Row icon chosen from the window scope and kind. */
@@ -352,7 +404,10 @@ function ProviderCard({
   now: number;
 }) {
   const { language, t } = useI18n();
-  const chip = statusChip(provider.status, provider.error_code, t);
+  const chip = providerStatusChip(provider, t);
+  const hasAuthoritativeQuota =
+    provider.quota_support === "supported" &&
+    provider.source !== "local_estimate";
   const displayName = providerDisplayName({
     provider_id: provider.provider_id,
     display_name: provider.display_name,
@@ -360,11 +415,13 @@ function ProviderCard({
   return (
     <li className="w-card">
       <div className="w-card-head">
-        <span className="w-card-name">{displayName}</span>
+        <span className="w-card-name" title={displayName} aria-label={displayName}>
+          {displayName}
+        </span>
         <span className={`w-chip w-chip-${chip.tone}`}>{chip.label}</span>
       </div>
 
-      {provider.windows.length === 0 ? (
+      {!hasAuthoritativeQuota || provider.windows.length === 0 ? (
         <p className="w-card-note">{chip.detail ?? t("widget.noQuotaAvailable")}</p>
       ) : view === "rings" ? (
         <div className="w-rings">
@@ -743,7 +800,11 @@ export function FloatingWidget() {
         return;
       }
       setRefreshing(false);
-      if (progress.phase === "failed" || progress.phase === "partial") {
+      if (
+        progress.phase === "failed" ||
+        (progress.phase === "partial" &&
+          !isNonActionableRefreshError(progress.error_code))
+      ) {
         setError(t("widget.error.refresh"));
         void load();
         return;
@@ -871,21 +932,46 @@ export function FloatingWidget() {
   // Providers whose quota collection actually produced data. Failed
   // collections are not shown in the widget; the dashboard explains them.
   const fetchedProviders = useMemo(
-    () => allProviders.filter((provider) => hasFetchedQuota(provider.status)),
+    () =>
+      allProviders.filter((provider) =>
+        hasFetchedQuota(
+          provider.status,
+          provider.connection_state,
+          provider.quota_support,
+          provider.source,
+        ),
+      ),
     [allProviders],
   );
   const visibleProviders = useMemo(() => {
     if (settings.selected_providers.length === 0) {
       return fetchedProviders;
     }
-    return fetchedProviders.filter((provider) =>
+    return allProviders.filter((provider) =>
       settings.selected_providers.includes(provider.provider_id),
     );
-  }, [fetchedProviders, settings.selected_providers]);
+  }, [allProviders, fetchedProviders, settings.selected_providers]);
+  const hasExplicitSelection = settings.selected_providers.length > 0;
 
   // The pet mood derives only from what the widget currently shows, after the
-  // fetch filter and provider selection above have been applied.
-  const petMood = useMemo(() => derivePetMood(visibleProviders), [visibleProviders]);
+  // the fetch filter and provider selection above have been applied. A pinned
+  // disconnected/usage-only card must not make the pet look quota-starved.
+  const petMoodProviders = useMemo(
+    () =>
+      visibleProviders.filter((provider) =>
+        hasFetchedQuota(
+          provider.status,
+          provider.connection_state,
+          provider.quota_support,
+          provider.source,
+        ),
+      ),
+    [visibleProviders],
+  );
+  const petMood = useMemo(
+    () => derivePetMood(petMoodProviders),
+    [petMoodProviders],
+  );
 
   const dragProps = settings.locked ? {} : { "data-tauri-drag-region": "" };
 
@@ -999,18 +1085,20 @@ export function FloatingWidget() {
                 const pinned =
                   settings.selected_providers.length === 0 ||
                   settings.selected_providers.includes(provider.provider_id);
+                const displayName = providerDisplayName({
+                  provider_id: provider.provider_id,
+                  display_name: provider.display_name,
+                });
                 return (
                   <button
                     key={provider.provider_id}
                     type="button"
                     className="w-tag"
+                    title={displayName}
                     aria-pressed={pinned}
                     onClick={() => void toggleProvider(provider.provider_id)}
                   >
-                    {providerDisplayName({
-                      provider_id: provider.provider_id,
-                      display_name: provider.display_name,
-                    })}
+                    {displayName}
                   </button>
                 );
               })}
@@ -1047,7 +1135,7 @@ export function FloatingWidget() {
               {t("widget.noQuotaYetDetail")}
             </span>
           </div>
-        ) : fetchedProviders.length === 0 ? (
+        ) : !hasExplicitSelection && fetchedProviders.length === 0 ? (
           <div className="w-message" role="status">
             <span className="w-message-title">{t("widget.noQuotaAvailable")}</span>
             <span className="w-message-detail">

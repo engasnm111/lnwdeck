@@ -50,7 +50,11 @@ impl ScanProviders {
         let diag = DiagnosticsRepository::new(conn);
         let states = diag.provider_states()?;
         let runs = diag.latest_runs()?;
-        let reports = lnwdeck_storage::repositories::QuotaRepository::new(conn).latest_all()?;
+        let reports = lnwdeck_storage::repositories::QuotaRepository::new(conn)
+            .latest_all()?
+            .into_iter()
+            .map(crate::quota::sanitize_legacy_opencode_report)
+            .collect::<Vec<_>>();
 
         let mut results: Vec<DetailedProviderInfo> = Vec::new();
         for descriptor in registry.descriptors() {
@@ -133,6 +137,7 @@ fn auth_label(auth: lnwdeck_provider_runtime::AuthKind) -> &'static str {
         lnwdeck_provider_runtime::AuthKind::None => "none",
         lnwdeck_provider_runtime::AuthKind::LocalFiles => "local files",
         lnwdeck_provider_runtime::AuthKind::ApiKey => "API key",
+        lnwdeck_provider_runtime::AuthKind::BrowserCookie => "browser cookie",
     }
 }
 

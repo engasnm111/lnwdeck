@@ -74,7 +74,9 @@ describe("collector pipeline", () => {
     expect(summary.events_inserted).toBeGreaterThan(0);
     expect(summary.providers).toContain("anthropic_claude");
     expect(summary.privacy_rejections).toBe(0);
-    expect(summary.quota_windows).toBeGreaterThan(0);
+    // Local session usage is not a provider-reported quota. Without a Claude
+    // OAuth credential fixture, the pipeline must not invent quota windows.
+    expect(summary.quota_windows).toBe(0);
 
     const exported = readFileSync(join(workspace, "export.json"), "utf-8");
     expect(exported).toContain("anthropic_claude");

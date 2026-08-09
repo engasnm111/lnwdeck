@@ -37,6 +37,7 @@ export function providerAuthLabel(requirement: string, t: Translate): string {
   if (value === "none") return t("providers.auth.none");
   if (value === "local files") return t("providers.auth.localFiles");
   if (value === "api key") return t("providers.auth.apiKey");
+  if (value === "browser cookie") return t("providers.auth.browserCookie");
   return requirement.trim() ? humanize(requirement) : t("providers.auth.unknown");
 }
 

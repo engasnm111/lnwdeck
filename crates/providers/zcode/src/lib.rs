@@ -15,8 +15,9 @@
 //! - Otherwise the local ZCode logs (`~/.zcode/v2/logs/*.log`) carry the
 //!   `billing/balance` records ZCode itself fetched, with real credit totals,
 //!   used and remaining amounts plus the period end.
-//! - When neither is available the adapter reports usage-only local windows
-//!   instead of inventing a remaining bar.
+//! - When neither is available the adapter reports no quota. Token totals from
+//!   the local message store remain available through the separate usage
+//!   channel and are never presented as a subscription limit.
 //!
 //! The API key is read from ZCode's own config file and sent only over HTTPS
 //! to the declared Z.AI / BigModel endpoints; it never appears in errors or
@@ -55,6 +56,11 @@ const CONFIG_CANDIDATES: &[&str] = &[
 /// Provider ids of bundled sub-agents whose turns are counted by their own
 /// adapters and must not be double-counted here.
 const EXCLUDED_PROVIDERS: &[&str] = &["anthropic", "openai", "google"];
+
+struct MonitorCredential {
+    endpoint: &'static str,
+    key: String,
+}
 
 pub struct ZCodeAdapter {
     home: PathBuf,
@@ -97,27 +103,40 @@ impl ZCodeAdapter {
         self.home.join("v2").join("logs")
     }
 
-    /// Reads the first usable plaintext API key from ZCode's config.
+    /// Reads the first usable coding-plan API key from ZCode's config.
     ///
-    /// Returns `(is_coding_plan, key)`. Encrypted keys (`enc:v1:`) are not
-    /// supported and count as absent, so the adapter falls back to the local
-    /// log balance instead of attempting a doomed request.
-    fn api_key(&self) -> Option<(bool, String)> {
+    /// Encrypted keys (`enc:v1:`) are not supported and count as absent, so
+    /// the adapter falls back to the local log balance instead of attempting a
+    /// doomed request. The endpoint is selected from the config entry so a
+    /// BigModel credential is never sent to the Z.AI endpoint.
+    fn api_key(&self) -> Option<MonitorCredential> {
         let raw = std::fs::read_to_string(self.config_path()).ok()?;
         let config: serde_json::Value = serde_json::from_str(&raw).ok()?;
         let providers = config.get("provider")?;
         for candidate in CONFIG_CANDIDATES {
-            let entry = providers.get(*candidate)?;
-            let key = entry
+            let Some(entry) = providers.get(*candidate) else {
+                continue;
+            };
+            let Some(key) = entry
                 .get("options")
                 .and_then(|options| options.get("apiKey"))
-                .and_then(serde_json::Value::as_str)?
-                .trim();
-            if key.is_empty() || key.starts_with("enc:v1:") {
+                .and_then(serde_json::Value::as_str)
+            else {
+                continue;
+            };
+            let key = key.trim();
+            if key.is_empty() || key.starts_with("enc:v1:") || !candidate.ends_with("coding-plan") {
                 continue;
             }
-            let is_coding_plan = candidate.ends_with("coding-plan");
-            return Some((is_coding_plan, key.to_string()));
+            let endpoint = if candidate.starts_with("builtin:zai-") {
+                ZAI_MONITOR_QUOTA_URL
+            } else {
+                BIGMODEL_MONITOR_QUOTA_URL
+            };
+            return Some(MonitorCredential {
+                endpoint,
+                key: key.to_string(),
+            });
         }
         None
     }
@@ -142,66 +161,15 @@ impl ZCodeAdapter {
             .collect())
     }
 
-    /// Usage-only local windows built from the counted ZCode turns.
-    fn local_estimate(&self) -> Result<Option<QuotaReport>, String> {
-        if !self.db_path().is_file() {
-            return Ok(None);
-        }
-        let samples = opencode_fork::to_token_samples(&self.samples()?);
-        if samples.is_empty() {
-            return Ok(None);
-        }
-        let now = chrono::Utc::now();
-        let windows = [
-            ("5h", "5-hour", QuotaWindowScope::Rolling, 5 * 3600i64),
-            ("7d", "7-day", QuotaWindowScope::Weekly, 7 * 24 * 3600),
-            ("30d", "30-day", QuotaWindowScope::Monthly, 30 * 24 * 3600),
-        ]
-        .into_iter()
-        .map(|(key, label, scope, seconds)| {
-            let used = samples
-                .iter()
-                .filter(|sample| {
-                    sample.timestamp > now - chrono::Duration::seconds(seconds)
-                        && sample.timestamp <= now
-                })
-                .fold(0u64, |acc, sample| {
-                    acc.saturating_add(sample.input_tokens)
-                        .saturating_add(sample.output_tokens)
-                });
-            QuotaWindow::usage_only(
-                key,
-                label,
-                scope,
-                QuotaKind::Tokens,
-                used,
-                None,
-                Confidence::Medium,
-            )
-        })
-        .collect();
-        Ok(Some(QuotaReport::new(
-            PROVIDER_ID,
-            "local_estimate",
-            windows,
-            DEFAULT_FRESHNESS,
-        )))
-    }
-
     /// Fetches the coding-plan quota from the monitor API.
     ///
     /// `Ok(None)` means the payload carried no usable windows; an expired
     /// credential or a rate limit is reported so the UI does not mask a real
     /// signal behind a local estimate.
-    fn monitor_quota(&self, is_zai: bool, key: &str) -> Result<Option<QuotaReport>, String> {
-        let url = if is_zai {
-            ZAI_MONITOR_QUOTA_URL
-        } else {
-            BIGMODEL_MONITOR_QUOTA_URL
-        };
+    fn monitor_quota(&self, endpoint: &str, key: &str) -> Result<Option<QuotaReport>, String> {
         let response = get_json(JsonRequest {
             timeout: self.timeout,
-            ..JsonRequest::new(url).raw_auth(key)
+            ..JsonRequest::new(endpoint).raw_auth(key)
         })?;
         let Some((windows, plan)) = windows_from_monitor_payload(&response.body)? else {
             return Ok(None);
@@ -239,24 +207,20 @@ impl ZCodeAdapter {
     }
 
     /// Quota with the best evidence first: monitor API, then the local log
-    /// balance, then usage-only local windows.
+    /// balance. Local token totals are usage history, not quota evidence.
     fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
-        if let Some((is_coding_plan, key)) = self.api_key() {
-            if is_coding_plan {
-                match self.monitor_quota(true, &key) {
-                    Ok(Some(report)) => return Ok(Some(report)),
-                    Ok(None) => {}
-                    Err(code) if code == "AUTH_EXPIRED" || code == "RATE_LIMITED" => {
-                        return Err(code)
-                    }
-                    Err(_) => {}
-                }
+        if let Some(credential) = self.api_key() {
+            match self.monitor_quota(credential.endpoint, &credential.key) {
+                Ok(Some(report)) => return Ok(Some(report)),
+                Ok(None) => {}
+                Err(code) if code == "AUTH_EXPIRED" || code == "RATE_LIMITED" => return Err(code),
+                Err(_) => {}
             }
         }
         if let Some(report) = self.balance_from_logs()? {
             return Ok(Some(report));
         }
-        self.local_estimate()
+        Ok(None)
     }
 
     fn detection(&self) -> DetectionResult {
@@ -659,6 +623,18 @@ mod tests {
     }
 
     #[test]
+    fn local_usage_is_not_presented_as_quota() {
+        let home = tempfile::tempdir().expect("temp");
+        write_db(home.path());
+        let adapter = ZCodeAdapter::with_home(home.path().to_path_buf());
+
+        assert!(
+            adapter.collect_quota().expect("quota").is_none(),
+            "local token totals do not prove a subscription quota"
+        );
+    }
+
+    #[test]
     fn missing_home_reports_no_data() {
         let home = tempfile::tempdir().expect("temp");
         let adapter = ZCodeAdapter::with_home(home.path().join("missing"));
@@ -776,9 +752,30 @@ mod tests {
         )
         .expect("config");
         let adapter = ZCodeAdapter::with_home(home.path().to_path_buf());
-        let (coding, key) = adapter.api_key().expect("key");
-        assert!(coding);
-        assert_eq!(key, "sk-coding");
+        let credential = adapter.api_key().expect("key");
+        assert_eq!(credential.endpoint, ZAI_MONITOR_QUOTA_URL);
+        assert_eq!(credential.key, "sk-coding");
+    }
+
+    #[test]
+    fn api_key_selects_bigmodel_endpoint_when_zai_entry_is_absent() {
+        let home = tempfile::tempdir().expect("temp");
+        let config_dir = home.path().join("v2");
+        std::fs::create_dir_all(&config_dir).expect("config dir");
+        std::fs::write(
+            config_dir.join("config.json"),
+            serde_json::json!({
+                "provider": {
+                    "builtin:bigmodel-coding-plan": {"options": {"apiKey": "sk-bigmodel"}}
+                }
+            })
+            .to_string(),
+        )
+        .expect("config");
+        let adapter = ZCodeAdapter::with_home(home.path().to_path_buf());
+        let credential = adapter.api_key().expect("key");
+        assert_eq!(credential.endpoint, BIGMODEL_MONITOR_QUOTA_URL);
+        assert_eq!(credential.key, "sk-bigmodel");
     }
 
     #[test]

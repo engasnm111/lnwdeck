@@ -50,6 +50,10 @@ pub struct JsonRequest<'a> {
     /// Raw `authorization` header value, sent verbatim (no `Bearer ` prefix).
     /// Used by provider APIs that expect the raw key in the header.
     pub raw_auth_token: Option<&'a str>,
+    /// A provider browser-session cookie. This is kept separate from generic
+    /// headers so credential-bearing requests are explicit and never get
+    /// mixed with ordinary provider headers.
+    pub browser_cookie: Option<&'a str>,
     pub timeout: Duration,
     /// Header names to return with the response, lowercase.
     pub capture_headers: &'a [&'a str],
@@ -65,6 +69,7 @@ impl<'a> JsonRequest<'a> {
             url,
             bearer_token: None,
             raw_auth_token: None,
+            browser_cookie: None,
             timeout: Duration::from_secs(10),
             capture_headers: &[],
             extra_headers: &[],
@@ -79,6 +84,13 @@ impl<'a> JsonRequest<'a> {
     /// Sets the `authorization` header to the value verbatim.
     pub fn raw_auth(mut self, token: &'a str) -> Self {
         self.raw_auth_token = Some(token);
+        self
+    }
+
+    /// Sets the browser-session cookie header without exposing it as a
+    /// generic caller-supplied header.
+    pub fn browser_cookie(mut self, cookie: &'a str) -> Self {
+        self.browser_cookie = Some(cookie);
         self
     }
 
@@ -133,6 +145,12 @@ pub fn get_json(request: JsonRequest<'_>) -> Result<HttpResponse, String> {
             return Err("NOT_CONFIGURED".to_string());
         }
         call = call.header("authorization", token);
+    }
+    if let Some(cookie) = request.browser_cookie {
+        if cookie.trim().is_empty() {
+            return Err("NOT_CONFIGURED".to_string());
+        }
+        call = call.header("cookie", cookie);
     }
 
     let mut response = match call.call() {
@@ -200,6 +218,12 @@ pub fn post_json(
         }
         call = call.header("authorization", token);
     }
+    if let Some(cookie) = request.browser_cookie {
+        if cookie.trim().is_empty() {
+            return Err("NOT_CONFIGURED".to_string());
+        }
+        call = call.header("cookie", cookie);
+    }
 
     let mut response = match call.send_json(body) {
         Ok(response) => response,
@@ -216,6 +240,72 @@ pub fn post_json(
         }
     }
 
+    let text = response
+        .body_mut()
+        .read_to_string()
+        .map_err(|_| "PROVIDER_UNREADABLE_BODY".to_string())?;
+    let body = serde_json::from_str(&text).map_err(|_| "SOURCE_SCHEMA_MISMATCH".to_string())?;
+
+    Ok(HttpResponse {
+        status,
+        body,
+        headers,
+    })
+}
+
+/// Performs an HTTPS form POST and parses the JSON body.
+///
+/// OAuth refresh endpoints commonly require
+/// `application/x-www-form-urlencoded` instead of JSON. Credentials are
+/// accepted only as explicit form values and are never included in sanitized
+/// errors or response metadata.
+pub fn post_form(request: JsonRequest<'_>, form: &[(&str, &str)]) -> Result<HttpResponse, String> {
+    if !request.url.starts_with("https://") {
+        return Err("INSECURE_ENDPOINT".to_string());
+    }
+    let agent = ureq::Agent::config_builder()
+        .timeout_global(Some(request.timeout))
+        .max_redirects(0)
+        .build()
+        .new_agent();
+
+    let mut call = agent.post(request.url).header("accept", "application/json");
+    for (name, value) in request.extra_headers {
+        call = call.header(*name, *value);
+    }
+    if let Some(token) = request.bearer_token {
+        if token.trim().is_empty() {
+            return Err("NOT_CONFIGURED".to_string());
+        }
+        call = call.header("authorization", &format!("Bearer {token}"));
+    }
+    if let Some(token) = request.raw_auth_token {
+        if token.trim().is_empty() {
+            return Err("NOT_CONFIGURED".to_string());
+        }
+        call = call.header("authorization", token);
+    }
+    if let Some(cookie) = request.browser_cookie {
+        if cookie.trim().is_empty() {
+            return Err("NOT_CONFIGURED".to_string());
+        }
+        call = call.header("cookie", cookie);
+    }
+
+    let mut response = match call.send_form(form.iter().copied()) {
+        Ok(response) => response,
+        Err(ureq::Error::StatusCode(status)) => return Err(code_for_status(status).to_string()),
+        Err(ureq::Error::Timeout(_)) => return Err("PROVIDER_TIMEOUT".to_string()),
+        Err(_) => return Err("SOURCE_UNAVAILABLE".to_string()),
+    };
+
+    let status = response.status().as_u16();
+    let mut headers = HashMap::new();
+    for name in request.capture_headers {
+        if let Some(value) = response.headers().get(*name).and_then(|v| v.to_str().ok()) {
+            headers.insert(name.to_ascii_lowercase(), value.to_string());
+        }
+    }
     let text = response
         .body_mut()
         .read_to_string()
@@ -259,6 +349,12 @@ pub fn get_text(request: JsonRequest<'_>) -> Result<(u16, String), String> {
             return Err("NOT_CONFIGURED".to_string());
         }
         call = call.header("authorization", token);
+    }
+    if let Some(cookie) = request.browser_cookie {
+        if cookie.trim().is_empty() {
+            return Err("NOT_CONFIGURED".to_string());
+        }
+        call = call.header("cookie", cookie);
     }
 
     let mut response = match call.call() {
@@ -313,6 +409,12 @@ pub fn get_bytes(request: JsonRequest<'_>) -> Result<(u16, Vec<u8>), String> {
         }
         call = call.header("authorization", token);
     }
+    if let Some(cookie) = request.browser_cookie {
+        if cookie.trim().is_empty() {
+            return Err("NOT_CONFIGURED".to_string());
+        }
+        call = call.header("cookie", cookie);
+    }
 
     let mut response = match call.call() {
         Ok(response) => response,
@@ -357,6 +459,13 @@ mod tests {
     }
 
     #[test]
+    fn browser_cookie_is_carried_as_a_dedicated_credential_field() {
+        let request = JsonRequest::new("https://example.invalid/api").browser_cookie("auth=test");
+        assert_eq!(request.browser_cookie, Some("auth=test"));
+        assert!(request.extra_headers.is_empty());
+    }
+
+    #[test]
     fn plain_http_endpoints_are_refused() {
         let error = get_json(JsonRequest::new("http://example.com/api")).expect_err("must refuse");
         assert_eq!(error, "INSECURE_ENDPOINT");
@@ -365,6 +474,14 @@ mod tests {
     #[test]
     fn get_bytes_refuses_plain_http_endpoints() {
         let error = get_bytes(JsonRequest::new("http://example.com/api")).expect_err("must refuse");
+        assert_eq!(error, "INSECURE_ENDPOINT");
+    }
+
+    #[test]
+    fn post_form_refuses_plain_http_endpoints() {
+        let form = [("grant_type", "refresh_token")];
+        let error = post_form(JsonRequest::new("http://example.com/token"), &form)
+            .expect_err("must refuse");
         assert_eq!(error, "INSECURE_ENDPOINT");
     }
 

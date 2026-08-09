@@ -299,9 +299,21 @@ export type QuotaStatus =
   | "rate_limited"
   | "error";
 
+export type ProviderConnectionState =
+  | "connected"
+  | "not_detected"
+  | "not_configured"
+  | "permission_required"
+  | "auth_expired"
+  | "rate_limited"
+  | "transient_error"
+  | "unsupported";
+
 export interface ProviderQuotaCard {
   provider_id: string;
   display_name: string;
+  connection_state: ProviderConnectionState;
+  quota_support: "supported" | "local estimate" | "not supported";
   status: QuotaStatus;
   plan: string | null;
   source: string;
@@ -674,12 +686,17 @@ export interface ProviderCredentialState {
   state: "missing" | "configured" | "expired";
 }
 
+export interface OpenCodeGoCredentialState {
+  state: "missing" | "configured" | "expired";
+}
+
 export interface SettingsViewData {
   settings: AppSettingsData;
   startup_supported: boolean;
   startup_registered: boolean;
   credential_store_supported: boolean;
   provider_credentials: ProviderCredentialState[];
+  opencode_go: OpenCodeGoCredentialState;
   allowed_refresh_intervals: number[];
   allowed_themes: string[];
   allowed_retention_days: number[];
@@ -706,6 +723,19 @@ export async function deleteProviderKey(
   providerId: string,
 ): Promise<SettingsViewData> {
   return invoke<SettingsViewData>("delete_provider_key", { providerId });
+}
+
+export async function setOpenCodeGoConfig(
+  workspaceId: string,
+  authCookie: string,
+): Promise<SettingsViewData> {
+  return invoke<SettingsViewData>("set_opencode_go_config", {
+    config: { workspace_id: workspaceId, auth_cookie: authCookie },
+  });
+}
+
+export async function deleteOpenCodeGoConfig(): Promise<SettingsViewData> {
+  return invoke<SettingsViewData>("delete_opencode_go_config");
 }
 
 /** Widget layout: horizontal bars, compact rings, or the animated pet. */

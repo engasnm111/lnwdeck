@@ -122,8 +122,13 @@ export function PetTooltip({ visible }: { visible: boolean }) {
           <div className="pet-tooltip-bars">
             {bars.map((bar) => (
               <div key={`${bar.provider}-${bar.label}`} className="pet-tooltip-bar-row">
-                <span className="pet-tooltip-bar-label">
-                  {bar.provider} {bar.label}
+                <span
+                  className="pet-tooltip-bar-label"
+                  title={`${bar.provider} — ${bar.label}`}
+                  aria-label={`${bar.provider} — ${bar.label}`}
+                >
+                  <span className="pet-tooltip-bar-provider">{bar.provider}</span>
+                  <span className="pet-tooltip-bar-window">{bar.label}</span>
                 </span>
                 <span className="pet-tooltip-bar-track">
                   <span
@@ -141,8 +146,13 @@ export function PetTooltip({ visible }: { visible: boolean }) {
             ))}
             {usageRows.map((row) => (
               <div key={`${row.provider}-${row.label}`} className="pet-tooltip-bar-row">
-                <span className="pet-tooltip-bar-label">
-                  {row.provider} {row.label}
+                <span
+                  className="pet-tooltip-bar-label"
+                  title={`${row.provider} — ${row.label}`}
+                  aria-label={`${row.provider} — ${row.label}`}
+                >
+                  <span className="pet-tooltip-bar-provider">{row.provider}</span>
+                  <span className="pet-tooltip-bar-window">{row.label}</span>
                 </span>
                 <span className="pet-tooltip-bar-track pet-tooltip-bar-track-unknown" />
                 <span className="pet-tooltip-bar-pct">

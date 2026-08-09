@@ -1,8 +1,5 @@
 use chrono::{DateTime, Utc};
-use lnwdeck_domain::{
-    Confidence, QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope, UsageBatch,
-    DEFAULT_FRESHNESS,
-};
+use lnwdeck_domain::{Confidence, QuotaReport, UsageBatch, DEFAULT_FRESHNESS};
 use lnwdeck_provider_runtime::token_scan::{scan_directory, usage_events, ScanBounds, TokenSample};
 use lnwdeck_provider_runtime::{
     AdapterDescriptor, AdapterHealth, AdapterHealthStatus, AuthKind, ChannelSupport,
@@ -155,57 +152,13 @@ impl ClaudeAdapter {
         Ok(report.samples)
     }
 
-    fn local_quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
-        if !self.projects_dir.is_dir() {
-            return Ok(None);
-        }
-        let Some([five_h, seven_d, thirty_d]) = self.scan_session_files()? else {
-            return Ok(None);
-        };
-        let windows = vec![
-            QuotaWindow::usage_only(
-                "5h",
-                "5-hour",
-                QuotaWindowScope::Rolling,
-                QuotaKind::Tokens,
-                five_h,
-                None,
-                Confidence::Medium,
-            ),
-            QuotaWindow::usage_only(
-                "7d",
-                "7-day",
-                QuotaWindowScope::Weekly,
-                QuotaKind::Tokens,
-                seven_d,
-                None,
-                Confidence::Medium,
-            ),
-            QuotaWindow::usage_only(
-                "30d",
-                "30-day",
-                QuotaWindowScope::Monthly,
-                QuotaKind::Tokens,
-                thirty_d,
-                None,
-                Confidence::Medium,
-            ),
-        ];
-        Ok(Some(QuotaReport::new(
-            "anthropic_claude",
-            "local_estimate",
-            windows,
-            DEFAULT_FRESHNESS,
-        )))
-    }
-
     /// Quota for the Claude subscription.
     ///
     /// Anthropic publishes the utilization of each rate-limit window to the
     /// same OAuth token Claude Code stores locally, so that is the
     /// authoritative source. Without a stored token, or when the account has
-    /// no published window, the local session scan provides usage-only windows
-    /// instead, clearly marked as having no limit.
+    /// no published window, quota is unavailable; the local session scan stays
+    /// available through the separate usage channel.
     fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
         match usage_api::fetch_windows(
             &self.credentials_path,
@@ -222,12 +175,8 @@ impl ClaudeAdapter {
                 report.plan = Some("Subscription".to_string());
                 Ok(Some(report))
             }
-            // No token stored: fall back to what the local files show.
-            Ok(None) => self.local_quota_estimate(),
-            // An expired credential or a rate limit is reported, not hidden
-            // behind a local estimate that would look like fresh quota.
-            Err(code) if code == "AUTH_EXPIRED" || code == "RATE_LIMITED" => Err(code),
-            Err(_) => self.local_quota_estimate(),
+            Ok(None) => Ok(None),
+            Err(code) => Err(code),
         }
     }
 }
@@ -297,7 +246,7 @@ impl ProviderAdapter for ClaudeAdapter {
             source_kind: SourceKind::LocalJsonl,
             usage_support: ChannelSupport::LocalEstimate,
             // Anthropic publishes real per-window utilization to the local
-            // OAuth token; the local scan is only the fallback.
+            // OAuth usage endpoint; the local scan is usage history only.
             quota_support: ChannelSupport::Native,
             auth: AuthKind::LocalFiles,
             adapter_version: ADAPTER_VERSION,
@@ -404,33 +353,10 @@ mod tests {
         );
 
         let adapter = adapter_for(&projects);
-        let report = adapter
-            .collect_quota()
-            .expect("quota call")
-            .expect("report");
-        assert_eq!(report.provider_id, "anthropic_claude");
-        assert_eq!(report.source, "local_estimate");
-        assert_eq!(report.windows.len(), 3);
-        let five_h = report
-            .windows
-            .iter()
-            .find(|w| w.window_key == "5h")
-            .unwrap();
-        let seven_d = report
-            .windows
-            .iter()
-            .find(|w| w.window_key == "7d")
-            .unwrap();
-        let thirty_d = report
-            .windows
-            .iter()
-            .find(|w| w.window_key == "30d")
-            .unwrap();
-        assert_eq!(five_h.used, 1500, "only sessions in last 5h");
-        assert_eq!(seven_d.used, 2000, "both sessions within 7d");
-        assert_eq!(thirty_d.used, 2000);
-        assert_eq!(five_h.limit, None, "limit is unknown, never fabricated");
-        assert_eq!(five_h.remaining_percent, None);
+        assert!(
+            adapter.collect_quota().expect("quota call").is_none(),
+            "local transcript usage must not be presented as Claude quota"
+        );
     }
 
     #[test]

@@ -1,4 +1,4 @@
-# lnwdeck v11.0.1
+# lnwdeck v11.0.2
 
 Universal AI usage and quota tracker for Windows. lnwdeck reads the local
 artifacts already written by AI tools, records token counts and costs, and
@@ -21,20 +21,24 @@ sync is required.
 - Includes a floating quota widget and a transparent desktop pet, both using
   the same live provider data as the dashboard.
 
-## v11.0.1 fixes
+## v11.0.2 provider quota and pet fixes
 
-This patch release keeps the v11.0.0 dashboard and fixes the provider quota,
-desktop pet and Windows release workflow:
+This patch release makes provider status truthful across machines and keeps
+the quota labels readable in the widget and desktop pet:
 
-- Codex quota now prefers the live provider API, preserves hard authentication
-  and rate-limit errors, and falls back to the newest local snapshot only when
-  the live request is unavailable.
-- The pet speech bubble keeps its full clickable surface and wraps long text
-  without clipping.
-- The pet, widget and tray popup remain auxiliary surfaces and do not create a
-  taskbar button; only a visible dashboard appears on the taskbar.
-- Release builds use tuned Cargo profiles, `rust-lld`, target-specific caches,
-  `sccache` in CI and only the shipped NSIS bundle to reduce repeated work.
+- Provider quota bars now use provider-reported limits only. Missing providers
+  show `No connection`, unsupported quota shows a localized usage-only state,
+  and a missing provider no longer makes the combined refresh look failed.
+- OpenCode (Go) requires the per-machine `OPENCODE_GO_WORKSPACE_ID` and
+  `OPENCODE_GO_AUTH_COOKIE` pair, from Settings or that machine's environment;
+  it never falls back to a fabricated 100%.
+- Claude, Codex, Gemini, Cursor, ZCode and Kimi use corrected provider quota
+  sources. Kimi follows the TokenTracker-compatible usage response and keeps
+  OAuth refresh credentials in memory only.
+- Pet quota rows show the complete provider and window name, such as
+  `OpenCode (Go) — 5-hour`, in a wider, keyboard-readable tooltip.
+- The detailed setup matrix, environment procedure and provider limitations are
+  documented in [`docs/PROVIDER_QUOTA_SETUP.md`](docs/PROVIDER_QUOTA_SETUP.md).
 
 ## v11.0.1 dashboard
 
@@ -63,6 +67,20 @@ complete.
 The two OpenCode implementations are shown under distinct names so their data
 is never confused: `OpenCode (Go)` for the billed Go implementation with
 credits/quota, and `OpenCode (Free)` for legacy free-CLI records.
+
+OpenCode (Go) quota comes from the authenticated workspace dashboard. On each
+machine, open Settings and enter `OPENCODE_GO_WORKSPACE_ID` and
+`OPENCODE_GO_AUTH_COOKIE` (the cookie may be pasted as its raw value or as
+`auth=...`). For unattended or portable setup, the same two values can be
+provided as environment variables on that machine; both are required and
+environment values take precedence over Credential Manager. lnwdeck stores the
+Settings pair only in Windows Credential Manager and does not display the
+cookie after saving. Until configured, OpenCode local usage history can still
+be collected, but quota is reported as `NOT_CONFIGURED` with no percentage
+instead of showing a fabricated 100%.
+
+See the detailed per-provider source matrix and PowerShell setup procedure in
+[`docs/PROVIDER_QUOTA_SETUP.md`](docs/PROVIDER_QUOTA_SETUP.md).
 
 ### Token formatting
 
@@ -137,7 +155,15 @@ vendor (for example, **OpenAI Codex**) and keep internal ids such as
 
 Credential-backed providers use Windows Credential Manager or the provider's
 own locally stored credential. Nothing is sent before the user explicitly
-configures a provider that requires a key.
+configures a provider that requires a key. OpenCode Go environment variables
+are a compatibility path for a user-managed machine setup; do not put them in
+`.env` files or commit them.
+
+OpenCode (Go) is the browser-cookie exception: its Settings form requires the
+workspace id and auth cookie because quota is published at the provider's
+workspace dashboard rather than in the local SQLite history. The dashboard
+request sends the cookie only to `https://opencode.ai`; the cookie never enters
+SQLite, UI read models, logs or exports.
 
 ## Screenshots
 
@@ -191,7 +217,7 @@ pnpm test:e2e
 pnpm tauri:dev
 ```
 
-## Building and verifying v11.0.1
+## Building and verifying v11.0.2
 
 Signed installers and updater artifacts require the Tauri signing key:
 
@@ -204,10 +230,10 @@ pnpm tauri:build
 pwsh ./scripts/package-portable.ps1 -Arch x64
 
 # Build the updater manifest from signed installers
-node scripts/generate-updater-json.mjs v11.0.1 <assets-dir> <assets-dir>/latest.json
+node scripts/generate-updater-json.mjs v11.0.2 <assets-dir> <assets-dir>/latest.json
 
 # Verify versions, release fixtures, signatures/manifest contract and metadata
-node scripts/check-release-version.mjs v11.0.1
+node scripts/check-release-version.mjs v11.0.2
 pnpm release:test
 ```
 
@@ -215,7 +241,7 @@ The release workflow builds x64, ARM64 and x86 installers and portable ZIPs.
 Each installer and portable ZIP has a `.sig`; the published assets also include
 `latest.json`, `SHA256SUMS`, a CycloneDX SBOM and GitHub build provenance. The
 complete release checklist and rollback procedure are in
-[docs/releases/v11.0.1.md](docs/releases/v11.0.1.md).
+[docs/releases/v11.0.2.md](docs/releases/v11.0.2.md).
 
 ## Privacy
 
@@ -225,6 +251,8 @@ complete release checklist and rollback procedure are in
   file contents, file names, absolute paths and secrets are not stored.
 - Provider API keys are stored in Windows Credential Manager, never in SQLite,
   logs, UI state or exports.
+- OpenCode Go's two environment variables are read only when the user chooses
+  that setup path; they are never copied into SQLite, logs, UI state or exports.
 - Network requests are limited to declared provider endpoints and the explicit
   official Codex Pets import. No arbitrary user-entered pet URL is fetched.
 - The local SQLite database is not encrypted at rest.
@@ -239,6 +267,11 @@ complete release checklist and rollback procedure are in
   visible during partial refresh.
 - OpenCode usage events are cumulative session snapshots; per-update delta
   accounting is not implemented.
+- OpenCode Go reports utilization percentages and reset times, not an absolute
+  dollar cap. If its dashboard HTML changes, the quota channel reports a
+  schema error and does not guess a percentage.
+- Kimi Code refreshes an expired access token in memory using the CLI's refresh
+  credential; lnwdeck does not rewrite the provider-owned credential file.
 - The browser extension must be loaded manually in Chromium Developer mode.
 
 ## License

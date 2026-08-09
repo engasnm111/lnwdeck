@@ -15,12 +15,10 @@
 //!   `modelAlias`.
 //!
 //! Both layouts are parsed here; token usage and timestamps are the only
-//! things carried out. Quota is a usage-only local estimate.
+//! things carried out. Subscription quota is fetched separately from Kimi's
+//! authenticated usage endpoint; local wire logs never become a quota bar.
 
-use lnwdeck_domain::{
-    Confidence, QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope, UsageBatch,
-    DEFAULT_FRESHNESS,
-};
+use lnwdeck_domain::{Confidence, QuotaReport, UsageBatch, DEFAULT_FRESHNESS};
 use lnwdeck_provider_runtime::token_scan::{usage_events, TokenSample};
 use lnwdeck_provider_runtime::{
     AdapterDescriptor, AdapterHealth, AdapterHealthStatus, AuthKind, ChannelSupport,
@@ -28,6 +26,9 @@ use lnwdeck_provider_runtime::{
 };
 use serde_json::Value;
 use std::path::PathBuf;
+use std::time::Duration;
+
+mod quota_api;
 
 const PROVIDER_ID: &str = "kimi_code";
 const ADAPTER_VERSION: &str = "0.1.0";
@@ -53,7 +54,13 @@ impl KimiAdapter {
             .or_else(|| std::env::var_os("HOME"))
             .map(PathBuf::from)
             .unwrap_or_default();
-        Self::with_roots(vec![home.join(".kimi"), home.join(".kimi-code")])
+        if let Some(explicit) = std::env::var_os("KIMI_HOME") {
+            return Self::with_roots(vec![PathBuf::from(explicit)]);
+        }
+        let code_home = std::env::var_os("KIMI_CODE_HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home.join(".kimi-code"));
+        Self::with_roots(vec![code_home, home.join(".kimi")])
     }
 
     /// Adapter pinned to explicit source roots (used by tests).
@@ -144,48 +151,6 @@ impl KimiAdapter {
             result.permission_state = "read_ok".to_string();
         }
         result
-    }
-
-    fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
-        let samples = self.samples();
-        if samples.is_empty() {
-            return Ok(None);
-        }
-        let now = chrono::Utc::now();
-        let windows = [
-            ("5h", "5-hour", QuotaWindowScope::Rolling, 5 * 3600i64),
-            ("7d", "7-day", QuotaWindowScope::Weekly, 7 * 24 * 3600),
-            ("30d", "30-day", QuotaWindowScope::Monthly, 30 * 24 * 3600),
-        ]
-        .into_iter()
-        .map(|(key, label, scope, seconds)| {
-            let used = samples
-                .iter()
-                .filter(|sample| {
-                    sample.timestamp > now - chrono::Duration::seconds(seconds)
-                        && sample.timestamp <= now
-                })
-                .fold(0u64, |acc, sample| {
-                    acc.saturating_add(sample.input_tokens)
-                        .saturating_add(sample.output_tokens)
-                });
-            QuotaWindow::usage_only(
-                key,
-                label,
-                scope,
-                QuotaKind::Tokens,
-                used,
-                None,
-                Confidence::Medium,
-            )
-        })
-        .collect();
-        Ok(Some(QuotaReport::new(
-            PROVIDER_ID,
-            "local_estimate",
-            windows,
-            DEFAULT_FRESHNESS,
-        )))
     }
 }
 
@@ -308,7 +273,7 @@ impl ProviderAdapter for KimiAdapter {
             vendor: "Moonshot AI",
             source_kind: SourceKind::LocalJsonl,
             usage_support: ChannelSupport::LocalEstimate,
-            quota_support: ChannelSupport::LocalEstimate,
+            quota_support: ChannelSupport::Native,
             auth: AuthKind::LocalFiles,
             adapter_version: ADAPTER_VERSION,
         }
@@ -326,7 +291,18 @@ impl ProviderAdapter for KimiAdapter {
     }
 
     fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
-        self.quota_estimate()
+        if !self.any_root_exists() {
+            return Ok(None);
+        }
+        let Some(windows) = quota_api::fetch_windows(&self.roots, Duration::from_secs(10))? else {
+            return Ok(None);
+        };
+        Ok(Some(QuotaReport::new(
+            PROVIDER_ID,
+            "provider_api",
+            windows,
+            DEFAULT_FRESHNESS,
+        )))
     }
 
     fn health_check(&self) -> AdapterHealth {
@@ -424,6 +400,11 @@ mod tests {
         let batch = adapter.collect_usage().expect("usage");
         assert_eq!(batch.events.len(), 1);
         assert!(adapter.detection().detected);
+        assert_eq!(
+            adapter.collect_quota(),
+            Err("NOT_CONFIGURED".to_string()),
+            "wire-log usage must not be turned into a quota estimate"
+        );
 
         let empty = KimiAdapter::with_roots(vec![dir.path().join("missing")]);
         assert_eq!(empty.collect_usage(), Err("SOURCE_UNAVAILABLE".to_string()));

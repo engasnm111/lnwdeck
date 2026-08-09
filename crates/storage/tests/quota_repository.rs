@@ -203,6 +203,25 @@ fn error_report_roundtrip_keeps_error_code() {
 }
 
 #[test]
+fn transient_error_does_not_replace_the_latest_good_report() {
+    let storage = open_test_db();
+    let repo = QuotaRepository::new(&storage.conn);
+    let good = report("claude", vec![window("5h", 40, 100)]);
+    repo.upsert_report(&good).expect("good report");
+
+    let failed = QuotaReport::failed("claude", "fixture_api", "SOURCE_SCHEMA_MISMATCH");
+    let result = repo.upsert_report(&failed).expect("failed report");
+    assert_eq!(result, lnwdeck_storage::repositories::QuotaUpsert::Skipped);
+
+    let latest = repo
+        .latest_report("claude")
+        .expect("latest")
+        .expect("good report remains");
+    assert_eq!(latest.status, QuotaStatus::Fresh);
+    assert_eq!(latest.windows[0].used, 40);
+}
+
+#[test]
 fn unknown_provider_returns_none() {
     let storage = open_test_db();
     let repo = QuotaRepository::new(&storage.conn);

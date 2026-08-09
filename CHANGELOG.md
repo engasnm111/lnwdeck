@@ -2,6 +2,28 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [11.0.2] - 2026-08-09
+
+### Highlights
+
+- Provider quota is now truth-preserving: absent providers show a localized
+  no-connection state, unsupported providers remain usage-only, and refresh does
+  not report a global failure just because a provider is not installed.
+- OpenCode (Go) now requires a workspace id plus auth cookie on each machine;
+  quota is read from the authenticated workspace dashboard and never invented
+  from local token totals.
+- Claude, Codex, Gemini, Cursor, ZCode and Kimi quota adapters use corrected
+  provider sources, with Kimi matching the TokenTracker usage response and
+  keeping refreshed OAuth tokens in memory.
+- Pet quota tooltips show the full provider and quota window name instead of
+  truncating the label, including the 5-hour, 7-day and 30-day windows.
+
+### Documentation
+
+- Added the detailed provider quota matrix and per-machine OpenCode Go setup
+  guide in `docs/PROVIDER_QUOTA_SETUP.md`.
+- Added release notes and rollback guidance in `docs/releases/v11.0.2.md`.
+
 ## [11.0.1] - 2026-08-09
 
 ### Highlights

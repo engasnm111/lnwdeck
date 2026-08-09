@@ -15,7 +15,7 @@ pub use budget_repository::{BudgetError, BudgetPeriod, BudgetRepository, BudgetR
 pub use diagnostics_repository::{
     CollectorRunRow, DiagnosticsRepository, PipelineTotals, ProviderStateRow,
 };
-pub use quota_repository::QuotaRepository;
+pub use quota_repository::{QuotaRepository, QuotaUpsert};
 pub use session_repository::{MetaRow, SessionRepository};
 pub use sync_cursor_repository::SyncCursorRepository;
 pub use usage_repository::UsageRepository;

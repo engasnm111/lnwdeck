@@ -450,17 +450,55 @@ fn declared_support_covers_the_documented_provider_matrix() {
     assert_eq!(cursor.quota_support, ChannelSupport::Native);
     assert!(!cursor.needs_credentials());
 
-    // Local-artifact collectors with no published limit.
-    for id in ["opencode", "google_gemini", "github_copilot", "kiro_ai"] {
+    // OpenCode keeps local usage history but reads quota from the authenticated
+    // workspace dashboard, so it requires the user-supplied cookie pair.
+    let opencode = by_id
+        .get("opencode")
+        .unwrap_or_else(|| panic!("opencode registered"));
+    assert_eq!(opencode.usage_support, ChannelSupport::LocalEstimate);
+    assert_eq!(opencode.quota_support, ChannelSupport::Native);
+    assert!(opencode.needs_credentials());
+
+    // Other local-artifact collectors have no published quota channel. Their
+    // usage history remains useful, but it must never become a percentage or
+    // a pseudo-limit merely because a rolling bucket can be computed.
+    for id in [
+        "github_copilot",
+        "kiro_ai",
+        "kilo_cli",
+        "kilo_code",
+        "mimo_code",
+        "roo_code",
+        "codebuddy",
+        "workbuddy",
+        "pi_agent",
+        "omp",
+        "hermes",
+        "zai_glm",
+    ] {
         let descriptor = by_id.get(id).unwrap_or_else(|| panic!("{id} registered"));
         assert_eq!(
             descriptor.usage_support,
             ChannelSupport::LocalEstimate,
             "{id} collects usage from local artifacts"
         );
-        assert_eq!(descriptor.quota_support, ChannelSupport::LocalEstimate);
+        assert_eq!(descriptor.quota_support, ChannelSupport::Unsupported);
         assert!(!descriptor.needs_credentials());
     }
+
+    let kimi = by_id
+        .get("kimi_code")
+        .unwrap_or_else(|| panic!("kimi_code registered"));
+    assert_eq!(kimi.usage_support, ChannelSupport::LocalEstimate);
+    assert_eq!(kimi.quota_support, ChannelSupport::Native);
+    assert!(!kimi.needs_credentials());
+
+    let gemini = by_id
+        .get("google_gemini")
+        .unwrap_or_else(|| panic!("google_gemini registered"));
+    assert_eq!(gemini.usage_support, ChannelSupport::LocalEstimate);
+    assert_eq!(gemini.quota_support, ChannelSupport::Native);
+    assert!(!gemini.needs_credentials());
 
     for id in ["openrouter_api", "xai_grok"] {
         let descriptor = by_id.get(id).unwrap_or_else(|| panic!("{id} registered"));

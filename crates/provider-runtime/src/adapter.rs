@@ -57,7 +57,7 @@ pub trait ProviderAdapter: Send + Sync {
         if descriptor.needs_credentials() {
             return AdapterHealth {
                 status: AdapterHealthStatus::NotConfigured,
-                message: format!("{} requires an API key", descriptor.display_name),
+                message: format!("{} requires credentials", descriptor.display_name),
             };
         }
         AdapterHealth {

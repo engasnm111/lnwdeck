@@ -135,12 +135,12 @@ impl CursorAdapter {
     fn fetch_text(&self, url: &str, cookie: &str) -> Result<String, String> {
         let (_, body) = lnwdeck_provider_http::get_text(JsonRequest {
             raw_auth_token: None,
+            browser_cookie: Some(cookie),
             url,
             bearer_token: None,
             timeout: self.timeout,
             capture_headers: &[],
             extra_headers: &[
-                ("cookie", cookie),
                 ("referer", "https://www.cursor.com/settings"),
                 ("user-agent", USER_AGENT),
             ],
@@ -514,12 +514,12 @@ impl ProviderAdapter for CursorAdapter {
         let cookie = self.session_cookie()?;
         let response = lnwdeck_provider_http::get_json(JsonRequest {
             raw_auth_token: None,
+            browser_cookie: Some(&cookie),
             url: &self.quota_url,
             bearer_token: None,
             timeout: self.timeout,
             capture_headers: &[],
             extra_headers: &[
-                ("cookie", &cookie),
                 ("referer", "https://www.cursor.com/settings"),
                 ("user-agent", USER_AGENT),
             ],

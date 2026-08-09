@@ -8,12 +8,10 @@
 //! label (`provider:<slug>`), because Kilo Code persists only the provider
 //! per turn — not a model id that could be mapped reliably.
 //!
-//! Quota is a usage-only local estimate: real consumption, unknown limit.
+//! No provider-published quota source is wired to this adapter; local usage
+//! remains useful but quota stays explicitly unsupported.
 
-use lnwdeck_domain::{
-    Confidence, QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope, UsageBatch,
-    DEFAULT_FRESHNESS,
-};
+use lnwdeck_domain::{Confidence, QuotaReport, UsageBatch};
 use lnwdeck_provider_runtime::token_scan::{usage_events, TokenSample};
 use lnwdeck_provider_runtime::ui_messages;
 use lnwdeck_provider_runtime::{
@@ -94,48 +92,6 @@ impl KiloCodeAdapter {
         }
         result
     }
-
-    fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
-        let samples = self.samples();
-        if samples.is_empty() {
-            return Ok(None);
-        }
-        let now = chrono::Utc::now();
-        let windows = [
-            ("5h", "5-hour", QuotaWindowScope::Rolling, 5 * 3600i64),
-            ("7d", "7-day", QuotaWindowScope::Weekly, 7 * 24 * 3600),
-            ("30d", "30-day", QuotaWindowScope::Monthly, 30 * 24 * 3600),
-        ]
-        .into_iter()
-        .map(|(key, label, scope, seconds)| {
-            let used = samples
-                .iter()
-                .filter(|sample| {
-                    sample.timestamp > now - chrono::Duration::seconds(seconds)
-                        && sample.timestamp <= now
-                })
-                .fold(0u64, |acc, sample| {
-                    acc.saturating_add(sample.input_tokens)
-                        .saturating_add(sample.output_tokens)
-                });
-            QuotaWindow::usage_only(
-                key,
-                label,
-                scope,
-                QuotaKind::Tokens,
-                used,
-                None,
-                Confidence::Medium,
-            )
-        })
-        .collect();
-        Ok(Some(QuotaReport::new(
-            PROVIDER_ID,
-            "local_estimate",
-            windows,
-            DEFAULT_FRESHNESS,
-        )))
-    }
 }
 
 /// Default VS Code-family roots on Windows; other platforms fall back to the
@@ -172,7 +128,7 @@ impl ProviderAdapter for KiloCodeAdapter {
             vendor: "kilo.ai",
             source_kind: SourceKind::LocalJsonl,
             usage_support: ChannelSupport::LocalEstimate,
-            quota_support: ChannelSupport::LocalEstimate,
+            quota_support: ChannelSupport::Unsupported,
             auth: AuthKind::LocalFiles,
             adapter_version: ADAPTER_VERSION,
         }
@@ -190,7 +146,7 @@ impl ProviderAdapter for KiloCodeAdapter {
     }
 
     fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
-        self.quota_estimate()
+        Ok(None)
     }
 
     fn health_check(&self) -> AdapterHealth {
@@ -266,8 +222,10 @@ mod tests {
         assert_eq!(batch.events[0].model, "provider:moonshot-ai");
         assert_eq!(batch.events[0].tokens_input, 132);
         assert_eq!(batch.events[0].tokens_output, 30);
-        let report = adapter.collect_quota().expect("quota").expect("report");
-        assert!(report.windows[0].used > 0);
+        assert!(
+            adapter.collect_quota().expect("quota").is_none(),
+            "local Kilo Code records are not a published quota"
+        );
         assert!(adapter.detection().detected);
     }
 

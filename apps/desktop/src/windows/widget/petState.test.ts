@@ -36,6 +36,8 @@ function provider(
   return {
     provider_id: "anthropic_claude",
     display_name: "Claude",
+    connection_state: "connected",
+    quota_support: "supported",
     status: "fresh",
     plan: null,
     source: "cli_api",

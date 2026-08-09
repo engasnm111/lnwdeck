@@ -2,13 +2,11 @@
 //!
 //! Claude-Code-fork session JSONL under `.omp/agent/sessions` is scanned read-only with
 //! the shared scanner; only token counts, timestamps and model identifiers
-//! are extracted. Quota is a usage-only local estimate: real consumption
-//! with an unknown limit.
+//! are extracted. No provider-published quota source is wired to this adapter,
+//! so quota stays explicitly unsupported.
 
-use lnwdeck_domain::{Confidence, QuotaReport, UsageBatch, DEFAULT_FRESHNESS};
-use lnwdeck_provider_runtime::token_scan::{
-    rolling_usage_windows, scan_directories, usage_events, ScanBounds,
-};
+use lnwdeck_domain::{Confidence, QuotaReport, UsageBatch};
+use lnwdeck_provider_runtime::token_scan::{scan_directories, usage_events, ScanBounds};
 use lnwdeck_provider_runtime::{
     AdapterDescriptor, AdapterHealth, AdapterHealthStatus, AuthKind, ChannelSupport,
     DetectionResult, Permission, ProviderAdapter, SourceKind,
@@ -92,7 +90,7 @@ impl ProviderAdapter for OmpAdapter {
             vendor: "oh-my-pi",
             source_kind: SourceKind::LocalJsonl,
             usage_support: ChannelSupport::LocalEstimate,
-            quota_support: ChannelSupport::LocalEstimate,
+            quota_support: ChannelSupport::Unsupported,
             auth: AuthKind::LocalFiles,
             adapter_version: ADAPTER_VERSION,
         }
@@ -115,19 +113,7 @@ impl ProviderAdapter for OmpAdapter {
     }
 
     fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
-        if !self.any_root_exists() {
-            return Ok(None);
-        }
-        let windows = rolling_usage_windows(&self.scan(), chrono::Utc::now(), Confidence::Medium);
-        if windows.is_empty() {
-            return Ok(None);
-        }
-        Ok(Some(QuotaReport::new(
-            PROVIDER_ID,
-            "local_estimate",
-            windows,
-            DEFAULT_FRESHNESS,
-        )))
+        Ok(None)
     }
 
     fn health_check(&self) -> AdapterHealth {
@@ -189,12 +175,10 @@ mod tests {
         assert_eq!(batch.events.len(), 1);
         assert_eq!(batch.events[0].provider_id, PROVIDER_ID);
         assert_eq!(batch.events[0].tokens_input, 100);
-        let report = adapter.collect_quota().expect("quota").expect("report");
-        assert_eq!(report.windows.len(), 3);
-        for window in &report.windows {
-            assert_eq!(window.limit, None);
-            window.check_invariants().expect("consistent window");
-        }
+        assert!(
+            adapter.collect_quota().expect("quota").is_none(),
+            "local oh-my-pi records are not a published quota"
+        );
         assert!(adapter.detection().detected);
     }
 

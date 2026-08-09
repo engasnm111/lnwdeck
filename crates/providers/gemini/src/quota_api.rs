@@ -7,7 +7,8 @@
 //! Windows are grouped by model family (pro / flash / flash-lite), taking the
 //! lowest remaining fraction per family โ€” a free-tier account sees real
 //! windows and a real plan label. When no token is stored, or the API is
-//! unreachable, the caller falls back to usage-only local windows.
+//! unreachable, quota is unavailable; the local session scan remains a
+//! separate usage channel.
 
 use lnwdeck_domain::{
     Confidence, QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope, DEFAULT_FRESHNESS,
@@ -82,7 +83,7 @@ fn parse_buckets(value: &serde_json::Value) -> Vec<Bucket> {
         let Some(remaining) = bucket.get("remainingFraction").and_then(|v| v.as_f64()) else {
             continue;
         };
-        if !remaining.is_finite() {
+        if !remaining.is_finite() || !(0.0..=1.0).contains(&remaining) {
             continue;
         }
         let reset_at = bucket
@@ -185,6 +186,7 @@ pub fn fetch_windows(auth_path: &Path, timeout: Duration) -> Result<Option<Quota
     let assist = post_json(
         JsonRequest {
             raw_auth_token: None,
+            browser_cookie: None,
             url: LOAD_CODE_ASSIST,
             bearer_token: Some(&oauth.access_token),
             timeout,
@@ -221,6 +223,7 @@ pub fn fetch_windows(auth_path: &Path, timeout: Duration) -> Result<Option<Quota
     let response = post_json(
         JsonRequest {
             raw_auth_token: None,
+            browser_cookie: None,
             url: RETRIEVE_QUOTA,
             bearer_token: Some(&oauth.access_token),
             timeout,
@@ -322,6 +325,20 @@ mod tests {
             windows_from_payload(&serde_json::json!({ "buckets": [{}] }))
                 .0
                 .is_empty()
+        );
+    }
+
+    #[test]
+    fn out_of_range_remaining_fractions_are_ignored() {
+        let body = serde_json::json!({
+            "buckets": [
+                { "modelId": "gemini-pro", "remainingFraction": 1.5 },
+                { "modelId": "gemini-flash", "remainingFraction": -0.1 }
+            ]
+        });
+        assert!(
+            windows_from_payload(&body).0.is_empty(),
+            "an invalid fraction must not become a negative or over-100 percentage"
         );
     }
 

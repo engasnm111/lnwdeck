@@ -81,9 +81,11 @@ function provider(
   return {
     provider_id: "anthropic_claude",
     display_name: "Claude",
+    connection_state: "connected",
+    quota_support: "supported",
     status: "fresh",
     plan: null,
-    source: "local_estimate",
+    source: "provider_api",
     collected_at: new Date(NOW - 30_000).toISOString(),
     stale_at: new Date(NOW + 3_600_000).toISOString(),
     error_code: null,
@@ -162,6 +164,91 @@ describe("FloatingWidget", () => {
       "data-widget-icon-action",
       "true",
     );
+  });
+
+  it("shows the complete provider name when the compact name is truncated", async () => {
+    const fullName = "OpenCode (Go)";
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard(
+        [provider({ provider_id: "opencode_go", display_name: fullName })],
+      ),
+    );
+    render(<FloatingWidget />);
+
+    await waitFor(() => expect(screen.getByText(fullName)).toBeInTheDocument());
+
+    const name = screen.getByText(fullName);
+    expect(name).toHaveAttribute("title", fullName);
+    expect(name).toHaveAttribute("aria-label", fullName);
+  });
+
+  it("does not show a global refresh error when a provider is absent", async () => {
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([provider()]),
+    );
+    render(<FloatingWidget />);
+    await waitFor(() => expect(screen.getByText("Claude")).toBeInTheDocument());
+
+    await act(async () => {
+      refreshEventHandler?.({
+        payload: {
+          phase: "partial",
+          completed: 1,
+          total: 2,
+          provider_id: "missing-provider",
+          error_code: "SOURCE_UNAVAILABLE",
+        },
+      });
+    });
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText("Claude")).toBeInTheDocument();
+  });
+
+  it("shows a localized no-connection card for a pinned provider that is absent", async () => {
+    vi.mocked(native.fetchWidgetSettings).mockResolvedValue({
+      opacity: 1,
+      locked: false,
+      visible: true,
+      selected_providers: ["opencode"],
+      view: "bars",
+      pet_id: "",
+      size_preset: "medium",
+    });
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([
+        provider({
+          provider_id: "opencode",
+          display_name: "OpenCode (Go)",
+          connection_state: "not_detected",
+          status: "unavailable",
+          error_code: "SOURCE_UNAVAILABLE",
+          windows: [],
+        }),
+      ]),
+    );
+    render(<FloatingWidget />);
+
+    await waitFor(() => expect(screen.getByText("No connection")).toBeInTheDocument());
+    expect(screen.getByText("OpenCode (Go)")).toBeInTheDocument();
+    expect(screen.queryByText(/\d+%/)).not.toBeInTheDocument();
+  });
+
+  it("does not render a local usage estimate as a quota percentage", async () => {
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([
+        provider({
+          source: "local_estimate",
+          windows: [windowWith(100)],
+        }),
+      ]),
+    );
+    render(<FloatingWidget />);
+
+    await waitFor(() =>
+      expect(screen.getByText("No quota data available")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("100%")).not.toBeInTheDocument();
   });
 
   it("shows a loading state before any data arrives", () => {

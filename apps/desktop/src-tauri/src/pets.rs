@@ -482,6 +482,7 @@ pub fn download_pet_package(id: &str) -> Result<Vec<u8>, String> {
     let url = codex_pets_download_url(id);
     let request = JsonRequest {
         raw_auth_token: None,
+        browser_cookie: None,
         url: &url,
         bearer_token: None,
         timeout: PET_DOWNLOAD_TIMEOUT,

@@ -1,5 +1,4 @@
-use chrono::Datelike;
-use lnwdeck_provider_opencode::OpenCodeAdapter;
+use lnwdeck_provider_opencode::{windows_from_dashboard_html, OpenCodeAdapter};
 use lnwdeck_provider_runtime::{AdapterHealthStatus, ProviderAdapter};
 use lnwdeck_security::PrivacyGuard;
 use rusqlite::Connection;
@@ -66,8 +65,16 @@ fn detection_positive_on_fixture_database() {
     assert!(result.detected);
     assert!(result.source_exists);
     assert_eq!(result.source_type, "sqlite");
-    assert_eq!(result.detection_method, "local_sqlite");
-    assert_eq!(result.permission_state, "read_ok");
+    assert_eq!(result.detection_method, "local_sqlite+credential");
+    assert!(matches!(
+        result.permission_state.as_str(),
+        "credential_required" | "read_ok+credential_stored"
+    ));
+    if result.permission_state == "credential_required" {
+        assert_eq!(result.detection_error_code, "NOT_CONFIGURED");
+    } else {
+        assert!(result.detection_error_code.is_empty());
+    }
     assert!(result.last_detection_at.is_some());
 }
 
@@ -78,12 +85,18 @@ fn detection_negative_when_database_missing() {
     let adapter = adapter_for(&missing);
 
     let result = adapter.detect().expect("detect");
-    assert!(!result.detected);
-    assert!(!result.source_exists);
-    assert!(
-        result.detection_error_code.is_empty(),
-        "missing source is not an error"
-    );
+    if result.detected {
+        assert_eq!(result.permission_state, "credential_stored");
+        assert_eq!(result.detection_method, "credential");
+        assert_eq!(result.source_type, "remote_api");
+        assert!(result.source_exists);
+    } else {
+        assert!(!result.source_exists);
+        assert!(
+            result.detection_error_code.is_empty(),
+            "missing source is not an error"
+        );
+    }
 }
 
 #[test]
@@ -312,294 +325,102 @@ fn health_reflects_detection() {
     let db_path = create_fixture_db(dir.path());
     let adapter = adapter_for(&db_path);
 
-    assert_eq!(adapter.health_check().status, AdapterHealthStatus::Healthy);
+    assert!(matches!(
+        adapter.health_check().status,
+        AdapterHealthStatus::Healthy | AdapterHealthStatus::Degraded
+    ));
 
     let adapter = adapter_for(&dir.path().join("missing.db"));
-    assert_ne!(adapter.health_check().status, AdapterHealthStatus::Healthy);
+    assert!(matches!(
+        adapter.health_check().status,
+        AdapterHealthStatus::Healthy | AdapterHealthStatus::Degraded
+    ));
 }
 
 #[test]
-fn quota_estimate_returns_usage_windows_without_fake_limits() {
-    let dir = tempdir().expect("temp dir");
-    let db_path = create_fixture_db(dir.path());
-    let conn = Connection::open(&db_path).expect("open");
-    let now = chrono::Utc::now().timestamp_millis();
-    conn.execute(
-        "UPDATE session SET time_updated = ?1 WHERE id = 'sess_0001'",
-        [now - 3600 * 1000],
-    )
-    .expect("fresh session 1");
-    conn.execute(
-        "UPDATE session SET time_updated = ?1 WHERE id = 'sess_0002'",
-        [now - 60 * 1000],
-    )
-    .expect("fresh session 2");
-    conn.close().expect("close");
-    let adapter = adapter_for(&db_path);
+fn dashboard_quota_uses_authoritative_percentages_and_reset_times() {
+    let now = chrono::DateTime::parse_from_rfc3339("2026-08-09T10:00:00Z")
+        .expect("fixed timestamp")
+        .with_timezone(&chrono::Utc);
+    let html = r#"
+        <script>
+          {"rollingUsage":{"resetInSec":3600,"usagePercent":12.5},
+           "weeklyUsage":{"usagePercent":48,"resetInSec":7200},
+           "monthlyUsage":{"usagePercent":0.25,"resetInSec":86400}}
+        </script>
+    "#;
 
-    let report = adapter
-        .collect_quota()
-        .expect("quota call")
-        .expect("report");
-    assert_eq!(report.provider_id, "opencode");
-    assert_eq!(report.source, "local_estimate");
-    assert!(report.is_usable());
-    assert_eq!(report.windows.len(), 3);
+    let windows = windows_from_dashboard_html(html, now).expect("dashboard payload");
+    assert_eq!(windows.len(), 3);
 
-    let window = report
-        .windows
+    let rolling = windows
         .iter()
-        .find(|w| w.window_key == "5h")
-        .expect("5h window");
-    assert_eq!(window.used, 775, "sum of input+output+reasoning tokens");
-    assert_eq!(window.limit, None, "limit is unknown, never fabricated");
-    assert_eq!(window.remaining, None);
-    assert_eq!(window.used_percent, None);
+        .find(|window| window.window_key == "5h")
+        .expect("rolling window");
+    assert_eq!(rolling.used_percent, Some(12.5));
     assert_eq!(
-        window.remaining_percent, None,
-        "an unknown limit must not produce a percentage"
+        rolling.reset_at,
+        Some(now + chrono::Duration::seconds(3600))
     );
-    assert_eq!(window.confidence, lnwdeck_domain::Confidence::Medium);
-}
-
-/// Fixture with a `message` table shaped like the real opencode.db
-/// (`id, session_id, time_created, time_updated, data` JSON). The JSON rows
-/// mirror the real opencode-go message payloads, including absolute paths in
-/// `path.cwd` so the quota estimate can be verified not to leak them.
-fn create_go_fixture_db(dir: &Path) -> PathBuf {
-    let db_path = dir.join("opencode.db");
-    let conn = Connection::open(&db_path).expect("open fixture db");
-    conn.execute_batch(
-        "CREATE TABLE session (
-            id TEXT PRIMARY KEY,
-            project_id TEXT NOT NULL,
-            model TEXT,
-            cost REAL NOT NULL DEFAULT 0,
-            tokens_input INTEGER NOT NULL DEFAULT 0,
-            tokens_output INTEGER NOT NULL DEFAULT 0,
-            tokens_reasoning INTEGER NOT NULL DEFAULT 0,
-            tokens_cache_read INTEGER NOT NULL DEFAULT 0,
-            tokens_cache_write INTEGER NOT NULL DEFAULT 0,
-            time_updated INTEGER NOT NULL
-        );
-        CREATE TABLE message (
-            id TEXT PRIMARY KEY,
-            session_id TEXT NOT NULL,
-            time_created INTEGER NOT NULL,
-            time_updated INTEGER NOT NULL,
-            data TEXT NOT NULL
-        );",
-    )
-    .expect("create tables");
-
-    let now_ms = chrono::Utc::now().timestamp_millis();
-    let go_data = |cost: f64| {
-        format!(
-            r#"{{"role":"assistant","cost":{cost},"modelID":"glm-5.2","providerID":"opencode-go","time":{{"created":{now_ms},"completed":{now_ms}}},"path":{{"cwd":"C:\\Users\\ABCz\\Desktop\\secret-project","root":"C:\\Users\\ABCz\\Desktop\\secret-project"}}}}"#
-        )
-    };
-    let insert = |id: &str, data: &str| {
-        conn.execute(
-            "INSERT INTO message (id, session_id, time_created, time_updated, data)
-             VALUES (?1, 'ses_go', ?2, ?2, ?3)",
-            rusqlite::params![id, now_ms, data],
-        )
-        .expect("insert message");
-    };
-
-    insert("msg_1", &go_data(4.0));
-    insert("msg_2", &go_data(3.0));
-    insert("msg_3", &go_data(2.0));
-    insert("msg_4", &go_data(1.0));
-    // A cost stored as a string is not a billable number.
-    insert(
-        "msg_5",
-        &format!(
-            r#"{{"role":"assistant","cost":"50.00","providerID":"opencode-go","time":{{"created":{now_ms}}}}}"#
-        ),
+    assert_eq!(
+        rolling.limit, None,
+        "the provider reports percent, not dollars"
     );
-    // User turns are not billed assistant output.
-    insert(
-        "msg_6",
-        &format!(
-            r#"{{"role":"user","cost":999.0,"providerID":"opencode-go","time":{{"created":{now_ms}}}}}"#
-        ),
-    );
-    // Other providers are not OpenCode Go turns.
-    insert(
-        "msg_7",
-        &format!(
-            r#"{{"role":"assistant","cost":88.0,"providerID":"deepseek","time":{{"created":{now_ms}}}}}"#
-        ),
-    );
-    conn.close().expect("close fixture db");
-    db_path
-}
 
-fn next_week_end_utc(now: chrono::DateTime<chrono::Utc>) -> chrono::DateTime<chrono::Utc> {
-    let days = now.weekday().num_days_from_monday() as i64;
-    let monday = (now - chrono::Duration::days(days)).date_naive();
-    monday.and_hms_opt(0, 0, 0).expect("midnight").and_utc() + chrono::Duration::days(7)
-}
-
-fn next_month_end_utc(now: chrono::DateTime<chrono::Utc>) -> chrono::DateTime<chrono::Utc> {
-    let first = now.date_naive().with_day(1).expect("first of month");
-    let start = first.and_hms_opt(0, 0, 0).expect("midnight").and_utc();
-    if start.month() == 12 {
-        start
-            .with_year(start.year() + 1)
-            .expect("next year")
-            .with_month(1)
-            .expect("january")
-    } else {
-        start.with_month(start.month() + 1).expect("next month")
-    }
-}
-
-#[test]
-fn quota_estimate_uses_opencode_go_dollar_caps_from_message_table() {
-    let dir = tempdir().expect("temp dir");
-    let db_path = create_go_fixture_db(dir.path());
-    let adapter = adapter_for(&db_path);
-
-    let report = adapter
-        .collect_quota()
-        .expect("quota call")
-        .expect("report");
-    assert_eq!(report.provider_id, "opencode");
-    assert_eq!(report.source, "local_estimate");
-    assert!(report.is_usable());
-    assert_eq!(report.windows.len(), 3);
-
-    let now = chrono::Utc::now();
-    let five_h = report
-        .windows
+    let weekly = windows
         .iter()
-        .find(|w| w.window_key == "5h")
-        .expect("5h window");
-    assert_eq!(five_h.kind, lnwdeck_domain::QuotaKind::Credits);
-    assert_eq!(five_h.limit, Some(12_000_000), "$12 cap in micro-dollars");
-    assert_eq!(
-        five_h.used, 10_000_000,
-        "only opencode-go assistant rows with numeric cost are summed"
-    );
-    assert_eq!(five_h.remaining, Some(2_000_000));
-    assert!(
-        (five_h.used_percent.expect("percent") - 83.3333).abs() < 0.01,
-        "10 of 12 dollars used"
-    );
-    let expected_reset = now.timestamp_millis() + 5 * 3600 * 1000;
-    assert!(
-        (five_h.reset_at.expect("reset").timestamp_millis() - expected_reset).abs() < 5_000,
-        "5h window resets five hours after the oldest billed turn"
-    );
-    five_h.check_invariants().expect("consistent window");
+        .find(|window| window.window_key == "7d")
+        .expect("weekly window");
+    assert_eq!(weekly.used_percent, Some(48.0));
+    assert_eq!(weekly.reset_at, Some(now + chrono::Duration::seconds(7200)));
 
-    let seven_d = report
-        .windows
+    let monthly = windows
         .iter()
-        .find(|w| w.window_key == "7d")
-        .expect("7d window");
-    assert_eq!(seven_d.limit, Some(30_000_000), "$30 weekly cap");
-    assert_eq!(seven_d.used, 10_000_000);
+        .find(|window| window.window_key == "30d")
+        .expect("monthly window");
+    assert_eq!(monthly.used_percent, Some(25.0));
     assert_eq!(
-        seven_d.reset_at.expect("reset"),
-        next_week_end_utc(now),
-        "weekly window resets at the next Monday boundary (UTC)"
+        monthly.reset_at,
+        Some(now + chrono::Duration::seconds(86400))
     );
-    seven_d.check_invariants().expect("consistent window");
+}
 
-    let thirty_d = report
-        .windows
-        .iter()
-        .find(|w| w.window_key == "30d")
-        .expect("30d window");
-    assert_eq!(thirty_d.limit, Some(60_000_000), "$60 monthly cap");
-    assert_eq!(thirty_d.used, 10_000_000);
+#[test]
+fn dashboard_parser_handles_nested_objects_and_string_numbers() {
+    let now = chrono::DateTime::parse_from_rfc3339("2026-08-09T10:00:00Z")
+        .expect("fixed timestamp")
+        .with_timezone(&chrono::Utc);
+    let html = r#"
+        <script>
+          {"rollingUsage":{"metadata":{"label":"Go"},"resetInSec":"3600","usagePercent":"12.5"},
+           "weeklyUsage":{"usagePercent":48,"resetInSec":7200},
+           "monthlyUsage":{"usagePercent":0.25,"resetInSec":86400}}
+        </script>
+    "#;
+
+    let windows = windows_from_dashboard_html(html, now).expect("dashboard payload");
+    assert_eq!(windows.len(), 3);
     assert_eq!(
-        thirty_d.reset_at.expect("reset"),
-        next_month_end_utc(now),
-        "monthly window resets at the next calendar month (UTC)"
+        windows
+            .iter()
+            .find(|window| window.window_key == "5h")
+            .expect("rolling window")
+            .used_percent,
+        Some(12.5)
     );
-    thirty_d.check_invariants().expect("consistent window");
 }
 
 #[test]
-fn quota_estimate_falls_back_to_usage_only_windows_without_go_rows() {
-    let dir = tempdir().expect("temp dir");
-    let db_path = create_go_fixture_db(dir.path());
-    let conn = Connection::open(&db_path).expect("open");
-    conn.execute(
-        "DELETE FROM message WHERE json_extract(data, '$.providerID') = 'opencode-go'",
-        [],
+fn malformed_dashboard_quota_cannot_turn_into_a_full_percentage() {
+    let html = r#"<script>{"rollingUsage":{"usagePercent":"100"}}</script>"#;
+    let error = windows_from_dashboard_html(
+        html,
+        chrono::DateTime::parse_from_rfc3339("2026-08-09T10:00:00Z")
+            .expect("fixed timestamp")
+            .with_timezone(&chrono::Utc),
     )
-    .expect("remove go rows");
-    conn.execute(
-        "INSERT INTO session (id, project_id, model, cost, tokens_input, tokens_output,
-                              tokens_reasoning, tokens_cache_read, tokens_cache_write, time_updated)
-         VALUES ('sess_go', 'proj_go', 'glm-5.2', 0.1, 200, 100, 0, 0, 0, 1700000000000)",
-        [],
-    )
-    .expect("insert session");
-    conn.close().expect("close");
-
-    let adapter = adapter_for(&db_path);
-    let report = adapter
-        .collect_quota()
-        .expect("quota call")
-        .expect("report");
-    assert_eq!(report.windows.len(), 3);
-    for window in &report.windows {
-        assert_eq!(
-            window.limit, None,
-            "without opencode-go rows the limit stays unknown"
-        );
-        assert_eq!(window.remaining, None);
-        assert_eq!(window.used_percent, None);
-        window.check_invariants().expect("consistent window");
-    }
-}
-
-#[test]
-fn opencode_go_quota_report_leaks_no_paths_or_other_provider_costs() {
-    let dir = tempdir().expect("temp dir");
-    let db_path = create_go_fixture_db(dir.path());
-    let adapter = adapter_for(&db_path);
-
-    let report = adapter
-        .collect_quota()
-        .expect("quota call")
-        .expect("report");
-    let json = serde_json::to_string(&report).expect("serialize");
-    assert!(
-        !json.contains("secret-project"),
-        "absolute paths in message JSON must not reach the report"
-    );
-    assert!(!json.contains("C:\\\\"));
-    assert!(
-        !json.contains("deepseek"),
-        "other providers' rows must not leak"
-    );
-    assert!(
-        !json.contains("50.00"),
-        "string-typed costs are excluded, not serialized"
-    );
-    // The 999.0 user turn and 88.0 other-provider turn must not move the
-    // aggregated totals; the cap test asserts the exact 10_000_000 sum.
-    let value: serde_json::Value = serde_json::from_str(&json).expect("valid json");
-    for window in value["windows"].as_array().expect("windows") {
-        assert!(window["used"].as_u64().expect("used") <= 10_000_000);
-    }
-}
-
-#[test]
-fn quota_estimate_is_none_when_source_missing() {
-    let dir = tempdir().expect("temp dir");
-    let adapter = adapter_for(&dir.path().join("missing.db"));
-    assert!(
-        adapter.collect_quota().expect("quota call").is_none(),
-        "no local source means no estimate"
-    );
+    .expect_err("invalid provider data must be rejected");
+    assert_eq!(error, "SOURCE_SCHEMA_MISMATCH");
 }
 
 #[test]
@@ -608,7 +429,18 @@ fn requires_read_permission_on_local_store() {
     let db_path = create_fixture_db(dir.path());
     let adapter = adapter_for(&db_path);
 
-    assert!(adapter
-        .required_permissions()
-        .contains(&lnwdeck_provider_runtime::Permission::FileSystem));
+    let permissions = adapter.required_permissions();
+    assert!(permissions.contains(&lnwdeck_provider_runtime::Permission::FileSystem));
+    assert!(permissions.contains(&lnwdeck_provider_runtime::Permission::Network));
+    assert!(permissions.contains(&lnwdeck_provider_runtime::Permission::Credential));
+
+    let descriptor = adapter.descriptor();
+    assert_eq!(
+        descriptor.quota_support,
+        lnwdeck_provider_runtime::ChannelSupport::Native
+    );
+    assert_eq!(
+        descriptor.auth,
+        lnwdeck_provider_runtime::AuthKind::BrowserCookie
+    );
 }

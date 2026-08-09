@@ -9,8 +9,8 @@
 //! Because Gemini does not publish plan limits locally, quota windows are
 //! usage-only: real consumption with an unknown limit.
 
-use lnwdeck_domain::{Confidence, QuotaReport, UsageBatch, DEFAULT_FRESHNESS};
-use lnwdeck_provider_runtime::token_scan::{rolling_usage_windows, usage_events, ScanReport};
+use lnwdeck_domain::{Confidence, QuotaReport, UsageBatch};
+use lnwdeck_provider_runtime::token_scan::{usage_events, ScanReport};
 use lnwdeck_provider_runtime::{
     AdapterDescriptor, AdapterHealth, AdapterHealthStatus, AuthKind, ChannelSupport,
     DetectionResult, Permission, ProviderAdapter, SourceKind,
@@ -99,32 +99,15 @@ impl GeminiAdapter {
         result
     }
 
-    /// Real Gemini quota windows from the Code Assist API, then a usage-only
-    /// estimate from local transcripts when the API is not reachable.
+    /// Real Gemini quota windows from the Code Assist API.
+    ///
+    /// Local transcripts remain a usage source only. They do not contain the
+    /// account limit and therefore must never be converted into quota windows.
     fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
         if !self.root.is_dir() {
             return Ok(None);
         }
-        match quota_api::fetch_windows(&self.oauth_path(), quota_api::default_timeout()) {
-            Ok(Some(report)) => Ok(Some(report)),
-            Ok(None) => self.local_quota_estimate(),
-            Err(code) if code == "AUTH_EXPIRED" || code == "RATE_LIMITED" => Err(code),
-            Err(_) => self.local_quota_estimate(),
-        }
-    }
-
-    fn local_quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
-        let report = self.scan();
-        let windows = rolling_usage_windows(&report, chrono::Utc::now(), Confidence::Medium);
-        if windows.is_empty() {
-            return Ok(None);
-        }
-        Ok(Some(QuotaReport::new(
-            PROVIDER_ID,
-            "local_estimate",
-            windows,
-            DEFAULT_FRESHNESS,
-        )))
+        quota_api::fetch_windows(&self.oauth_path(), quota_api::default_timeout())
     }
 }
 
@@ -136,7 +119,7 @@ impl ProviderAdapter for GeminiAdapter {
             vendor: "Google",
             source_kind: SourceKind::LocalJsonl,
             usage_support: ChannelSupport::LocalEstimate,
-            quota_support: ChannelSupport::LocalEstimate,
+            quota_support: ChannelSupport::Native,
             auth: AuthKind::LocalFiles,
             adapter_version: ADAPTER_VERSION,
         }
@@ -239,12 +222,13 @@ mod tests {
     }
 
     #[test]
-    fn descriptor_declares_local_estimate_support() {
+    fn descriptor_declares_native_quota_support() {
         let adapter = GeminiAdapter::with_root(PathBuf::from("Z:/missing"));
         let descriptor = adapter.descriptor();
         descriptor.check().expect("descriptor is consistent");
         assert_eq!(descriptor.id, "google_gemini");
         assert_eq!(descriptor.usage_support, ChannelSupport::LocalEstimate);
+        assert_eq!(descriptor.quota_support, ChannelSupport::Native);
         assert!(!descriptor.is_inert());
         assert!(!descriptor.needs_credentials());
     }
@@ -296,13 +280,10 @@ mod tests {
         );
         assert_eq!(event.timestamp.to_rfc3339(), "2026-05-24T07:00:00+00:00");
 
-        let report = adapter.collect_quota().expect("quota").expect("report");
-        assert_eq!(report.provider_id, "google_gemini");
-        assert_eq!(report.windows.len(), 3);
-        for window in &report.windows {
-            assert_eq!(window.limit, None, "Gemini publishes no local plan limit");
-            assert_eq!(window.remaining_percent, None);
-        }
+        assert!(
+            adapter.collect_quota().expect("quota").is_none(),
+            "local transcript usage must not be presented as Gemini quota"
+        );
         assert_eq!(adapter.health_check().status, AdapterHealthStatus::Healthy);
         assert!(adapter.detect().expect("detect").detected);
     }

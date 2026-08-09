@@ -26,17 +26,18 @@ pub const WIDGET_SIZE_PRESETS: &[(&str, f64, f64)] = &[
 ];
 const DEFAULT_WIDGET_SIZE: &str = "medium";
 /// Pet window size presets (logical px). The preset scales both the window
-/// and the sprite; the pet window is never user-resized.
+/// and the sprite; the pet window is never user-resized. The extra width keeps
+/// the hover quota tooltip readable without clipping provider window labels.
 pub const PET_SIZE_PRESETS: &[(&str, f64, f64)] = &[
-    ("small", 200.0, 300.0),
-    ("medium", 280.0, 400.0),
-    ("large", 360.0, 520.0),
+    ("small", 300.0, 300.0),
+    ("medium", 400.0, 400.0),
+    ("large", 500.0, 520.0),
 ];
 const DEFAULT_PET_SIZE: &str = "medium";
 /// The pet window is deliberately small: it moves WITH the pet, so only the
 /// pet's own surface intercepts clicks and the rest of the desktop stays
 /// usable. Full-screen transparent overlays block every click underneath.
-const PET_WINDOW_WIDTH: f64 = 280.0;
+const PET_WINDOW_WIDTH: f64 = 400.0;
 /// Tall enough for the sprite AND the hover tooltip above it (logical px).
 const PET_WINDOW_HEIGHT: f64 = 400.0;
 /// Gap between the screen bottom and the pet window when it is shown.
@@ -124,7 +125,7 @@ pub fn pet_size_dimensions(preset: &str) -> (f64, f64) {
                 .iter()
                 .find(|(key, _, _)| *key == DEFAULT_PET_SIZE)
                 .map(|(_, w, h)| (*w, *h))
-                .unwrap_or((280.0, 400.0))
+                .unwrap_or((400.0, 400.0))
         })
 }
 
@@ -856,6 +857,7 @@ pub fn show_pet_window(app: tauri::AppHandle) -> Result<(), String> {
     let pet_window = app
         .get_webview_window(PET_LABEL)
         .ok_or("pet window not found")?;
+    apply_pet_size(&app);
     if let Some((x, y)) = default_pet_position(&pet_window) {
         let _ = pet_window.set_position(PhysicalPosition::new(x, y));
     }
@@ -1058,6 +1060,12 @@ mod tests {
             (0.0, 0.0),
             "clamps to zero rather than negative"
         );
+    }
+
+    #[test]
+    fn medium_pet_window_leaves_room_for_quota_window_labels() {
+        assert_eq!(pet_size_dimensions("medium"), (400.0, 400.0));
+        assert_eq!(pet_size_dimensions("unknown"), (400.0, 400.0));
     }
 
     #[test]

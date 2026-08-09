@@ -1981,7 +1981,7 @@ dependencies = [
 
 [[package]]
 name = "lnwdeck-desktop"
-version = "11.0.1"
+version = "11.0.2"
 dependencies = [
  "chrono",
  "getrandom 0.3.4",
@@ -2252,6 +2252,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "lnwdeck-domain",
+ "lnwdeck-provider-http",
  "lnwdeck-provider-runtime",
  "serde_json",
  "tempfile",
@@ -2304,8 +2305,10 @@ version = "0.2.0"
 dependencies = [
  "chrono",
  "lnwdeck-domain",
+ "lnwdeck-provider-http",
  "lnwdeck-provider-runtime",
  "lnwdeck-security",
+ "lnwdeck-windows-integration",
  "rusqlite",
  "serde_json",
  "tempfile",

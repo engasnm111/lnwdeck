@@ -7,10 +7,7 @@
 //! already counts them, and keying off the model id would wrongly re-count
 //! mimo-named models the user ran inside Claude Code.
 
-use lnwdeck_domain::{
-    Confidence, QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope, UsageBatch,
-    DEFAULT_FRESHNESS,
-};
+use lnwdeck_domain::{Confidence, QuotaReport, UsageBatch};
 use lnwdeck_provider_runtime::opencode_fork::{self, MessageSample};
 use lnwdeck_provider_runtime::token_scan::{usage_events, ScanBounds};
 use lnwdeck_provider_runtime::{
@@ -103,51 +100,6 @@ impl MimoAdapter {
         }
         result
     }
-
-    fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
-        if !self.db_path.is_file() {
-            return Ok(None);
-        }
-        let samples = opencode_fork::to_token_samples(&self.samples()?);
-        if samples.is_empty() {
-            return Ok(None);
-        }
-        let now = chrono::Utc::now();
-        let windows = [
-            ("5h", "5-hour", QuotaWindowScope::Rolling, 5 * 3600i64),
-            ("7d", "7-day", QuotaWindowScope::Weekly, 7 * 24 * 3600),
-            ("30d", "30-day", QuotaWindowScope::Monthly, 30 * 24 * 3600),
-        ]
-        .into_iter()
-        .map(|(key, label, scope, seconds)| {
-            let used = samples
-                .iter()
-                .filter(|sample| {
-                    sample.timestamp > now - chrono::Duration::seconds(seconds)
-                        && sample.timestamp <= now
-                })
-                .fold(0u64, |acc, sample| {
-                    acc.saturating_add(sample.input_tokens)
-                        .saturating_add(sample.output_tokens)
-                });
-            QuotaWindow::usage_only(
-                key,
-                label,
-                scope,
-                QuotaKind::Tokens,
-                used,
-                None,
-                Confidence::Medium,
-            )
-        })
-        .collect();
-        Ok(Some(QuotaReport::new(
-            PROVIDER_ID,
-            "local_estimate",
-            windows,
-            DEFAULT_FRESHNESS,
-        )))
-    }
 }
 
 impl ProviderAdapter for MimoAdapter {
@@ -158,7 +110,7 @@ impl ProviderAdapter for MimoAdapter {
             vendor: "Xiaomi",
             source_kind: SourceKind::LocalSqlite,
             usage_support: ChannelSupport::LocalEstimate,
-            quota_support: ChannelSupport::LocalEstimate,
+            quota_support: ChannelSupport::Unsupported,
             auth: AuthKind::LocalFiles,
             adapter_version: ADAPTER_VERSION,
         }
@@ -181,7 +133,7 @@ impl ProviderAdapter for MimoAdapter {
     }
 
     fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
-        self.quota_estimate()
+        Ok(None)
     }
 
     fn health_check(&self) -> AdapterHealth {

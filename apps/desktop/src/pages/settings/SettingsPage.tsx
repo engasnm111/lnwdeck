@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Button, Card, DataState, Field, Toggle } from "@lnwdeck/ui";
 import {
+  deleteOpenCodeGoConfig,
   deleteProviderKey,
   fetchSettings,
   fetchWidgetSettings,
   hideWidgetWindow,
   saveSettings,
   setLanguage,
+  setOpenCodeGoConfig,
   setProviderKey,
   setWidgetSizePreset,
   setWidgetView,
@@ -63,6 +65,11 @@ export function SettingsPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
   const [keyError, setKeyError] = useState<string | null>(null);
+  const [opencodeGoDraft, setOpenCodeGoDraft] = useState({
+    workspaceId: "",
+    authCookie: "",
+  });
+  const [opencodeGoError, setOpenCodeGoError] = useState<string | null>(null);
 
   // Widget layout (bars / rings / pet), applied immediately via its own
   // command rather than through the saved-settings form.
@@ -128,6 +135,7 @@ export function SettingsPage() {
       const result = await fetchSettings();
       setView(result);
       setDraft(result.settings);
+      setOpenCodeGoDraft({ workspaceId: "", authCookie: "" });
     } catch (loadError) {
       setError(
         loadError instanceof Error ? loadError : new Error(String(loadError)),
@@ -234,6 +242,33 @@ export function SettingsPage() {
       setView(await deleteProviderKey(providerId));
     } catch (error_) {
       setKeyError(error_ instanceof Error ? error_.message : String(error_));
+    }
+  }, []);
+
+  const handleStoreOpenCodeGo = useCallback(async () => {
+    setOpenCodeGoError(null);
+    try {
+      const stored = await setOpenCodeGoConfig(
+        opencodeGoDraft.workspaceId,
+        opencodeGoDraft.authCookie,
+      );
+      setView(stored);
+      setOpenCodeGoDraft({ workspaceId: "", authCookie: "" });
+    } catch (error_) {
+      setOpenCodeGoError(
+        error_ instanceof Error ? error_.message : String(error_),
+      );
+    }
+  }, [opencodeGoDraft]);
+
+  const handleDeleteOpenCodeGo = useCallback(async () => {
+    setOpenCodeGoError(null);
+    try {
+      setView(await deleteOpenCodeGoConfig());
+    } catch (error_) {
+      setOpenCodeGoError(
+        error_ instanceof Error ? error_.message : String(error_),
+      );
     }
   }, []);
 
@@ -443,6 +478,105 @@ export function SettingsPage() {
                     }
                   />
                 </Field>
+              </div>
+            </Card>
+
+            <Card
+              title={t("settings.opencodeGo.title")}
+              subtitle={
+                view.credential_store_supported
+                  ? t("settings.opencodeGo.subtitle")
+                  : t("settings.opencodeGo.noStore")
+              }
+            >
+              <div className="stack-tight">
+                <p className="ui-inline-note">
+                  {t("settings.opencodeGo.envHint")}
+                </p>
+                <div className="settings-grid">
+                  <Field
+                    label={t("settings.opencodeGo.workspaceId")}
+                    htmlFor="opencode-go-workspace-id"
+                    hint={t("settings.opencodeGo.workspaceIdHint")}
+                  >
+                    <input
+                      id="opencode-go-workspace-id"
+                      className="ui-input"
+                      type="text"
+                      autoComplete="off"
+                      value={opencodeGoDraft.workspaceId}
+                      disabled={!view.credential_store_supported}
+                      onChange={(event) =>
+                        setOpenCodeGoDraft((current) => ({
+                          ...current,
+                          workspaceId: event.target.value,
+                        }))
+                      }
+                    />
+                  </Field>
+                  <Field
+                    label={t("settings.opencodeGo.authCookie")}
+                    htmlFor="opencode-go-auth-cookie"
+                    hint={t("settings.opencodeGo.authCookieHint")}
+                  >
+                    <input
+                      id="opencode-go-auth-cookie"
+                      className="ui-input"
+                      type="password"
+                      autoComplete="new-password"
+                      value={opencodeGoDraft.authCookie}
+                      disabled={!view.credential_store_supported}
+                      onChange={(event) =>
+                        setOpenCodeGoDraft((current) => ({
+                          ...current,
+                          authCookie: event.target.value,
+                        }))
+                      }
+                    />
+                  </Field>
+                </div>
+                <div className="row-between">
+                  <Badge
+                    tone={
+                      view.opencode_go.state === "configured"
+                        ? "success"
+                        : view.opencode_go.state === "expired"
+                          ? "warning"
+                          : "neutral"
+                    }
+                  >
+                    {t(`settings.opencodeGo.state.${view.opencode_go.state}`)}
+                  </Badge>
+                  <div className="row">
+                    <Button
+                      size="small"
+                      disabled={
+                        !view.credential_store_supported ||
+                        !opencodeGoDraft.workspaceId.trim() ||
+                        !opencodeGoDraft.authCookie.trim()
+                      }
+                      onClick={() => void handleStoreOpenCodeGo()}
+                    >
+                      {t("settings.opencodeGo.store")}
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="danger"
+                      disabled={
+                        !view.credential_store_supported ||
+                        view.opencode_go.state === "missing"
+                      }
+                      onClick={() => void handleDeleteOpenCodeGo()}
+                    >
+                      {t("common.remove")}
+                    </Button>
+                  </div>
+                </div>
+                {opencodeGoError && (
+                  <p className="ui-field-error" role="alert">
+                    {opencodeGoError}
+                  </p>
+                )}
               </div>
             </Card>
 

@@ -118,7 +118,7 @@ export function DesktopPet() {
   const [pets, setPets] = useState<PetManifest[]>([]);
   const [scale, setScale] = useState(1);
   const [monitorSize, setMonitorSize] = useState({ w: 1920, h: 1080 });
-  const [viewSize, setViewSize] = useState({ w: 280, h: 340 });
+  const [viewSize, setViewSize] = useState({ w: 400, h: 400 });
   const [pos, setPos] = useState({ x: 100, y: 200 });
   const [movementState, setMovementState] = useState<PetMovementState>("idle");
   const [direction, setDirection] = useState<"left" | "right">("right");

@@ -12,6 +12,8 @@ vi.mock("../../lib/native", async (importOriginal) => {
     saveSettings: vi.fn(),
     setProviderKey: vi.fn(),
     deleteProviderKey: vi.fn(),
+    setOpenCodeGoConfig: vi.fn(),
+    deleteOpenCodeGoConfig: vi.fn(),
     fetchWidgetSettings: vi.fn(),
     setWidgetView: vi.fn(),
     setWidgetSizePreset: vi.fn(),
@@ -59,6 +61,7 @@ const view = (
       state: "missing",
     },
   ],
+  opencode_go: { state: "missing" },
   allowed_refresh_intervals: [0, 30, 60, 300, 900, 3600],
   allowed_themes: ["dark", "light", "system"],
   allowed_retention_days: [7, 30, 90, 365, 0],
@@ -71,6 +74,8 @@ describe("SettingsPage", () => {
     vi.mocked(native.saveSettings).mockReset();
     vi.mocked(native.setProviderKey).mockReset();
     vi.mocked(native.deleteProviderKey).mockReset();
+    vi.mocked(native.setOpenCodeGoConfig).mockReset();
+    vi.mocked(native.deleteOpenCodeGoConfig).mockReset();
     vi.mocked(native.fetchWidgetSettings).mockReset();
     vi.mocked(native.setWidgetView).mockReset();
     vi.mocked(native.setWidgetSizePreset).mockReset();
@@ -183,6 +188,29 @@ describe("SettingsPage", () => {
       expect(screen.getByText("configured")).toBeInTheDocument(),
     );
     expect(screen.queryByDisplayValue("sk-secret")).not.toBeInTheDocument();
+  });
+
+  it("stores OpenCode Go credentials without displaying the cookie", async () => {
+    vi.mocked(native.fetchSettings).mockResolvedValue(view());
+    vi.mocked(native.setOpenCodeGoConfig).mockResolvedValue(
+      view({ opencode_go: { state: "configured" } }),
+    );
+    render(<SettingsPage />);
+
+    const workspace = await screen.findByLabelText("Workspace ID");
+    const cookie = screen.getByLabelText("Auth cookie");
+    await userEvent.type(workspace, "workspace-test-123");
+    await userEvent.type(cookie, "cookie-secret-value");
+    await userEvent.click(screen.getByRole("button", { name: "Store OpenCode Go" }));
+
+    await waitFor(() =>
+      expect(native.setOpenCodeGoConfig).toHaveBeenCalledWith(
+        "workspace-test-123",
+        "cookie-secret-value",
+      ),
+    );
+    expect(screen.queryByDisplayValue("cookie-secret-value")).not.toBeInTheDocument();
+    expect(screen.getByText("Configured")).toBeInTheDocument();
   });
 
   it("disables startup when the platform does not support it", async () => {

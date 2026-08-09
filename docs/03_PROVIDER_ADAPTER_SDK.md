@@ -205,34 +205,43 @@ Repeated crash policy:
 
 ## 8. v0.1 capability matrix target
 
-| Provider group |     Local log |                     Hook |                API |  Browser |              Quota |                  Cost |
-| -------------- | ------------: | -----------------------: | -----------------: | -------: | -----------------: | --------------------: |
-| Claude         |           Yes |                      Yes |           Optional |      Yes |                Yes |                   Yes |
-| Codex/OpenAI   |           Yes |                      Yes |           Optional |      Yes |                Yes |                   Yes |
-| Cursor         |           Yes |            No by default | Provider-dependent | Optional |                Yes |       Estimated/Exact |
-| Gemini         |           Yes |                      Yes |           Optional |      Yes |                Yes |                   Yes |
-| Copilot        |           Yes |       Provider-dependent |           Optional | Optional |                Yes |             Estimated |
-| OpenCode       |           Yes | Plugin/Hook with consent |                 No |       No | Provider-dependent |             Estimated |
-| Grok           |           Yes |                      Yes |           Optional |      Yes |                Yes |                   Yes |
-| Kiro           |           Yes |       Provider-dependent |                 No | Optional |                Yes |             Estimated |
-| Ollama         | Local API/log |                       No |          Local API |       No |     Not applicable | Zero or user override |
-| OpenRouter     |            No |                       No |                Yes | Optional |       Credit/limit |                 Exact |
-| ZCode          |           Yes |                       No |                 Yes |       No |        Yes (real) |             Estimated |
-| Z.AI (GLM)     |           Yes |                       No |                 No |       No | Local estimate |             Estimated |
-| Kimi Code      |           Yes |                       No |                 No |       No | Local estimate |             Estimated |
-| Kilo CLI       |           Yes |                       No |                 No |       No | Local estimate |             Estimated |
-| Kilo Code      |           Yes |                       No |                 No |       No | Local estimate |             Estimated |
-| Mimo Code      |           Yes |                       No |                 No |       No | Local estimate |             Estimated |
-| Roo Code       |           Yes |                       No |                 No |       No | Local estimate |             Estimated |
-| CodeBuddy      |           Yes |                       No |                 No |       No | Local estimate |             Estimated |
-| WorkBuddy      |           Yes |                       No |                 No |       No | Local estimate |             Estimated |
-| pi / oh-my-pi  |           Yes |              OMP notify* |                 No |       No | Local estimate |             Estimated |
-| Hermes         |           Yes |                       No |                 No |       No | Local estimate |             Estimated |
+| Provider | Usage source | Quota source | User setup / no-source behavior |
+| --- | --- | --- | --- |
+| Claude | Local session JSONL | Anthropic OAuth usage API | Use the provider's local `claude` login; no key is copied into lnwdeck |
+| OpenAI Codex | Local session JSONL | ChatGPT `/wham/usage` plus reset-credit data; local published rate snapshot is fallback | Use the provider's local `codex` login |
+| Cursor | Local state plus account API | Cursor account usage summary API | Log in to Cursor on that machine |
+| Gemini | Local session/log | Gemini Code Assist quota API | Log in to Gemini CLI on that machine |
+| OpenCode Go | OpenCode SQLite | Authenticated OpenCode workspace dashboard | User supplies the workspace/cookie pair; see `docs/PROVIDER_QUOTA_SETUP.md` |
+| ZCode | ZCode SQLite | Z.AI/BigModel monitor API or provider-written `billing/balance` log | No local-token fallback; no source means no quota |
+| Kimi Code | `wire.jsonl` | Kimi usages API with OAuth refresh | Reuses the Kimi CLI credential file; no local-token fallback |
+| Grok | No usage channel in this adapter | xAI rate-limit API/headers | Key is entered in Settings |
+| OpenRouter | No usage channel in this adapter | OpenRouter credit/limit API | Key is entered in Settings |
+| Ollama | No usage channel in this adapter | Local API probe; unlimited only when reachable | Ollama must be running locally |
+| Copilot, Kiro, Z.AI, Kilo, Mimo, Roo, CodeBuddy, WorkBuddy, pi, oh-my-pi, Hermes | Local artifacts | Not supported until a provider-published limit source is verified | Usage remains available; quota is explicitly not supported |
 
 \* oh-my-pi's notify extension is not installed by lnwdeck; the passive session
 reader is the only source.
 
 Final capability must be verified against current provider behavior during implementation. Unsupported capability must be shown honestly, not fabricated.
+
+### OpenCode Go quota integration
+
+The OpenCode (Go) adapter has two separate channels: local SQLite session
+metadata remains the source for usage history, while quota is read from
+`https://opencode.ai/workspace/{workspace_id}/go`. The user must provide
+both `OPENCODE_GO_WORKSPACE_ID` and `OPENCODE_GO_AUTH_COOKIE` on each machine,
+either through Settings or as environment variables. Environment values take
+precedence over Credential Manager and must never be committed or placed in a
+`.env` file. The Settings form stores the pair as one credential in Windows
+Credential Manager; the UI only receives `missing`, `configured` or `expired`
+state. See `docs/PROVIDER_QUOTA_SETUP.md` for the PowerShell procedure.
+
+The dashboard reports utilization percentages and reset seconds. The adapter
+keeps those values as percentage-only quota windows and does not infer a
+dollar cap from local message history. Missing or invalid credentials produce
+`NOT_CONFIGURED` with no quota windows, so consumers must not render a default
+100% bar. A machine without an OpenCode installation is `not_detected`, not a
+refresh failure for the rest of the provider set.
 
 ## 9. Contract tests
 

@@ -7,12 +7,10 @@
 //! inside `<environment_details>` blocks, so the last-seen model in that file
 //! is used for the whole task, falling back to `protocol:<apiProtocol>`.
 //!
-//! Quota is a usage-only local estimate: real consumption, unknown limit.
+//! No provider-published quota source is wired to this adapter; local usage
+//! remains useful but quota stays explicitly unsupported.
 
-use lnwdeck_domain::{
-    Confidence, QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope, UsageBatch,
-    DEFAULT_FRESHNESS,
-};
+use lnwdeck_domain::{Confidence, QuotaReport, UsageBatch};
 use lnwdeck_provider_runtime::token_scan::{usage_events, TokenSample};
 use lnwdeck_provider_runtime::ui_messages;
 use lnwdeck_provider_runtime::{
@@ -121,48 +119,6 @@ impl RooAdapter {
         }
         result
     }
-
-    fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
-        let samples = self.samples();
-        if samples.is_empty() {
-            return Ok(None);
-        }
-        let now = chrono::Utc::now();
-        let windows = [
-            ("5h", "5-hour", QuotaWindowScope::Rolling, 5 * 3600i64),
-            ("7d", "7-day", QuotaWindowScope::Weekly, 7 * 24 * 3600),
-            ("30d", "30-day", QuotaWindowScope::Monthly, 30 * 24 * 3600),
-        ]
-        .into_iter()
-        .map(|(key, label, scope, seconds)| {
-            let used = samples
-                .iter()
-                .filter(|sample| {
-                    sample.timestamp > now - chrono::Duration::seconds(seconds)
-                        && sample.timestamp <= now
-                })
-                .fold(0u64, |acc, sample| {
-                    acc.saturating_add(sample.input_tokens)
-                        .saturating_add(sample.output_tokens)
-                });
-            QuotaWindow::usage_only(
-                key,
-                label,
-                scope,
-                QuotaKind::Tokens,
-                used,
-                None,
-                Confidence::Medium,
-            )
-        })
-        .collect();
-        Ok(Some(QuotaReport::new(
-            PROVIDER_ID,
-            "local_estimate",
-            windows,
-            DEFAULT_FRESHNESS,
-        )))
-    }
 }
 
 /// Extracts the last non-empty `<model>...</model>` tag from a history file.
@@ -217,7 +173,7 @@ impl ProviderAdapter for RooAdapter {
             vendor: "Roo",
             source_kind: SourceKind::LocalJsonl,
             usage_support: ChannelSupport::LocalEstimate,
-            quota_support: ChannelSupport::LocalEstimate,
+            quota_support: ChannelSupport::Unsupported,
             auth: AuthKind::LocalFiles,
             adapter_version: ADAPTER_VERSION,
         }
@@ -235,7 +191,7 @@ impl ProviderAdapter for RooAdapter {
     }
 
     fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
-        self.quota_estimate()
+        Ok(None)
     }
 
     fn health_check(&self) -> AdapterHealth {
@@ -314,8 +270,10 @@ mod tests {
         assert_eq!(batch.events.len(), 1);
         assert_eq!(batch.events[0].model, "claude-3-7-sonnet-20250219");
         assert_eq!(batch.events[0].tokens_input, 120);
-        let report = adapter.collect_quota().expect("quota").expect("report");
-        assert!(report.windows[0].used > 0);
+        assert!(
+            adapter.collect_quota().expect("quota").is_none(),
+            "local Roo Code records are not a published quota"
+        );
     }
 
     #[test]

@@ -13,15 +13,11 @@
 //!   subscription, counted by the OpenCode adapter).
 //!
 //! Only GLM model identifiers are counted, so a Claude or Gemini model in the
-//! same files is never misattributed to Z.AI. Quota is a usage-only estimate:
-//! real token consumption with an unknown limit, never a fabricated
-//! remaining bar. When the ZCode adapter is installed it reports the real
-//! coding-plan quota for the same account.
+//! same files is never misattributed to Z.AI. This adapter exposes usage only;
+//! it does not claim a quota source for plain API keys. When the ZCode adapter
+//! is installed it reports the real coding-plan quota for the same account.
 
-use lnwdeck_domain::{
-    Confidence, QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope, UsageBatch,
-    DEFAULT_FRESHNESS,
-};
+use lnwdeck_domain::{Confidence, QuotaReport, UsageBatch};
 use lnwdeck_provider_runtime::opencode_fork;
 use lnwdeck_provider_runtime::token_scan::{scan_directory, usage_events, ScanBounds, TokenSample};
 use lnwdeck_provider_runtime::{
@@ -158,49 +154,6 @@ impl ZaiAdapter {
         }
         result
     }
-
-    /// Usage-only rolling windows (5h / 7d / 30d) over the GLM samples.
-    fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
-        let samples = self.samples();
-        if samples.is_empty() {
-            return Ok(None);
-        }
-        let now = chrono::Utc::now();
-        let windows = [
-            ("5h", "5-hour", QuotaWindowScope::Rolling, 5 * 3600i64),
-            ("7d", "7-day", QuotaWindowScope::Weekly, 7 * 24 * 3600),
-            ("30d", "30-day", QuotaWindowScope::Monthly, 30 * 24 * 3600),
-        ]
-        .into_iter()
-        .map(|(key, label, scope, seconds)| {
-            let used = samples
-                .iter()
-                .filter(|sample| {
-                    sample.timestamp > now - chrono::Duration::seconds(seconds)
-                        && sample.timestamp <= now
-                })
-                .fold(0u64, |acc, sample| {
-                    acc.saturating_add(sample.input_tokens)
-                        .saturating_add(sample.output_tokens)
-                });
-            QuotaWindow::usage_only(
-                key,
-                label,
-                scope,
-                QuotaKind::Tokens,
-                used,
-                None,
-                Confidence::Medium,
-            )
-        })
-        .collect();
-        Ok(Some(QuotaReport::new(
-            PROVIDER_ID,
-            "local_estimate",
-            windows,
-            DEFAULT_FRESHNESS,
-        )))
-    }
 }
 
 impl ProviderAdapter for ZaiAdapter {
@@ -211,7 +164,7 @@ impl ProviderAdapter for ZaiAdapter {
             vendor: "Zhipu AI",
             source_kind: SourceKind::LocalJsonl,
             usage_support: ChannelSupport::LocalEstimate,
-            quota_support: ChannelSupport::LocalEstimate,
+            quota_support: ChannelSupport::Unsupported,
             auth: AuthKind::LocalFiles,
             adapter_version: ADAPTER_VERSION,
         }
@@ -229,7 +182,7 @@ impl ProviderAdapter for ZaiAdapter {
     }
 
     fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
-        self.quota_estimate()
+        Ok(None)
     }
 
     fn health_check(&self) -> AdapterHealth {
@@ -379,13 +332,9 @@ mod tests {
         )
         .expect("write");
         let adapter = ZaiAdapter::with_paths(projects, dir.path().join("no.db"));
-        let report = adapter.collect_quota().expect("quota").expect("report");
-        assert_eq!(report.windows.len(), 3);
-        for window in &report.windows {
-            assert_eq!(window.limit, None);
-            assert_eq!(window.remaining_percent, None);
-            window.check_invariants().expect("consistent window");
-        }
-        assert!(report.windows[0].used > 0);
+        assert!(
+            adapter.collect_quota().expect("quota").is_none(),
+            "local Z.AI records are not a published quota"
+        );
     }
 }

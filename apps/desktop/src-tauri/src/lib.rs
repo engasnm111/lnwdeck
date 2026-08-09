@@ -238,6 +238,8 @@ pub fn run() {
             commands::pages::save_settings,
             commands::pages::set_provider_key,
             commands::pages::delete_provider_key,
+            commands::pages::set_opencode_go_config,
+            commands::pages::delete_opencode_go_config,
             commands::pages::get_app_events,
             windows::show_widget,
             windows::hide_widget,

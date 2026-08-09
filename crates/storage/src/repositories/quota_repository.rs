@@ -9,6 +9,9 @@ use rusqlite::{params, Connection, OptionalExtension};
 pub enum QuotaUpsert {
     Inserted,
     Replaced,
+    /// The incoming report describes a failed collection and the existing
+    /// latest-good snapshot was intentionally retained.
+    Skipped,
 }
 
 /// One historical window snapshot returned by `history`.
@@ -34,19 +37,24 @@ impl<'a> QuotaRepository<'a> {
 
     /// Stores or replaces the latest report for a provider. Older reports
     /// never clobber newer ones: when the incoming report is older than the
-    /// stored one, it is ignored and `Replaced` is returned.
+    /// stored one, it is ignored and `Replaced` is returned. A failed report
+    /// never clobbers an existing usable snapshot; the collector run stores
+    /// that failure separately for diagnostics.
     pub fn upsert_report(&self, report: &QuotaReport) -> Result<QuotaUpsert, rusqlite::Error> {
         let collected_at = report.collected_at.to_rfc3339();
-        let stored: Option<String> = self
+        let stored: Option<(String, String)> = self
             .conn
             .query_row(
-                "SELECT collected_at FROM quota_reports WHERE provider_id = ?1",
+                "SELECT collected_at, status FROM quota_reports WHERE provider_id = ?1",
                 [&report.provider_id],
-                |row| row.get(0),
+                |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .optional()?;
 
-        if let Some(stored_at) = stored {
+        if let Some((stored_at, stored_status)) = stored {
+            if report.status.is_error() && parse_status(&stored_status).is_usable() {
+                return Ok(QuotaUpsert::Skipped);
+            }
             let stored_dt = DateTime::parse_from_rfc3339(&stored_at)
                 .map(|dt| dt.with_timezone(&Utc))
                 .unwrap_or(Utc::now());

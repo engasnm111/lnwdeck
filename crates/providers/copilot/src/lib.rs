@@ -6,9 +6,9 @@
 //! model identifiers are extracted; log message text is never carried out.
 //! Copilot exposes no plan limit locally, so quota windows are usage-only.
 
-use lnwdeck_domain::{Confidence, QuotaReport, UsageBatch, DEFAULT_FRESHNESS};
+use lnwdeck_domain::{Confidence, QuotaReport, UsageBatch};
 use lnwdeck_provider_runtime::token_scan::{
-    rolling_usage_windows, scan_directories, usage_events, ScanBounds, ScanReport,
+    scan_directories, usage_events, ScanBounds, ScanReport,
 };
 use lnwdeck_provider_runtime::{
     AdapterDescriptor, AdapterHealth, AdapterHealthStatus, AuthKind, ChannelSupport,
@@ -99,7 +99,7 @@ impl ProviderAdapter for CopilotAdapter {
             vendor: "GitHub",
             source_kind: SourceKind::LocalLog,
             usage_support: ChannelSupport::LocalEstimate,
-            quota_support: ChannelSupport::LocalEstimate,
+            quota_support: ChannelSupport::Unsupported,
             auth: AuthKind::LocalFiles,
             adapter_version: ADAPTER_VERSION,
         }
@@ -122,19 +122,7 @@ impl ProviderAdapter for CopilotAdapter {
     }
 
     fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
-        if !self.any_root_exists() {
-            return Ok(None);
-        }
-        let windows = rolling_usage_windows(&self.scan(), chrono::Utc::now(), Confidence::Medium);
-        if windows.is_empty() {
-            return Ok(None);
-        }
-        Ok(Some(QuotaReport::new(
-            PROVIDER_ID,
-            "local_estimate",
-            windows,
-            DEFAULT_FRESHNESS,
-        )))
+        Ok(None)
     }
 
     fn health_check(&self) -> AdapterHealth {
@@ -180,12 +168,13 @@ mod tests {
     }
 
     #[test]
-    fn descriptor_is_consistent_and_declares_local_estimates() {
+    fn descriptor_is_consistent_and_declares_usage_only_support() {
         let adapter = CopilotAdapter::with_roots(vec![PathBuf::from("Z:/missing")]);
         let descriptor = adapter.descriptor();
         descriptor.check().expect("descriptor is consistent");
         assert_eq!(descriptor.id, PROVIDER_ID);
         assert_eq!(descriptor.usage_support, ChannelSupport::LocalEstimate);
+        assert_eq!(descriptor.quota_support, ChannelSupport::Unsupported);
         assert!(!descriptor.is_inert());
     }
 
@@ -223,11 +212,10 @@ mod tests {
         assert_eq!(batch.events[0].provider_id, PROVIDER_ID);
         assert_eq!(batch.events[0].model, "copilot-chat");
 
-        let report = adapter.collect_quota().expect("quota").expect("report");
-        assert_eq!(report.windows.len(), 3);
-        assert_eq!(report.windows[0].used, 415);
-        assert_eq!(report.windows[0].limit, None);
-        assert_eq!(report.windows[0].remaining_percent, None);
+        assert!(
+            adapter.collect_quota().expect("quota").is_none(),
+            "local Copilot records are not a published quota"
+        );
         assert_eq!(adapter.health_check().status, AdapterHealthStatus::Healthy);
     }
 

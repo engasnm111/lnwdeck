@@ -87,6 +87,9 @@ pub enum AuthKind {
     LocalFiles,
     /// A user-supplied API key held in the Windows Credential Manager.
     ApiKey,
+    /// A user-supplied browser session cookie held in the Windows Credential
+    /// Manager. The adapter must never expose the cookie to the UI.
+    BrowserCookie,
 }
 
 /// Immutable declaration of an adapter's identity and capabilities.
@@ -109,9 +112,9 @@ impl AdapterDescriptor {
         !self.usage_support.is_supported() && !self.quota_support.is_supported()
     }
 
-    /// True when the adapter cannot work until the user supplies a key.
+    /// True when the adapter cannot work until the user supplies credentials.
     pub fn needs_credentials(&self) -> bool {
-        matches!(self.auth, AuthKind::ApiKey)
+        matches!(self.auth, AuthKind::ApiKey | AuthKind::BrowserCookie)
     }
 
     /// Checks the descriptor's internal consistency. Returns the reason when
@@ -224,6 +227,15 @@ mod tests {
         };
         ok.check().expect("api key descriptor is consistent");
         assert!(ok.needs_credentials());
+
+        let browser_cookie = AdapterDescriptor {
+            auth: AuthKind::BrowserCookie,
+            ..ok
+        };
+        browser_cookie
+            .check()
+            .expect("browser cookie descriptor is consistent");
+        assert!(browser_cookie.needs_credentials());
     }
 
     #[test]

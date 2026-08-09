@@ -275,14 +275,25 @@ fn emit_refresh_event(
 }
 
 fn cycle_has_provider_failure(cycle: &RefreshCycleOutcome) -> bool {
-    cycle
-        .usage
-        .iter()
-        .any(|outcome| !outcome.error_code.is_empty() && !outcome.is_not_supported())
-        || cycle
-            .quota
-            .iter()
-            .any(|outcome| !outcome.error_code.is_empty() && outcome.error_code != "NOT_SUPPORTED")
+    cycle.usage.iter().any(|outcome| {
+        !outcome.error_code.is_empty()
+            && !outcome.is_not_supported()
+            && !is_expected_provider_absence(&outcome.error_code)
+    }) || cycle.quota.iter().any(|outcome| {
+        !outcome.error_code.is_empty()
+            && outcome.error_code != "NOT_SUPPORTED"
+            && !is_expected_provider_absence(&outcome.error_code)
+    })
+}
+
+/// A multi-machine installation normally has providers that are not installed
+/// or not configured on every machine. Those outcomes are represented on the
+/// provider card and must not turn the shared refresh job into a global error.
+fn is_expected_provider_absence(code: &str) -> bool {
+    matches!(
+        code,
+        "SOURCE_UNAVAILABLE" | "NOT_INSTALLED" | "NOT_CONFIGURED" | "UNSUPPORTED" | "NOT_SUPPORTED"
+    )
 }
 
 /// Starts the same refresh job used by the tray and every UI surface. It
@@ -680,5 +691,35 @@ mod tests {
         assert_eq!(totals.events_inserted, 0);
         assert_eq!(diag.provider_states().expect("states").len(), 0);
         assert_eq!(diag.latest_runs().expect("runs").len(), 0);
+    }
+
+    #[test]
+    fn provider_absence_codes_do_not_make_the_shared_refresh_partial() {
+        for code in [
+            "SOURCE_UNAVAILABLE",
+            "NOT_INSTALLED",
+            "NOT_CONFIGURED",
+            "UNSUPPORTED",
+            "NOT_SUPPORTED",
+        ] {
+            assert!(
+                is_expected_provider_absence(code),
+                "{code} should stay local to its provider card"
+            );
+        }
+    }
+
+    #[test]
+    fn authentication_and_schema_errors_still_make_the_shared_refresh_partial() {
+        for code in [
+            "AUTH_EXPIRED",
+            "PERMISSION_DENIED",
+            "SOURCE_SCHEMA_MISMATCH",
+        ] {
+            assert!(
+                !is_expected_provider_absence(code),
+                "{code} must remain visible as a real refresh problem"
+            );
+        }
     }
 }

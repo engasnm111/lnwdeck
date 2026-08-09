@@ -228,50 +228,6 @@ impl CodexAdapter {
         Ok(samples)
     }
 
-    fn local_quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
-        if !self.sessions_dir.is_dir() {
-            return Ok(None);
-        }
-        let Some([five_h, seven_d, thirty_d]) = self.scan_session_files()? else {
-            return Ok(None);
-        };
-        let windows = vec![
-            QuotaWindow::usage_only(
-                "5h",
-                "5-hour",
-                QuotaWindowScope::Rolling,
-                QuotaKind::Tokens,
-                five_h,
-                None,
-                Confidence::Medium,
-            ),
-            QuotaWindow::usage_only(
-                "7d",
-                "7-day",
-                QuotaWindowScope::Weekly,
-                QuotaKind::Tokens,
-                seven_d,
-                None,
-                Confidence::Medium,
-            ),
-            QuotaWindow::usage_only(
-                "30d",
-                "30-day",
-                QuotaWindowScope::Monthly,
-                QuotaKind::Tokens,
-                thirty_d,
-                None,
-                Confidence::Medium,
-            ),
-        ];
-        Ok(Some(QuotaReport::new(
-            "openai_codex",
-            "local_estimate",
-            windows,
-            DEFAULT_FRESHNESS,
-        )))
-    }
-
     /// The rate-limit windows Codex published in a local `token_count` record.
     /// The newest local snapshot wins; it is only used when the live API is
     /// unavailable.
@@ -322,7 +278,8 @@ impl CodexAdapter {
     /// Quota for the Codex subscription.
     ///
     /// Order: the OpenAI usage API via the stored OAuth token, then the
-    /// latest local CLI rate-limit snapshot, then a usage-only local estimate.
+    /// latest local CLI rate-limit snapshot. A local token total is usage
+    /// history, not a quota, so it is never used as a final fallback.
     fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
         self.quota_estimate_with_fetch(|auth_path| {
             usage_api::fetch_windows(
@@ -355,7 +312,7 @@ impl CodexAdapter {
     fn local_fallback(&self) -> Result<Option<QuotaReport>, String> {
         match self.local_rate_limits() {
             Ok(Some(report)) => Ok(Some(report)),
-            Ok(None) | Err(_) => self.local_quota_estimate(),
+            Ok(None) | Err(_) => Ok(None),
         }
     }
 }
@@ -757,7 +714,7 @@ mod tests {
     }
 
     #[test]
-    fn cumulative_totals_are_never_summed_per_turn() {
+    fn cumulative_totals_are_not_presented_as_quota() {
         let dir = tempdir().expect("temp dir");
         let sessions = dir.path().join("sessions");
         std::fs::create_dir_all(&sessions).expect("create dirs");
@@ -774,22 +731,10 @@ mod tests {
         );
 
         let adapter = adapter_for(&sessions);
-        let report = adapter
-            .collect_quota()
-            .expect("quota call")
-            .expect("report");
-        let five_h = report
-            .windows
-            .iter()
-            .find(|w| w.window_key == "5h")
-            .unwrap();
         assert_eq!(
-            five_h.used, 2400,
-            "only the final cumulative total counts, never the sum"
-        );
-        assert_eq!(
-            five_h.limit, None,
-            "usage-only windows have no fabricated limit"
+            adapter.collect_quota().expect("quota call"),
+            None,
+            "cumulative local totals are usage history, not a subscription quota"
         );
     }
 
@@ -913,7 +858,7 @@ mod tests {
     }
 
     #[test]
-    fn quota_estimate_falls_back_to_usage_only_without_rate_limits() {
+    fn quota_estimate_does_not_fallback_to_usage_only_without_rate_limits() {
         let dir = tempdir().expect("temp dir");
         let sessions = dir.path().join("sessions");
         std::fs::create_dir_all(&sessions).expect("create dirs");
@@ -924,12 +869,10 @@ mod tests {
         );
 
         let adapter = adapter_for(&sessions);
-        let report = adapter
-            .collect_quota()
-            .expect("quota call")
-            .expect("report");
-        assert_eq!(report.source, "local_estimate");
-        assert!(report.plan.is_none());
+        assert!(
+            adapter.collect_quota().expect("quota call").is_none(),
+            "local token totals are usage history, not a published quota"
+        );
     }
 
     #[test]

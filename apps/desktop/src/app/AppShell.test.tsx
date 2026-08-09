@@ -70,6 +70,7 @@ const settingsView = (theme: "dark" | "light" | "system"): native.SettingsViewDa
   startup_registered: false,
   credential_store_supported: true,
   provider_credentials: [],
+  opencode_go: { state: "missing" },
   allowed_refresh_intervals: [0, 300],
   allowed_themes: ["dark", "light", "system"],
   allowed_retention_days: [90],

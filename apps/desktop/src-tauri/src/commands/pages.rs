@@ -11,9 +11,13 @@ use lnwdeck_application::budgets::{BudgetOverview, QueryBudgets};
 use lnwdeck_application::costs::{CostBreakdown, QueryCosts};
 use lnwdeck_application::settings::{AppSettings, SettingsService};
 use lnwdeck_application::usage_history::{HistoryWindow, QueryUsageHistory, UsageHistory};
+use lnwdeck_domain::QuotaReport;
 use lnwdeck_pricing::catalog::PriceResolver;
+use lnwdeck_provider_opencode::{encode_go_config, go_config_state, OPENCODE_GO_CREDENTIAL_ID};
+use lnwdeck_provider_runtime::AuthKind;
 use lnwdeck_storage::repositories::{
     AlertRepository, AppEventRepository, BudgetPeriod, BudgetRepository, BudgetRow, BudgetScope,
+    QuotaRepository,
 };
 use lnwdeck_windows_integration::{CredentialState, CredentialStore, StartupRegistration};
 use serde::{Deserialize, Serialize};
@@ -185,6 +189,8 @@ pub struct SettingsView {
     pub credential_store_supported: bool,
     /// Credential state per provider that requires a key.
     pub provider_credentials: Vec<ProviderCredentialState>,
+    /// Secret-free state for the OpenCode Go workspace/cookie pair.
+    pub opencode_go: OpenCodeGoCredentialState,
     pub allowed_refresh_intervals: Vec<u64>,
     pub allowed_themes: Vec<String>,
     pub allowed_retention_days: Vec<u64>,
@@ -195,6 +201,13 @@ pub struct ProviderCredentialState {
     pub provider_id: String,
     pub display_name: String,
     /// "missing", "configured" or "expired". Never the key itself.
+    pub state: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OpenCodeGoCredentialState {
+    /// "missing", "configured" or "expired". Never the workspace id or
+    /// cookie itself.
     pub state: String,
 }
 
@@ -225,7 +238,7 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<SettingsView, String> 
     let provider_credentials = registry
         .descriptors()
         .into_iter()
-        .filter(|descriptor| descriptor.needs_credentials())
+        .filter(|descriptor| descriptor.needs_credentials() && descriptor.auth == AuthKind::ApiKey)
         .map(|descriptor| ProviderCredentialState {
             provider_id: descriptor.id.to_string(),
             display_name: descriptor.display_name.to_string(),
@@ -239,6 +252,9 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<SettingsView, String> 
         startup_registered,
         credential_store_supported: CredentialStore::is_supported(),
         provider_credentials,
+        opencode_go: OpenCodeGoCredentialState {
+            state: go_config_state().to_string(),
+        },
         allowed_refresh_intervals: lnwdeck_application::settings::ALLOWED_REFRESH_INTERVALS
             .to_vec(),
         allowed_themes: lnwdeck_application::settings::ALLOWED_THEMES
@@ -296,7 +312,7 @@ pub fn set_provider_key(
             .into_iter()
             .find(|descriptor| descriptor.id == provider_id)
             .ok_or_else(|| format!("unknown provider: {provider_id}"))?;
-        if !descriptor.needs_credentials() {
+        if descriptor.auth != AuthKind::ApiKey {
             return Err(format!(
                 "{} does not use an API key",
                 descriptor.display_name
@@ -315,7 +331,58 @@ pub fn delete_provider_key(
     provider_id: String,
     state: State<'_, AppState>,
 ) -> Result<SettingsView, String> {
+    if provider_id == "opencode" {
+        return Err(
+            "OpenCode Go uses the workspace and auth cookie configuration instead of an API key"
+                .to_string(),
+        );
+    }
     CredentialStore::delete(&provider_id).map_err(|e| e.to_string())?;
+    get_settings(state)
+}
+
+/// Values submitted by the dedicated OpenCode Go settings form.
+#[derive(Debug, Clone, Deserialize)]
+pub struct OpenCodeGoConfigInput {
+    pub workspace_id: String,
+    pub auth_cookie: String,
+}
+
+fn clear_opencode_go_quota_report(state: &AppState) -> Result<(), String> {
+    let guard = state.ensure_storage()?;
+    let storage = guard.as_ref().ok_or("storage not initialized")?;
+    QuotaRepository::new(&storage.conn)
+        .upsert_report(&QuotaReport::failed(
+            "opencode",
+            "provider_api",
+            "NOT_CONFIGURED",
+        ))
+        .map(|_| ())
+        .map_err(|error| format!("clear OpenCode Go quota: {error}"))
+}
+
+/// Stores OpenCode Go's workspace id and auth cookie in Windows Credential
+/// Manager. The values are never returned in the response.
+#[tauri::command]
+pub fn set_opencode_go_config(
+    config: OpenCodeGoConfigInput,
+    state: State<'_, AppState>,
+) -> Result<SettingsView, String> {
+    let serialized = encode_go_config(&config.workspace_id, &config.auth_cookie)?;
+    CredentialStore::set(OPENCODE_GO_CREDENTIAL_ID, &serialized).map_err(|e| e.to_string())?;
+    clear_opencode_go_quota_report(state.inner())?;
+    get_settings(state)
+}
+
+/// Removes the OpenCode Go credential pair and clears any previously stored
+/// quota windows so an old estimate cannot remain visible as a fake bar.
+#[tauri::command]
+pub fn delete_opencode_go_config(state: State<'_, AppState>) -> Result<SettingsView, String> {
+    match CredentialStore::delete(OPENCODE_GO_CREDENTIAL_ID) {
+        Ok(()) | Err(lnwdeck_windows_integration::CredentialError::NotFound) => {}
+        Err(error) => return Err(error.to_string()),
+    }
+    clear_opencode_go_quota_report(state.inner())?;
     get_settings(state)
 }
 

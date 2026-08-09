@@ -1,16 +1,16 @@
-use chrono::Datelike;
 use chrono::{DateTime, Duration, Utc};
 use lnwdeck_domain::{
     Confidence, QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope, UsageBatch, UsageEvent,
     DEFAULT_FRESHNESS,
 };
+use lnwdeck_provider_http::{code_for_status, get_text, JsonRequest};
 use lnwdeck_provider_runtime::{
     AdapterDescriptor, AdapterHealth, AdapterHealthStatus, AuthKind, ChannelSupport,
     CollectionOutcome, CollectionResult, DetectionResult, Permission, ProviderAdapter, SourceKind,
 };
 use lnwdeck_security::IdentifierHasher;
-use rusqlite::{Connection, OpenFlags, OptionalExtension};
-use std::num::NonZeroU64;
+use lnwdeck_windows_integration::{CredentialError, CredentialStore};
+use rusqlite::{Connection, OpenFlags};
 use std::path::PathBuf;
 
 /// OpenCode CLI local-session collector.
@@ -24,19 +24,23 @@ pub struct OpenCodeAdapter {
     db_path: PathBuf,
 }
 
-const ADAPTER_VERSION: &str = "0.2.0";
+const ADAPTER_VERSION: &str = "0.3.0";
 
-/// OpenCode Go's published USD caps (https://opencode.ai/docs/go): $12 per
-/// 5 hours, $30 per week, $60 per month. The caps are not stored in the local
-/// database, so they are hardcoded exactly like TokenTracker does. The
-/// estimate proves Go turns were billed, never that the account still holds
-/// an active Go subscription.
-const GO_SESSION_LIMIT_MICRO: u64 = 12_000_000;
-const GO_WEEK_LIMIT_MICRO: u64 = 30_000_000;
-const GO_MONTH_LIMIT_MICRO: u64 = 60_000_000;
-const MICRO_DOLLARS: f64 = 1_000_000.0;
-const GO_SESSION_MS: i64 = 5 * 3600 * 1000;
-const GO_WEEK_MS: i64 = 7 * 24 * 3600 * 1000;
+/// Credential Manager id for the OpenCode Go workspace and auth cookie pair.
+pub const OPENCODE_GO_CREDENTIAL_ID: &str = "opencode_go";
+const OPENCODE_GO_AUTH_COOKIE_ENV: &str = "OPENCODE_GO_AUTH_COOKIE";
+const OPENCODE_GO_WORKSPACE_ID_ENV: &str = "OPENCODE_GO_WORKSPACE_ID";
+const OPENCODE_GO_DASHBOARD_ORIGIN: &str = "https://opencode.ai";
+const MAX_DASHBOARD_HTML_BYTES: usize = 8 * 1024 * 1024;
+
+/// Validated OpenCode Go configuration kept inside one OS credential.
+///
+/// The cookie is intentionally not `Debug`, `Serialize`, or `Clone` so it
+/// cannot accidentally cross a read-model or diagnostic boundary.
+struct OpenCodeGoConfig {
+    workspace_id: String,
+    auth_cookie: String,
+}
 
 /// OpenCode may store the model as a JSON descriptor like
 /// `{"id":"glm-5.2","providerID":"opencode-go"}`. Reduce it to the model id
@@ -56,6 +60,240 @@ fn normalize_model(raw: Option<String>) -> String {
         }
     }
     trimmed.to_string()
+}
+
+impl OpenCodeGoConfig {
+    fn new(workspace_id: &str, auth_cookie: &str) -> Result<Self, String> {
+        let workspace_id = workspace_id.trim();
+        if workspace_id.is_empty()
+            || workspace_id.len() > 128
+            || !workspace_id
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+        {
+            return Err("NOT_CONFIGURED".to_string());
+        }
+
+        let mut auth_cookie = auth_cookie.trim();
+        if let Some(value) = auth_cookie.strip_prefix("auth=") {
+            auth_cookie = value.trim();
+        }
+        if auth_cookie.is_empty()
+            || auth_cookie.len() > 4096
+            || auth_cookie
+                .bytes()
+                .any(|byte| matches!(byte, b'\r' | b'\n' | b';'))
+        {
+            return Err("NOT_CONFIGURED".to_string());
+        }
+
+        Ok(Self {
+            workspace_id: workspace_id.to_string(),
+            auth_cookie: auth_cookie.to_string(),
+        })
+    }
+}
+
+/// Validates and encodes the two OpenCode Go values for Credential Manager.
+///
+/// The returned JSON is an internal credential payload. It must only be
+/// passed to [`CredentialStore::set`] and never returned to the UI, logs, or
+/// diagnostics.
+pub fn encode_go_config(workspace_id: &str, auth_cookie: &str) -> Result<String, String> {
+    let config = OpenCodeGoConfig::new(workspace_id, auth_cookie)?;
+    serde_json::to_string(&serde_json::json!({
+        "workspace_id": config.workspace_id,
+        "auth_cookie": config.auth_cookie,
+    }))
+    .map_err(|_| "CREDENTIAL_SERIALIZATION_FAILED".to_string())
+}
+
+/// Returns the secret-free state of the OpenCode Go credential pair.
+pub fn go_config_state() -> &'static str {
+    match read_go_config() {
+        Ok(Some(_)) => "configured",
+        Ok(None) => "missing",
+        Err(_) => "expired",
+    }
+}
+
+fn decode_go_config(serialized: &str) -> Result<OpenCodeGoConfig, String> {
+    let value: serde_json::Value =
+        serde_json::from_str(serialized).map_err(|_| "NOT_CONFIGURED".to_string())?;
+    let workspace_id = value
+        .get("workspace_id")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| "NOT_CONFIGURED".to_string())?;
+    let auth_cookie = value
+        .get("auth_cookie")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| "NOT_CONFIGURED".to_string())?;
+    OpenCodeGoConfig::new(workspace_id, auth_cookie)
+}
+
+fn read_go_config() -> Result<Option<OpenCodeGoConfig>, String> {
+    let workspace_from_env = std::env::var(OPENCODE_GO_WORKSPACE_ID_ENV).ok();
+    let cookie_from_env = std::env::var(OPENCODE_GO_AUTH_COOKIE_ENV).ok();
+    if workspace_from_env.is_some() || cookie_from_env.is_some() {
+        let workspace = workspace_from_env.unwrap_or_default();
+        let cookie = cookie_from_env.unwrap_or_default();
+        return OpenCodeGoConfig::new(&workspace, &cookie).map(Some);
+    }
+
+    match CredentialStore::get(OPENCODE_GO_CREDENTIAL_ID) {
+        Ok(serialized) => decode_go_config(&serialized).map(Some),
+        Err(CredentialError::NotFound | CredentialError::Unsupported) => Ok(None),
+        Err(CredentialError::Corrupt) => Err("AUTH_EXPIRED".to_string()),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+/// Parses the authoritative OpenCode Go workspace dashboard response.
+///
+/// OpenCode reports utilization and reset seconds for each rolling window but
+/// does not expose an absolute dollar limit in this response. The returned
+/// windows therefore carry the real percentage and reset timestamp while
+/// leaving absolute usage and limits unknown.
+pub fn windows_from_dashboard_html(
+    html: &str,
+    now: DateTime<Utc>,
+) -> Result<Vec<QuotaWindow>, String> {
+    if html.len() > MAX_DASHBOARD_HTML_BYTES {
+        return Err("PROVIDER_RESPONSE_TOO_LARGE".to_string());
+    }
+
+    let definitions = [
+        ("rollingUsage", "5h", "5-hour", QuotaWindowScope::Rolling),
+        ("weeklyUsage", "7d", "7-day", QuotaWindowScope::Weekly),
+        ("monthlyUsage", "30d", "30-day", QuotaWindowScope::Monthly),
+    ];
+    let mut windows = Vec::with_capacity(definitions.len());
+    for (object_key, window_key, label, scope) in definitions {
+        let Some(segment) = dashboard_object_segment(html, object_key) else {
+            continue;
+        };
+        let Some(raw_percent) = numeric_field(segment, "usagePercent") else {
+            continue;
+        };
+        let Some(raw_reset_seconds) = numeric_field(segment, "resetInSec") else {
+            continue;
+        };
+        let Some(used_percent) = normalize_dashboard_percent(raw_percent) else {
+            continue;
+        };
+        let Some(reset_at) = dashboard_reset_at(now, raw_reset_seconds) else {
+            continue;
+        };
+        windows.push(QuotaWindow::from_percent(
+            window_key,
+            label,
+            scope,
+            QuotaKind::Credits,
+            used_percent,
+            Some(reset_at),
+            Confidence::High,
+        ));
+    }
+
+    if windows.is_empty() {
+        return Err("SOURCE_SCHEMA_MISMATCH".to_string());
+    }
+    Ok(windows)
+}
+
+fn dashboard_object_segment<'a>(html: &'a str, object_key: &str) -> Option<&'a str> {
+    let key_start = html.find(object_key)?;
+    let object_start = key_start + html[key_start..].find('{')?;
+    let bytes = html.as_bytes();
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+
+    for (index, byte) in bytes.iter().enumerate().skip(object_start) {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if *byte == b'\\' {
+                escaped = true;
+            } else if *byte == b'"' {
+                in_string = false;
+            }
+            continue;
+        }
+
+        match *byte {
+            b'"' => in_string = true,
+            b'{' => depth = depth.saturating_add(1),
+            b'}' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return html.get(object_start..=index);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn numeric_field(segment: &str, field: &str) -> Option<f64> {
+    let mut search_from = 0;
+    while let Some(relative_start) = segment[search_from..].find(field) {
+        let start = search_from + relative_start;
+        let mut after = segment.get(start + field.len()..)?.trim_start();
+        if let Some(stripped) = after.strip_prefix('"') {
+            after = stripped.trim_start();
+        }
+        let Some(stripped) = after.strip_prefix(':').or_else(|| after.strip_prefix('=')) else {
+            search_from = start + field.len();
+            continue;
+        };
+        let value = stripped.trim_start();
+        let value = if let Some(quoted) = value.strip_prefix('"') {
+            let end = quoted.find('"')?;
+            &quoted[..end]
+        } else {
+            value
+        };
+        let bytes = value.as_bytes();
+        let mut end = 0;
+        while end < bytes.len()
+            && matches!(bytes[end], b'0'..=b'9' | b'.' | b'e' | b'E' | b'+' | b'-')
+        {
+            end += 1;
+        }
+        if end == 0 {
+            search_from = start + field.len();
+            continue;
+        }
+        if let Ok(parsed) = value[..end].parse::<f64>() {
+            return Some(parsed);
+        }
+        search_from = start + field.len();
+    }
+    None
+}
+
+fn normalize_dashboard_percent(value: f64) -> Option<f64> {
+    if !value.is_finite() || value < 0.0 {
+        return None;
+    }
+    let percent = if value > 0.0 && value < 1.0 {
+        value * 100.0
+    } else {
+        value
+    };
+    if !percent.is_finite() || percent > 100.0 {
+        return None;
+    }
+    Some(percent)
+}
+
+fn dashboard_reset_at(now: DateTime<Utc>, seconds: f64) -> Option<DateTime<Utc>> {
+    if !seconds.is_finite() || seconds < 0.0 || seconds > i64::MAX as f64 {
+        return None;
+    }
+    now.checked_add_signed(Duration::seconds(seconds.floor() as i64))
 }
 
 impl OpenCodeAdapter {
@@ -93,21 +331,41 @@ impl OpenCodeAdapter {
 
     fn detection(&self) -> Result<DetectionResult, String> {
         let source_exists = self.db_path.is_file();
+        let config_state = read_go_config();
+        let configured = matches!(&config_state, Ok(Some(_)));
+        let config_error = config_state.as_ref().err().cloned();
         let mut result = DetectionResult {
             provider_id: "opencode".to_string(),
             display_name: "OpenCode (Go)".to_string(),
             enabled: true,
             detected: false,
-            detection_method: "local_sqlite".to_string(),
+            detection_method: "local_sqlite+credential".to_string(),
             source_type: "sqlite".to_string(),
-            source_exists,
-            permission_state: "n/a".to_string(),
+            source_exists: source_exists || configured,
+            permission_state: if configured {
+                "credential_stored".to_string()
+            } else {
+                "credential_required".to_string()
+            },
             adapter_version: ADAPTER_VERSION.to_string(),
             last_detection_at: Some(Utc::now().to_rfc3339()),
-            detection_error_code: String::new(),
+            detection_error_code: config_error.unwrap_or_else(|| {
+                if configured {
+                    String::new()
+                } else {
+                    "NOT_CONFIGURED".to_string()
+                }
+            }),
         };
         if !source_exists {
-            result.permission_state = "not_found".to_string();
+            if configured {
+                result.detected = true;
+                result.detection_method = "credential".to_string();
+                result.source_type = "remote_api".to_string();
+            } else if result.detection_error_code == "NOT_CONFIGURED" {
+                result.permission_state = "not_found".to_string();
+                result.detection_error_code.clear();
+            }
             return Ok(result);
         }
 
@@ -129,7 +387,10 @@ impl OpenCodeAdapter {
                 match has_session_table {
                     Ok(true) => {
                         result.detected = true;
-                        result.permission_state = "read_ok".to_string();
+                        if configured {
+                            result.permission_state = "read_ok+credential_stored".to_string();
+                            result.detection_error_code.clear();
+                        }
                         Ok(result)
                     }
                     Ok(false) => {
@@ -306,220 +567,69 @@ impl OpenCodeAdapter {
         }
     }
 
-    /// Local quota estimate with two tiers, mirroring TokenTracker's sources:
-    ///
-    /// 1. When the `message` table carries opencode-go assistant turns, their
-    ///    billed USD cost is compared against Go's published dollar caps
-    ///    ($12 / 5h, $30 / week, $60 / month) and reported as credit windows
-    ///    with real limits, remaining and percentages.
-    /// 2. Otherwise the session table's token history produces usage-only
-    ///    windows: real consumption with an unknown limit, so the UI never
-    ///    renders a fake remaining bar.
     fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
-        if !self.db_path.is_file() {
-            return Ok(None);
+        let config = match read_go_config() {
+            Ok(config) => config,
+            Err(code) if code == "AUTH_EXPIRED" || code == "NOT_CONFIGURED" => {
+                return Ok(Some(QuotaReport::failed("opencode", "provider_api", code)));
+            }
+            Err(code) => return Err(code),
+        };
+
+        match quota_report_from_go_config(config.as_ref(), |config| self.fetch_dashboard(config)) {
+            Ok(report) => Ok(report),
+            Err(code) if code == "AUTH_EXPIRED" || code == "NOT_CONFIGURED" => {
+                Ok(Some(QuotaReport::failed("opencode", "provider_api", code)))
+            }
+            Err(code) => Err(code),
         }
-        let conn = self.open_read_only()?;
-        let now = Utc::now();
-        if let Some(windows) = opencode_go_windows(&conn, now)? {
-            return Ok(Some(QuotaReport::new(
-                "opencode",
-                "local_estimate",
-                windows,
-                DEFAULT_FRESHNESS,
-            )));
-        }
-        let now_ms = now.timestamp_millis();
-        let buckets = [
-            (
-                "5h",
-                "5-hour",
-                QuotaWindowScope::Rolling,
-                5 * 3600 * 1000i64,
-            ),
-            (
-                "7d",
-                "7-day",
-                QuotaWindowScope::Weekly,
-                7 * 24 * 3600 * 1000i64,
-            ),
-            (
-                "30d",
-                "30-day",
-                QuotaWindowScope::Monthly,
-                30 * 24 * 3600 * 1000i64,
-            ),
+    }
+
+    fn fetch_dashboard(&self, config: &OpenCodeGoConfig) -> Result<QuotaReport, String> {
+        let endpoint = format!(
+            "{OPENCODE_GO_DASHBOARD_ORIGIN}/workspace/{}/go",
+            config.workspace_id
+        );
+        let cookie = format!("auth={}", config.auth_cookie);
+        let headers = [
+            ("accept", "text/html,application/xhtml+xml"),
+            ("referer", OPENCODE_GO_DASHBOARD_ORIGIN),
+            ("user-agent", "lnwdeck/0.3"),
         ];
-        let mut windows = Vec::with_capacity(buckets.len());
-        for (key, label, scope, window_ms) in buckets {
-            // A query failure is reported, never silently counted as zero
-            // usage: a zero would be indistinguishable from "no activity".
-            let used: i64 = conn
-                .query_row(
-                    "SELECT COALESCE(SUM(tokens_input + tokens_output + tokens_reasoning), 0)
-                     FROM session
-                     WHERE (tokens_input > 0 OR tokens_output > 0 OR cost > 0)
-                       AND time_updated >= ?1",
-                    [now_ms - window_ms],
-                    |row| row.get(0),
-                )
-                .map_err(|_| "SOURCE_SCHEMA_MISMATCH".to_string())?;
-            // Without opencode-go rows the plan limit is unknown, so the
-            // window records real usage with an unknown limit instead of a
-            // fake percentage.
-            windows.push(QuotaWindow::usage_only(
-                key,
-                label,
-                scope,
-                QuotaKind::Tokens,
-                used.max(0) as u64,
-                None,
-                Confidence::Medium,
-            ));
+        let (status, html) = get_text(
+            JsonRequest {
+                timeout: std::time::Duration::from_secs(10),
+                ..JsonRequest::new(&endpoint)
+            }
+            .with_headers(&headers)
+            .browser_cookie(&cookie),
+        )?;
+        if !(200..300).contains(&status) {
+            return Err(code_for_status(status).to_string());
         }
-        let report = QuotaReport::new("opencode", "local_estimate", windows, DEFAULT_FRESHNESS);
-        Ok(Some(report))
+
+        let windows = windows_from_dashboard_html(&html, Utc::now())?;
+        let mut report = QuotaReport::new("opencode", "provider_api", windows, DEFAULT_FRESHNESS);
+        report.plan = Some("OpenCode Go".to_string());
+        Ok(report)
     }
 }
 
-/// Monday 00:00 UTC of the week containing `now`.
-fn week_start_utc(now: DateTime<Utc>) -> DateTime<Utc> {
-    let days = now.weekday().num_days_from_monday() as i64;
-    (now - Duration::days(days))
-        .date_naive()
-        .and_hms_opt(0, 0, 0)
-        .expect("midnight exists")
-        .and_utc()
-}
-
-/// First day 00:00 UTC of the month containing `now`.
-fn month_start_utc(now: DateTime<Utc>) -> DateTime<Utc> {
-    now.date_naive()
-        .with_day(1)
-        .expect("first of month exists")
-        .and_hms_opt(0, 0, 0)
-        .expect("midnight exists")
-        .and_utc()
-}
-
-/// Aggregates opencode-go assistant turns from the `message` table and
-/// compares their billed USD cost against Go's published dollar caps.
-///
-/// Returns `Ok(None)` when the local store predates the `message` table or
-/// holds no opencode-go rows, so the caller falls back to usage-only token
-/// windows. A query failure against an existing table is reported instead,
-/// so a corrupt store is never silently counted as zero usage. Only the
-/// numeric `cost` and the `time.created` timestamp are extracted; paths,
-/// prompts and responses inside the JSON payload never leave the database.
-fn opencode_go_windows(
-    conn: &Connection,
-    now: DateTime<Utc>,
-) -> Result<Option<Vec<QuotaWindow>>, String> {
-    let has_message_table: bool = conn
-        .query_row(
-            "SELECT EXISTS(
-                SELECT 1 FROM sqlite_master
-                WHERE type = 'table' AND name = 'message'
-             )",
-            [],
-            |row| row.get(0),
-        )
-        .map_err(|_| "SOURCE_SCHEMA_MISMATCH".to_string())?;
-    if !has_message_table {
-        return Ok(None);
+fn quota_report_from_go_config<F>(
+    config: Option<&OpenCodeGoConfig>,
+    fetch: F,
+) -> Result<Option<QuotaReport>, String>
+where
+    F: FnOnce(&OpenCodeGoConfig) -> Result<QuotaReport, String>,
+{
+    match config {
+        Some(config) => fetch(config).map(Some),
+        None => Ok(Some(QuotaReport::failed(
+            "opencode",
+            "provider_api",
+            "NOT_CONFIGURED",
+        ))),
     }
-
-    let session_start_ms = now.timestamp_millis() - GO_SESSION_MS;
-    let week_start_ms = week_start_utc(now).timestamp_millis();
-    let week_end_ms = week_start_ms + GO_WEEK_MS;
-    let month_start_ms = month_start_utc(now).timestamp_millis();
-    let month_end_ms = month_start_utc(now + Duration::days(32)).timestamp_millis();
-
-    let row: Option<(f64, Option<i64>, f64, f64, i64)> = conn
-        .query_row(
-            "SELECT
-                COALESCE(SUM(CASE WHEN created_ms >= ?1 THEN cost ELSE 0 END), 0),
-                MIN(CASE WHEN created_ms >= ?1 THEN created_ms END),
-                COALESCE(SUM(CASE WHEN created_ms >= ?2 AND created_ms < ?3 THEN cost ELSE 0 END), 0),
-                COALESCE(SUM(CASE WHEN created_ms >= ?4 AND created_ms < ?5 THEN cost ELSE 0 END), 0),
-                COUNT(*)
-             FROM (
-                SELECT
-                    CAST(COALESCE(json_extract(data, '$.time.created'), time_created) AS INTEGER) AS created_ms,
-                    CAST(json_extract(data, '$.cost') AS REAL) AS cost
-                FROM message
-                WHERE json_valid(data)
-                  AND json_extract(data, '$.providerID') = 'opencode-go'
-                  AND json_extract(data, '$.role') = 'assistant'
-                  AND json_type(data, '$.cost') IN ('integer', 'real')
-             )",
-            rusqlite::params![
-                session_start_ms,
-                week_start_ms,
-                week_end_ms,
-                month_start_ms,
-                month_end_ms
-            ],
-            |row| {
-                Ok((
-                    row.get::<_, f64>(0)?,
-                    row.get::<_, Option<i64>>(1)?,
-                    row.get::<_, f64>(2)?,
-                    row.get::<_, f64>(3)?,
-                    row.get::<_, i64>(4)?,
-                ))
-            },
-        )
-        .optional()
-        .map_err(|_| "SOURCE_SCHEMA_MISMATCH".to_string())?;
-    let Some((session_used, session_oldest, week_used, month_used, row_count)) = row else {
-        return Ok(None);
-    };
-    if row_count <= 0 {
-        return Ok(None);
-    }
-
-    let to_micro = |dollars: f64| (dollars.max(0.0) * MICRO_DOLLARS).round() as u64;
-    let session_limit = NonZeroU64::new(GO_SESSION_LIMIT_MICRO).expect("non-zero cap");
-    let week_limit = NonZeroU64::new(GO_WEEK_LIMIT_MICRO).expect("non-zero cap");
-    let month_limit = NonZeroU64::new(GO_MONTH_LIMIT_MICRO).expect("non-zero cap");
-
-    let session_reset =
-        session_oldest.and_then(|oldest| DateTime::from_timestamp_millis(oldest + GO_SESSION_MS));
-
-    let windows = vec![
-        QuotaWindow::with_limit(
-            "5h",
-            "5-hour",
-            QuotaWindowScope::Rolling,
-            QuotaKind::Credits,
-            to_micro(session_used),
-            session_limit,
-            session_reset,
-            Confidence::Medium,
-        ),
-        QuotaWindow::with_limit(
-            "7d",
-            "7-day",
-            QuotaWindowScope::Weekly,
-            QuotaKind::Credits,
-            to_micro(week_used),
-            week_limit,
-            DateTime::from_timestamp_millis(week_end_ms),
-            Confidence::Medium,
-        ),
-        QuotaWindow::with_limit(
-            "30d",
-            "30-day",
-            QuotaWindowScope::Monthly,
-            QuotaKind::Credits,
-            to_micro(month_used),
-            month_limit,
-            DateTime::from_timestamp_millis(month_end_ms),
-            Confidence::Medium,
-        ),
-    ];
-    Ok(Some(windows))
 }
 
 impl ProviderAdapter for OpenCodeAdapter {
@@ -530,8 +640,8 @@ impl ProviderAdapter for OpenCodeAdapter {
             vendor: "OpenCode",
             source_kind: SourceKind::LocalSqlite,
             usage_support: ChannelSupport::LocalEstimate,
-            quota_support: ChannelSupport::LocalEstimate,
-            auth: AuthKind::LocalFiles,
+            quota_support: ChannelSupport::Native,
+            auth: AuthKind::BrowserCookie,
             adapter_version: ADAPTER_VERSION,
         }
     }
@@ -545,9 +655,15 @@ impl ProviderAdapter for OpenCodeAdapter {
     }
     fn health_check(&self) -> AdapterHealth {
         match self.detection() {
+            Ok(detection) if detection.detected && detection.detection_error_code.is_empty() => {
+                AdapterHealth {
+                    status: AdapterHealthStatus::Healthy,
+                    message: "OpenCode Go credentials configured".to_string(),
+                }
+            }
             Ok(detection) if detection.detected => AdapterHealth {
-                status: AdapterHealthStatus::Healthy,
-                message: "OpenCode local store detected".to_string(),
+                status: AdapterHealthStatus::Degraded,
+                message: "OpenCode Go credentials are not configured".to_string(),
             },
             Ok(_) => AdapterHealth {
                 status: AdapterHealthStatus::Degraded,
@@ -560,12 +676,56 @@ impl ProviderAdapter for OpenCodeAdapter {
         }
     }
     fn required_permissions(&self) -> Vec<Permission> {
-        vec![Permission::FileSystem]
+        vec![
+            Permission::FileSystem,
+            Permission::Network,
+            Permission::Credential,
+        ]
     }
     fn detect(&self) -> Result<DetectionResult, String> {
         self.detection()
     }
     fn collect_usage_with_cursor(&self, cursor: Option<&str>) -> CollectionResult {
         self.collect(cursor)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_go_config_returns_unavailable_report_instead_of_stale_percentage() {
+        let report = quota_report_from_go_config(None, |_config| {
+            panic!("a missing credential must not trigger a dashboard request")
+        })
+        .expect("missing configuration is a represented provider state")
+        .expect("the failed report clears stale quota data");
+
+        assert_eq!(report.status, lnwdeck_domain::QuotaStatus::Unavailable);
+        assert_eq!(report.error_code.as_deref(), Some("NOT_CONFIGURED"));
+        assert!(report.windows.is_empty());
+        assert!(!report.is_usable());
+    }
+
+    #[test]
+    fn go_config_is_validated_and_auth_prefix_is_normalized() {
+        let encoded = encode_go_config("workspace-test_123", "auth=cookie-value")
+            .expect("valid workspace and cookie");
+        let value: serde_json::Value = serde_json::from_str(&encoded).expect("credential JSON");
+        assert_eq!(value["workspace_id"], "workspace-test_123");
+        assert_eq!(value["auth_cookie"], "cookie-value");
+
+        for (workspace, cookie) in [
+            ("", "cookie"),
+            ("workspace", ""),
+            ("workspace", "cookie; other=value"),
+            ("workspace/unsafe", "cookie"),
+        ] {
+            assert_eq!(
+                encode_go_config(workspace, cookie),
+                Err("NOT_CONFIGURED".to_string())
+            );
+        }
     }
 }

@@ -69,6 +69,21 @@ Privacy guard failure is fail-closed
 - Logs must redact bearer tokens, cookies, query secrets and known key patterns
 - Memory buffers should be zeroized where practical
 
+OpenCode Go uses one Credential Manager entry containing the validated
+`OPENCODE_GO_WORKSPACE_ID` and `OPENCODE_GO_AUTH_COOKIE` pair. The provider
+adapter builds the `Cookie: auth=...` header only for the HTTPS OpenCode
+workspace dashboard request. The cookie is never placed in SQLite, a Tauri
+read model, diagnostics, exports or generic UI state; if the pair is missing,
+the quota channel returns `NOT_CONFIGURED` and no percentage window.
+
+For a second machine, the user may provide both values as Windows user
+environment variables with the same names. This is an explicit compatibility
+path, not a secret-storage recommendation: environment values override the
+Credential Manager entry, must never be put in `.env` files or logs, and should
+be removed after the pair has been saved through Settings. A machine with no
+OpenCode source is classified as `not_detected`; its absence is not promoted to
+a global refresh failure.
+
 ## 5. Browser Helper
 
 Architecture:
