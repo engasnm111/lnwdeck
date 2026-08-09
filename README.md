@@ -1,4 +1,4 @@
-# lnwdeck v11.0.0
+# lnwdeck v11.0.1
 
 Universal AI usage and quota tracker for Windows. lnwdeck reads the local
 artifacts already written by AI tools, records token counts and costs, and
@@ -20,6 +20,21 @@ sync is required.
 - Provides budgets, alerts, diagnostics and sanitized JSON export.
 - Includes a floating quota widget and a transparent desktop pet, both using
   the same live provider data as the dashboard.
+
+## v11.0.1 fixes
+
+This patch release keeps the v11.0.0 dashboard and fixes the provider quota,
+desktop pet and Windows release workflow:
+
+- Codex quota now prefers the live provider API, preserves hard authentication
+  and rate-limit errors, and falls back to the newest local snapshot only when
+  the live request is unavailable.
+- The pet speech bubble keeps its full clickable surface and wraps long text
+  without clipping.
+- The pet, widget and tray popup remain auxiliary surfaces and do not create a
+  taskbar button; only a visible dashboard appears on the taskbar.
+- Release builds use tuned Cargo profiles, `rust-lld`, target-specific caches,
+  `sccache` in CI and only the shipped NSIS bundle to reduce repeated work.
 
 ## v11.0.0 dashboard
 
@@ -176,7 +191,7 @@ pnpm test:e2e
 pnpm tauri:dev
 ```
 
-## Building and verifying v11.0.0
+## Building and verifying v11.0.1
 
 Signed installers and updater artifacts require the Tauri signing key:
 
@@ -189,10 +204,10 @@ pnpm tauri:build
 pwsh ./scripts/package-portable.ps1 -Arch x64
 
 # Build the updater manifest from signed installers
-node scripts/generate-updater-json.mjs v11.0.0 <assets-dir> <assets-dir>/latest.json
+node scripts/generate-updater-json.mjs v11.0.1 <assets-dir> <assets-dir>/latest.json
 
 # Verify versions, release fixtures, signatures/manifest contract and metadata
-node scripts/check-release-version.mjs v11.0.0
+node scripts/check-release-version.mjs v11.0.1
 pnpm release:test
 ```
 
@@ -200,7 +215,7 @@ The release workflow builds x64, ARM64 and x86 installers and portable ZIPs.
 Each installer and portable ZIP has a `.sig`; the published assets also include
 `latest.json`, `SHA256SUMS`, a CycloneDX SBOM and GitHub build provenance. The
 complete release checklist and rollback procedure are in
-[docs/releases/v11.0.0.md](docs/releases/v11.0.0.md).
+[docs/releases/v11.0.1.md](docs/releases/v11.0.1.md).
 
 ## Privacy
 

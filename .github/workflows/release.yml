@@ -29,6 +29,11 @@ jobs:
     name: Build ${{ matrix.target }}
     needs: validate
     runs-on: windows-latest
+    env:
+      CARGO_BUILD_JOBS: 2
+      CARGO_INCREMENTAL: 0
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: sccache
     strategy:
       fail-fast: false
       matrix:
@@ -54,9 +59,15 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Enable sccache
+        uses: mozilla-actions/sccache-action@v0.0.11
+        with:
+          version: v0.16.0
+
       - uses: Swatinem/rust-cache@v2
         with:
-          key: release-${{ matrix.target }}
+          shared-key: release-${{ matrix.target }}
+          cache-workspace-crates: true
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -85,16 +96,15 @@ jobs:
             Select-Object FullName, Length
 
       - name: Build signed bundles (no publish)
-        uses: tauri-apps/tauri-action@v1
+        shell: pwsh
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          # Password is intentionally empty (key generated with --ci).
-          # GitHub Actions sets CI=true, which makes the Tauri CLI fall back to
-          # an empty password when TAURI_SIGNING_PRIVATE_KEY_PASSWORD is unset.
-        with:
-          projectPath: apps/desktop/src-tauri
-          publish: false
-          args: --target ${{ matrix.target }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        run: |
+          # Invoke the project-local CLI directly so the already-installed
+          # workspace dependencies are reused and only the shipped NSIS
+          # bundle is generated.
+          pnpm --filter @lnwdeck/desktop tauri build --ci --target ${{ matrix.target }} --bundles nsis
 
       - name: Verify updater signatures exist
         shell: pwsh

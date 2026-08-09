@@ -62,6 +62,13 @@ const fn rounded_aux_window_config() -> RoundedAuxWindowConfig {
     }
 }
 
+/// Only a visible dashboard owns a taskbar button. Auxiliary webviews are
+/// overlays/popups, and a hidden dashboard must not flash a taskbar button
+/// while the pet or tray starts.
+fn should_skip_taskbar(label: &str, main_visible: bool) -> bool {
+    label != MAIN_LABEL || !main_visible
+}
+
 /// Widget appearance settings handed to the webview.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct WidgetSettings {
@@ -442,6 +449,7 @@ fn e2e_browser_args() -> Option<String> {
 
 pub fn setup_windows(app: &tauri::App) {
     let browser_args = e2e_browser_args();
+    let main_visible = main_window_visible(app.handle());
     let mut main_builder =
         WebviewWindowBuilder::new(app, MAIN_LABEL, tauri::WebviewUrl::App("index.html".into()));
     if let Some(args) = browser_args.as_deref() {
@@ -451,11 +459,13 @@ pub fn setup_windows(app: &tauri::App) {
         .title("lnwdeck")
         .inner_size(1280.0, 840.0)
         .min_inner_size(960.0, 640.0)
-        // The dashboard is the only window allowed to appear on the taskbar.
-        .skip_taskbar(false)
+        // The dashboard is the only window allowed to appear on the taskbar,
+        // and only when it is actually restored visible.
+        .skip_taskbar(should_skip_taskbar(MAIN_LABEL, main_visible))
+        .visible(main_visible)
         .build()
         .expect("failed to build main window");
-    if !main_window_visible(app.handle()) {
+    if !main_visible {
         let _ = main.set_skip_taskbar(true);
         let _ = main.hide();
     }
@@ -470,7 +480,7 @@ pub fn setup_windows(app: &tauri::App) {
     if let Some(args) = browser_args.as_deref() {
         widget_builder = widget_builder.additional_browser_args(args);
     }
-    let _widget = widget_builder
+    let widget = widget_builder
         .title("lnwdeck quota")
         .inner_size(width, height)
         .always_on_top(true)
@@ -478,12 +488,13 @@ pub fn setup_windows(app: &tauri::App) {
         // Fixed size: the preset is chosen in Settings, never user-resized.
         // Content scrolls inside the window.
         .resizable(false)
-        .skip_taskbar(true)
+        .skip_taskbar(should_skip_taskbar(WIDGET_LABEL, main_visible))
         .visible(false)
         .transparent(rounded_aux.transparent)
         .shadow(rounded_aux.shadow)
         .build()
         .expect("failed to build widget window");
+    let _ = widget.set_skip_taskbar(should_skip_taskbar(WIDGET_LABEL, main_visible));
 
     // Desktop pet: a small transparent, always-on-top window that follows the
     // pet as it walks. It is never full-screen, so clicks outside the pet hit
@@ -501,7 +512,7 @@ pub fn setup_windows(app: &tauri::App) {
         .always_on_top(true)
         .decorations(false)
         .resizable(false)
-        .skip_taskbar(true)
+        .skip_taskbar(should_skip_taskbar(PET_LABEL, main_visible))
         .visible(false)
         .transparent(rounded_aux.transparent)
         // No DWM drop shadow: on an undecorated transparent window it renders as
@@ -509,6 +520,7 @@ pub fn setup_windows(app: &tauri::App) {
         .shadow(rounded_aux.shadow)
         .build()
         .expect("failed to build pet window");
+    let _ = pet.set_skip_taskbar(should_skip_taskbar(PET_LABEL, main_visible));
 
     // The transparent window starts click-through; a background thread only
     // samples the cursor and stores the result, and the webview applies it on
@@ -523,13 +535,13 @@ pub fn setup_windows(app: &tauri::App) {
     if let Some(args) = browser_args.as_deref() {
         tray_builder = tray_builder.additional_browser_args(args);
     }
-    tray_builder
+    let tray = tray_builder
         .title("lnwdeck tray")
         .inner_size(TRAY_POPUP_WIDTH, TRAY_POPUP_HEIGHT)
         .always_on_top(true)
         .decorations(false)
         .resizable(false)
-        .skip_taskbar(true)
+        .skip_taskbar(should_skip_taskbar(TRAY_LABEL, main_visible))
         .visible(false)
         // The CSS surface remains opaque; native alpha is only for its rounded
         // outer corners, preventing a rectangular black frame.
@@ -537,6 +549,7 @@ pub fn setup_windows(app: &tauri::App) {
         .shadow(rounded_aux.shadow)
         .build()
         .expect("failed to build tray popup window");
+    let _ = tray.set_skip_taskbar(should_skip_taskbar(TRAY_LABEL, main_visible));
 }
 
 pub fn handle_close_request(window: &tauri::Window, api: &tauri::CloseRequestApi) {
@@ -1095,5 +1108,14 @@ mod tests {
         assert!(config.transparent);
         assert!(!config.shadow);
         assert_eq!(config.native_background, None);
+    }
+
+    #[test]
+    fn auxiliary_windows_never_create_taskbar_buttons() {
+        assert!(should_skip_taskbar(WIDGET_LABEL, true));
+        assert!(should_skip_taskbar(PET_LABEL, true));
+        assert!(should_skip_taskbar(TRAY_LABEL, true));
+        assert!(!should_skip_taskbar(MAIN_LABEL, true));
+        assert!(should_skip_taskbar(MAIN_LABEL, false));
     }
 }

@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useState } from "react";
-import { Link, NavLink, Outlet, useLocation } from "react-router";
+import { Link, NavLink, Outlet, useLocation, type NavLinkRenderProps } from "react-router";
 import { listen } from "@tauri-apps/api/event";
 import { Badge, Button } from "@lnwdeck/ui";
 import {
@@ -205,7 +205,7 @@ export function AppShell() {
                     to={item.to}
                     end={item.to === "/"}
                     title={t(item.key)}
-                    className={({ isActive }) =>
+                    className={({ isActive }: NavLinkRenderProps) =>
                       `app-sidebar-link ${isActive ? "active" : ""}`.trim()
                     }
                   >

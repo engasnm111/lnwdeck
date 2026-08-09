@@ -255,6 +255,7 @@
 }
 
 .pet-tooltip-inner {
+  box-sizing: border-box;
   background: linear-gradient(
     160deg,
     rgba(10, 14, 28, 0.9) 0%,
@@ -264,8 +265,8 @@
   border-radius: 14px;
   padding: 10px 14px;
   min-width: 180px;
-  max-width: 240px;
-  max-height: 210px;
+  max-width: min(240px, calc(100vw - 16px));
+  max-height: min(210px, calc(100vh - 120px));
   overflow-y: auto;
   backdrop-filter: blur(16px) saturate(140%);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
@@ -373,9 +374,11 @@
 /* Random quip bubble (tap on the pet): wide enough that even a long line
    reads on one or two lines instead of collapsing into a narrow column. */
 .pet-tooltip-speech {
-  min-width: 280px;
-  max-width: 520px;
-  white-space: nowrap;
+  width: min(520px, calc(100vw - 16px));
+  min-width: 0;
+  max-width: calc(100vw - 16px);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .pet-tooltip-speech .pet-tooltip-empty {

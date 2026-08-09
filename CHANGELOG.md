@@ -2,6 +2,28 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [11.0.1] - 2026-08-09
+
+### Highlights
+
+- Codex quota now uses the live provider API first, with a local JSONL snapshot
+  fallback only for unavailable-provider failures; authentication and rate-limit
+  errors remain visible instead of being hidden by stale local data.
+- Pet speech bubbles keep their complete clickable surface and wrap long text
+  without leaving a clipped or broken frame.
+- The desktop pet, quota widget and tray popup stay off the Windows taskbar;
+  only the visible dashboard owns a taskbar button.
+- Release builds now use tuned Cargo profiles, `rust-lld`, target-specific
+  caches, CI `sccache` and a single NSIS bundle path to reduce release build
+  time and duplicate work.
+
+### Verification
+
+- Focused Codex provider tests: 25/25 passed.
+- Desktop Rust tests: 39/39 passed.
+- Release/version/workflow tests: 31/31 passed.
+- Windows x64 release build completed with the tuned linker/profile.
+
 ## [11.0.0] - 2026-08-09
 
 ### Highlights
