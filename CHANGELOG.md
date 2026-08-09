@@ -2,6 +2,16 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [11.0.4] - 2026-08-09
+
+### Verification correctness
+
+- OpenCode health regression coverage now accepts the truthful
+  `NotConfigured` state on a clean runner when a fixture database exists but
+  no per-machine OpenCode Go credential is present.
+- The release process is documented to wait for the main-branch CI gate before
+  creating a release tag.
+
 ## [11.0.3] - 2026-08-09
 
 ### Correctness

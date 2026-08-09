@@ -1,4 +1,4 @@
-# lnwdeck v11.0.3
+# lnwdeck v11.0.4
 
 Universal AI usage and quota tracker for Windows. lnwdeck reads the local
 artifacts already written by AI tools, records token counts and costs, and
@@ -20,6 +20,17 @@ sync is required.
 - Provides budgets, alerts, diagnostics and sanitized JSON export.
 - Includes a floating quota widget and a transparent desktop pet, both using
   the same live provider data as the dashboard.
+
+## v11.0.4 clean-runner verification correctness
+
+This patch keeps the OpenCode `NotConfigured` behavior covered on the same
+clean-runner state used by hosted CI:
+
+- Fixture databases without an OpenCode Go credential may truthfully report
+  `NotConfigured`; the test no longer treats that state as a failure.
+- The release workflow is now followed by a main-branch CI gate before a new
+  release tag is created.
+- The v11.0.2 quota truth and pet readability changes remain unchanged.
 
 ## v11.0.3 OpenCode clean-machine correctness
 
@@ -230,7 +241,7 @@ pnpm test:e2e
 pnpm tauri:dev
 ```
 
-## Building and verifying v11.0.3
+## Building and verifying v11.0.4
 
 Signed installers and updater artifacts require the Tauri signing key:
 
@@ -243,10 +254,10 @@ pnpm tauri:build
 pwsh ./scripts/package-portable.ps1 -Arch x64
 
 # Build the updater manifest from signed installers
-node scripts/generate-updater-json.mjs v11.0.3 <assets-dir> <assets-dir>/latest.json
+node scripts/generate-updater-json.mjs v11.0.4 <assets-dir> <assets-dir>/latest.json
 
 # Verify versions, release fixtures, signatures/manifest contract and metadata
-node scripts/check-release-version.mjs v11.0.3
+node scripts/check-release-version.mjs v11.0.4
 pnpm release:test
 ```
 
@@ -254,7 +265,7 @@ The release workflow builds x64, ARM64 and x86 installers and portable ZIPs.
 Each installer and portable ZIP has a `.sig`; the published assets also include
 `latest.json`, `SHA256SUMS`, a CycloneDX SBOM and GitHub build provenance. The
 complete release checklist and rollback procedure are in
-[docs/releases/v11.0.3.md](docs/releases/v11.0.3.md).
+[docs/releases/v11.0.4.md](docs/releases/v11.0.4.md).
 
 ## Privacy
 

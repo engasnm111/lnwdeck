@@ -329,13 +329,17 @@ fn health_reflects_detection() {
 
     assert!(matches!(
         adapter.health_check().status,
-        AdapterHealthStatus::Healthy | AdapterHealthStatus::Degraded
+        AdapterHealthStatus::Healthy
+            | AdapterHealthStatus::Degraded
+            | AdapterHealthStatus::NotConfigured
     ));
 
     let adapter = adapter_for(&dir.path().join("missing.db"));
     assert!(matches!(
         adapter.health_check().status,
-        AdapterHealthStatus::Healthy | AdapterHealthStatus::Degraded
+        AdapterHealthStatus::Healthy
+            | AdapterHealthStatus::Degraded
+            | AdapterHealthStatus::NotConfigured
     ));
 }
 
