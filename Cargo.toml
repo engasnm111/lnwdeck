@@ -38,3 +38,29 @@ members = [
     "crates/provider-contract-tests",
     "crates/windows-integration",
 ]
+
+# Keep local debug/test iteration light while leaving release code generation
+# parallel and avoiding an extra LTO pass unless a release explicitly opts in.
+# CI's sccache setup disables incremental compilation because incremental
+# artifacts cannot be reused by the compiler cache.
+[profile.dev]
+debug = "line-tables-only"
+incremental = true
+
+[profile.dev.package."*"]
+debug = 0
+opt-level = 0
+
+[profile.test]
+debug = "line-tables-only"
+incremental = true
+
+[profile.test.package."*"]
+debug = 0
+opt-level = 0
+
+[profile.release]
+codegen-units = 16
+debug = 0
+incremental = false
+lto = false

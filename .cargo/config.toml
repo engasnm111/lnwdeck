@@ -1,0 +1,16 @@
+# Local development can reuse incremental artifacts. CI overrides this with
+# CARGO_INCREMENTAL=0 when sccache is enabled.
+[build]
+incremental = true
+
+# rust-lld avoids the slower MSVC linker path on all supported Windows targets.
+# The Rust toolchain ships this linker, so no machine-specific absolute path is
+# required and cross-target jobs can use the same configuration.
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld.exe"
+
+[target.aarch64-pc-windows-msvc]
+linker = "rust-lld.exe"
+
+[target.i686-pc-windows-msvc]
+linker = "rust-lld.exe"

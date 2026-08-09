@@ -168,4 +168,23 @@ describe("DesktopPet", () => {
       "Used 12.5M tokens today",
     );
   });
+
+  it("keeps the full tooltip width inside the interactive hit rectangle", async () => {
+    render(
+      <I18nProvider>
+        <DesktopPet />
+      </I18nProvider>,
+    );
+
+    const sprite = await screen.findByTitle("Friend Pixel Pet");
+    fireEvent.mouseEnter(sprite);
+
+    await waitFor(() => {
+      const calls = petTestMocks.setPetHitRect.mock.calls;
+      const lastRect = calls[calls.length - 1]?.[0] as
+        | [number, number, number, number]
+        | undefined;
+      expect(lastRect?.[2]).toBe(window.innerWidth);
+    });
+  });
 });

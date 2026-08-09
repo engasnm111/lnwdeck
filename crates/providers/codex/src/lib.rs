@@ -272,8 +272,9 @@ impl CodexAdapter {
         )))
     }
 
-    /// The real rate-limit windows Codex publishes into every `token_count`
-    /// record. The newest record wins; nothing is fetched over the network.
+    /// The rate-limit windows Codex published in a local `token_count` record.
+    /// The newest local snapshot wins; it is only used when the live API is
+    /// unavailable.
     fn local_rate_limits(&self) -> Result<Option<QuotaReport>, String> {
         let mut newest: Option<(DateTime<Utc>, Value)> = None;
         for file in collect_jsonl_files(&self.sessions_dir)? {
@@ -309,7 +310,7 @@ impl CodexAdapter {
             return Ok(None);
         }
         let mut report =
-            QuotaReport::new("openai_codex", "provider_api", windows, DEFAULT_FRESHNESS);
+            QuotaReport::new("openai_codex", "local_jsonl", windows, DEFAULT_FRESHNESS);
         if let Some(plan) = limits.get("plan_type").and_then(|v| v.as_str()) {
             if !plan.is_empty() {
                 report.plan = Some(plan.to_string());
@@ -320,27 +321,41 @@ impl CodexAdapter {
 
     /// Quota for the Codex subscription.
     ///
-    /// Order: the rate-limit windows the CLI itself publishes in local
-    /// session files (fresh, no credentials needed), then the OpenAI usage
-    /// API via the stored OAuth token, then a usage-only local estimate.
+    /// Order: the OpenAI usage API via the stored OAuth token, then the
+    /// latest local CLI rate-limit snapshot, then a usage-only local estimate.
     fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
-        if let Ok(Some(report)) = self.local_rate_limits() {
-            return Ok(Some(report));
-        }
-        match usage_api::fetch_windows(
-            &self.auth_path,
-            &usage_api::default_endpoint(),
-            std::time::Duration::from_secs(10),
-        ) {
+        self.quota_estimate_with_fetch(|auth_path| {
+            usage_api::fetch_windows(
+                auth_path,
+                &usage_api::default_endpoint(),
+                std::time::Duration::from_secs(10),
+            )
+        })
+    }
+
+    /// Collects quota with an injected fetch operation so source precedence
+    /// and sanitized error handling can be tested without network requests.
+    fn quota_estimate_with_fetch<F>(&self, fetch: F) -> Result<Option<QuotaReport>, String>
+    where
+        F: FnOnce(&Path) -> Result<Option<Vec<QuotaWindow>>, String>,
+    {
+        match fetch(&self.auth_path) {
             Ok(Some(windows)) => {
                 let mut report =
                     QuotaReport::new("openai_codex", "provider_api", windows, DEFAULT_FRESHNESS);
                 report.plan = Some("Subscription".to_string());
                 Ok(Some(report))
             }
-            Ok(None) => self.local_quota_estimate(),
+            Ok(None) => self.local_fallback(),
             Err(code) if code == "AUTH_EXPIRED" || code == "RATE_LIMITED" => Err(code),
-            Err(_) => self.local_quota_estimate(),
+            Err(_) => self.local_fallback(),
+        }
+    }
+
+    fn local_fallback(&self) -> Result<Option<QuotaReport>, String> {
+        match self.local_rate_limits() {
+            Ok(Some(report)) => Ok(Some(report)),
+            Ok(None) | Err(_) => self.local_quota_estimate(),
         }
     }
 }
@@ -799,7 +814,7 @@ mod tests {
             .collect_quota()
             .expect("quota call")
             .expect("report");
-        assert_eq!(report.source, "provider_api");
+        assert_eq!(report.source, "local_jsonl");
         assert_eq!(report.plan.as_deref(), Some("plus"));
         let weekly = report
             .windows
@@ -807,6 +822,94 @@ mod tests {
             .find(|w| w.window_key == "weekly")
             .unwrap();
         assert_eq!(weekly.used_percent, Some(98.0));
+    }
+
+    #[test]
+    fn quota_estimate_prefers_live_windows_over_local_snapshot() {
+        let dir = tempdir().expect("temp dir");
+        let sessions = dir.path().join("sessions");
+        std::fs::create_dir_all(&sessions).expect("create dirs");
+        write_session(
+            &sessions,
+            "sess_1.jsonl",
+            &[&token_count(
+                &now_minus(60),
+                100,
+                20,
+                Some(&rate_limits_json(98.0, 10_080, "plus")),
+            )],
+        );
+
+        let adapter = adapter_for(&sessions);
+        let report = adapter
+            .quota_estimate_with_fetch(|_| {
+                Ok(Some(vec![QuotaWindow::from_percent(
+                    "weekly",
+                    "Weekly",
+                    QuotaWindowScope::Weekly,
+                    QuotaKind::Requests,
+                    12.0,
+                    None,
+                    Confidence::High,
+                )]))
+            })
+            .expect("quota call")
+            .expect("report");
+
+        assert_eq!(report.source, "provider_api");
+        assert_eq!(report.plan.as_deref(), Some("Subscription"));
+        assert_eq!(report.windows[0].used_percent, Some(12.0));
+    }
+
+    #[test]
+    fn non_hard_live_failure_falls_back_to_local_snapshot() {
+        let dir = tempdir().expect("temp dir");
+        let sessions = dir.path().join("sessions");
+        std::fs::create_dir_all(&sessions).expect("create dirs");
+        write_session(
+            &sessions,
+            "sess_1.jsonl",
+            &[&token_count(
+                &now_minus(60),
+                100,
+                20,
+                Some(&rate_limits_json(98.0, 10_080, "plus")),
+            )],
+        );
+
+        let adapter = adapter_for(&sessions);
+        let report = adapter
+            .quota_estimate_with_fetch(|_| Err("PROVIDER_UNAVAILABLE".to_string()))
+            .expect("quota call")
+            .expect("report");
+
+        assert_eq!(report.source, "local_jsonl");
+        assert_eq!(report.windows[0].used_percent, Some(98.0));
+    }
+
+    #[test]
+    fn hard_live_failures_are_not_hidden_by_local_snapshot() {
+        for code in ["AUTH_EXPIRED", "RATE_LIMITED"] {
+            let dir = tempdir().expect("temp dir");
+            let sessions = dir.path().join("sessions");
+            std::fs::create_dir_all(&sessions).expect("create dirs");
+            write_session(
+                &sessions,
+                "sess_1.jsonl",
+                &[&token_count(
+                    &now_minus(60),
+                    100,
+                    20,
+                    Some(&rate_limits_json(98.0, 10_080, "plus")),
+                )],
+            );
+
+            let adapter = adapter_for(&sessions);
+            assert_eq!(
+                adapter.quota_estimate_with_fetch(|_| Err(code.to_string())),
+                Err(code.to_string())
+            );
+        }
     }
 
     #[test]

@@ -311,10 +311,11 @@ export function DesktopPet() {
   // stays interactive.
   useEffect(() => {
     const tooltipShown = speech !== null || hovering;
+    const hitWidth = tooltipShown ? viewSize.w : spriteW;
     const rect: [number, number, number, number] = [
-      pos.x + (viewSize.w - spriteW) / 2,
+      pos.x + (viewSize.w - hitWidth) / 2,
       pos.y + viewSize.h - spriteH - 6 - (tooltipShown ? TOOLTIP_ZONE_H : 0),
-      spriteW,
+      hitWidth,
       spriteH + 6 + (tooltipShown ? TOOLTIP_ZONE_H : 0),
     ];
     void setPetHitRect(rect).catch(() => {});

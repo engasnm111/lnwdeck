@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
@@ -6,6 +6,18 @@ const workflow = readFileSync(
   new URL("../.github/workflows/ci.yml", import.meta.url),
   "utf8",
 );
+const releaseWorkflow = readFileSync(
+  new URL("../.github/workflows/release.yml", import.meta.url),
+  "utf8",
+);
+const cargoManifest = readFileSync(
+  new URL("../Cargo.toml", import.meta.url),
+  "utf8",
+);
+const cargoConfigPath = new URL("../.cargo/config.toml", import.meta.url);
+const cargoConfig = existsSync(cargoConfigPath)
+  ? readFileSync(cargoConfigPath, "utf8")
+  : "";
 const retryScript = readFileSync(
   new URL("./ci-retry.ps1", import.meta.url),
   "utf8",
@@ -102,6 +114,36 @@ test("Rust caches share CI artifacts without crossing architecture targets", () 
     /shared-key:\s*compile-\$\{\{ matrix\.target \}\}/,
   );
   assert.doesNotMatch(compile, /^\s+key:/m);
+});
+
+test("release builds use the release cache, sccache, and only the shipped bundle", () => {
+  assert.match(releaseWorkflow, /shared-key:\s*release-\$\{\{ matrix\.target \}\}/);
+  assert.match(releaseWorkflow, /cache-workspace-crates:\s*true/);
+  assert.match(releaseWorkflow, /mozilla-actions\/sccache-action@/);
+  assert.match(releaseWorkflow, /SCCACHE_GHA_ENABLED:\s*["']?true["']?/);
+  assert.match(releaseWorkflow, /RUSTC_WRAPPER:\s*sccache/);
+  assert.match(releaseWorkflow, /tauri build[^\r\n]*--bundles\s+nsis/);
+  assert.doesNotMatch(releaseWorkflow, /tauri-apps\/tauri-action/);
+});
+
+test("Cargo release profile and Windows targets are tuned for fast release links", () => {
+  assert.match(cargoManifest, /^\[profile\.release\]/m);
+  assert.match(cargoManifest, /^lto\s*=\s*false$/m);
+  assert.match(cargoManifest, /^codegen-units\s*=\s*16$/m);
+  assert.match(cargoManifest, /^incremental\s*=\s*false$/m);
+  assert.match(cargoConfig, /\[build\][\s\S]*?incremental\s*=\s*true/);
+  for (const target of [
+    "x86_64-pc-windows-msvc",
+    "aarch64-pc-windows-msvc",
+    "i686-pc-windows-msvc",
+  ]) {
+    const section = target.replaceAll("-", "\\s*[-_]\\s*");
+    assert.match(
+      cargoConfig,
+      new RegExp(`\\[target\\.${section}\\][\\s\\S]*?linker\\s*=\\s*[\"']rust-lld(?:\\.exe)?[\"']`),
+      `${target} should use rust-lld`,
+    );
+  }
 });
 
 test("build jobs prepare the native messaging host before consuming it", () => {

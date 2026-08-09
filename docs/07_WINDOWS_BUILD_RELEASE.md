@@ -119,6 +119,23 @@ Stable channel only in v0.1
 - The UI smoke job builds the Native Messaging Host and Tauri app in debug mode
   so both use the same `target/debug` artifact tree. Release packaging continues
   to use release artifacts.
+- The workspace root owns the release profile and `.cargo/config.toml` selects
+  `rust-lld.exe` for x64, ARM64, and x86 Windows links. Release keeps parallel
+  code generation (`codegen-units = 16`) and disables LTO/incremental artifacts;
+  local debug and test builds retain line tables and incremental reuse.
+- Release matrix jobs enable `mozilla-actions/sccache-action`, set
+  `RUSTC_WRAPPER=sccache`, and use `CARGO_INCREMENTAL=0`. The target-specific
+  Rust cache also includes workspace crates, so unchanged provider and Tauri
+  dependencies can be reused across tags without mixing architectures.
+- Release invokes the project-local Tauri CLI and requests only the shipped
+  NSIS bundle (`--bundles nsis`). The Native Messaging Host is built once per
+  target before Tauri consumes it; the workflow does not invoke the extra
+  `tauri-apps/tauri-action` wrapper.
+
+For local sccache use, install the prebuilt Windows package (`winget install
+Mozilla.sccache`) and set `RUSTC_WRAPPER=sccache` in the current PowerShell
+session. The repository keeps the wrapper opt-in locally so a fresh checkout
+without sccache still has a working Cargo toolchain.
 
 ## 8. Release protection
 
