@@ -362,9 +362,6 @@ impl OpenCodeAdapter {
                 result.detected = true;
                 result.detection_method = "credential".to_string();
                 result.source_type = "remote_api".to_string();
-            } else if result.detection_error_code == "NOT_CONFIGURED" {
-                result.permission_state = "not_found".to_string();
-                result.detection_error_code.clear();
             }
             return Ok(result);
         }
@@ -568,21 +565,9 @@ impl OpenCodeAdapter {
     }
 
     fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
-        let config = match read_go_config() {
-            Ok(config) => config,
-            Err(code) if code == "AUTH_EXPIRED" || code == "NOT_CONFIGURED" => {
-                return Ok(Some(QuotaReport::failed("opencode", "provider_api", code)));
-            }
-            Err(code) => return Err(code),
-        };
+        let config = read_go_config()?;
 
-        match quota_report_from_go_config(config.as_ref(), |config| self.fetch_dashboard(config)) {
-            Ok(report) => Ok(report),
-            Err(code) if code == "AUTH_EXPIRED" || code == "NOT_CONFIGURED" => {
-                Ok(Some(QuotaReport::failed("opencode", "provider_api", code)))
-            }
-            Err(code) => Err(code),
-        }
+        quota_report_from_go_config(config.as_ref(), |config| self.fetch_dashboard(config))
     }
 
     fn fetch_dashboard(&self, config: &OpenCodeGoConfig) -> Result<QuotaReport, String> {
@@ -624,11 +609,7 @@ where
 {
     match config {
         Some(config) => fetch(config).map(Some),
-        None => Ok(Some(QuotaReport::failed(
-            "opencode",
-            "provider_api",
-            "NOT_CONFIGURED",
-        ))),
+        None => Err("NOT_CONFIGURED".to_string()),
     }
 }
 
@@ -661,6 +642,10 @@ impl ProviderAdapter for OpenCodeAdapter {
                     message: "OpenCode Go credentials configured".to_string(),
                 }
             }
+            Ok(detection) if detection.detection_error_code == "NOT_CONFIGURED" => AdapterHealth {
+                status: AdapterHealthStatus::NotConfigured,
+                message: "OpenCode Go credentials are not configured".to_string(),
+            },
             Ok(detection) if detection.detected => AdapterHealth {
                 status: AdapterHealthStatus::Degraded,
                 message: "OpenCode Go credentials are not configured".to_string(),
@@ -695,17 +680,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn missing_go_config_returns_unavailable_report_instead_of_stale_percentage() {
-        let report = quota_report_from_go_config(None, |_config| {
+    fn missing_go_config_returns_not_configured_without_a_report() {
+        let result = quota_report_from_go_config(None, |_config| {
             panic!("a missing credential must not trigger a dashboard request")
-        })
-        .expect("missing configuration is a represented provider state")
-        .expect("the failed report clears stale quota data");
+        });
 
-        assert_eq!(report.status, lnwdeck_domain::QuotaStatus::Unavailable);
-        assert_eq!(report.error_code.as_deref(), Some("NOT_CONFIGURED"));
-        assert!(report.windows.is_empty());
-        assert!(!report.is_usable());
+        assert_eq!(result, Err("NOT_CONFIGURED".to_string()));
     }
 
     #[test]

@@ -92,9 +92,11 @@ fn detection_negative_when_database_missing() {
         assert!(result.source_exists);
     } else {
         assert!(!result.source_exists);
-        assert!(
-            result.detection_error_code.is_empty(),
-            "missing source is not an error"
+        assert_eq!(result.permission_state, "credential_required");
+        assert_eq!(result.detection_error_code, "NOT_CONFIGURED");
+        assert_eq!(
+            adapter.health_check().status,
+            AdapterHealthStatus::NotConfigured
         );
     }
 }

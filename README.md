@@ -1,4 +1,4 @@
-# lnwdeck v11.0.2
+# lnwdeck v11.0.3
 
 Universal AI usage and quota tracker for Windows. lnwdeck reads the local
 artifacts already written by AI tools, records token counts and costs, and
@@ -20,6 +20,19 @@ sync is required.
 - Provides budgets, alerts, diagnostics and sanitized JSON export.
 - Includes a floating quota widget and a transparent desktop pet, both using
   the same live provider data as the dashboard.
+
+## v11.0.3 OpenCode clean-machine correctness
+
+This patch keeps the v11.0.2 quota truth and readability work correct on a
+machine that does not have OpenCode installed or configured:
+
+- OpenCode (Go) keeps an explicit `NOT_CONFIGURED` diagnostic when its local
+  store and per-machine workspace credentials are both absent.
+- A missing OpenCode Go credential produces no unusable quota report; the
+  refresh pipeline records the error and leaves the provider card in its
+  localized no-connection/not-configured state.
+- Regression tests cover the clean-machine detection, health and quota
+  contract paths used by hosted CI.
 
 ## v11.0.2 provider quota and pet fixes
 
@@ -217,7 +230,7 @@ pnpm test:e2e
 pnpm tauri:dev
 ```
 
-## Building and verifying v11.0.2
+## Building and verifying v11.0.3
 
 Signed installers and updater artifacts require the Tauri signing key:
 
@@ -230,10 +243,10 @@ pnpm tauri:build
 pwsh ./scripts/package-portable.ps1 -Arch x64
 
 # Build the updater manifest from signed installers
-node scripts/generate-updater-json.mjs v11.0.2 <assets-dir> <assets-dir>/latest.json
+node scripts/generate-updater-json.mjs v11.0.3 <assets-dir> <assets-dir>/latest.json
 
 # Verify versions, release fixtures, signatures/manifest contract and metadata
-node scripts/check-release-version.mjs v11.0.2
+node scripts/check-release-version.mjs v11.0.3
 pnpm release:test
 ```
 
@@ -241,7 +254,7 @@ The release workflow builds x64, ARM64 and x86 installers and portable ZIPs.
 Each installer and portable ZIP has a `.sig`; the published assets also include
 `latest.json`, `SHA256SUMS`, a CycloneDX SBOM and GitHub build provenance. The
 complete release checklist and rollback procedure are in
-[docs/releases/v11.0.2.md](docs/releases/v11.0.2.md).
+[docs/releases/v11.0.3.md](docs/releases/v11.0.3.md).
 
 ## Privacy
 

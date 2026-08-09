@@ -2,6 +2,24 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [11.0.3] - 2026-08-09
+
+### Correctness
+
+- OpenCode (Go) now keeps `NOT_CONFIGURED` when neither its local store nor
+  its per-machine workspace credentials exist, so clean machines are shown as
+  not connected instead of silently clearing the diagnostic state.
+- Missing OpenCode Go credentials return a quota collection error without an
+  unusable quota report, satisfying the provider contract and preventing fake
+  quota data from entering the refresh pipeline.
+
+### Verification
+
+- Added regression coverage for clean-machine detection, health status and
+  missing-credential quota collection.
+- Hosted provider contract coverage now passes without OpenCode installed or
+  configured on the runner.
+
 ## [11.0.2] - 2026-08-09
 
 ### Highlights
