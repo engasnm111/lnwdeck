@@ -36,7 +36,7 @@ desktop pet and Windows release workflow:
 - Release builds use tuned Cargo profiles, `rust-lld`, target-specific caches,
   `sccache` in CI and only the shipped NSIS bundle to reduce repeated work.
 
-## v11.0.0 dashboard
+## v11.0.1 dashboard
 
 The Overview page is a local TokenTracker-style analytics dashboard. It combines
 usage from every detected AI/provider without dropping partial results and
