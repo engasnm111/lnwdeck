@@ -2,6 +2,28 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [12.0.0] - 2026-08-10
+
+### New LD icon and logo pack
+
+- Every application icon is replaced with a refreshed, high-contrast `LD`
+  monogram pack: dark rounded-square tile with a bold monogram, so the app is
+  clearly visible on bright and dark Windows wallpapers.
+- Taskbar sizes (16x16 through 256x256 plus `128x128@2x`), `icon.ico` /
+  `icon.png`, `logo.ico` / `logo.png`, the Store tile set (Square30x30,
+  Square107x107, Square142x142, Square150x150, StoreLogo) and the installer
+  icon all use the new pack.
+- Small app icons no longer carry a tiny wordmark, keeping the monogram
+  legible at 16px.
+- The pack ships with a preview image and a README describing the design and
+  the included files under `apps/desktop/src-tauri/icons`.
+
+### Verification
+
+- Visual verification of all icon sizes against the previous pack; the release
+  workflow rebuilds installer and portable artifacts for x64, ARM64 and x86
+  with the new icons.
+
 ## [11.0.9] - 2026-08-10
 
 ### Detailed Gemini quota from the Antigravity IDE
