@@ -107,7 +107,7 @@ lnwdeck จึงไม่ใช้ local token total เป็น quota โด�
 | Claude | session JSONL | Anthropic OAuth usage API | รัน `claude` login บนเครื่องนั้น |
 | OpenAI Codex | session JSONL | ChatGPT `/wham/usage` และ reset-credit endpoint; local rate snapshot เป็น fallback ที่ provider ประกาศ | รัน `codex login` |
 | Cursor | account API/local state | Cursor account usage summary API | ล็อกอิน Cursor บนเครื่องนั้น |
-| Gemini | session/log | Gemini Code Assist quota API | ล็อกอิน Gemini CLI บนเครื่องนั้น |
+| Gemini | session/log | Gemini Code Assist quota API; รายละเอียดราย window จาก Antigravity IDE Language Server เมื่อ IDE เปิดอยู่ | ล็อกอิน Antigravity IDE หรือ Gemini CLI บนเครื่องนั้น |
 | OpenCode Go | OpenCode SQLite | `https://opencode.ai/workspace/{workspace}/go` | คู่ env หรือ Settings ตามขั้นตอนด้านบน |
 | ZCode | ZCode SQLite | Z.AI/BigModel monitor API หรือ `billing/balance` log ที่ ZCode เขียนเอง | coding-plan credential ของ ZCode ถ้ามี |
 | Kimi Code | `wire.jsonl` | `https://api.kimi.com/coding/v1/usages` และ OAuth refresh | ล็อกอิน Kimi; รองรับ `KIMI_HOME`/`KIMI_CODE_HOME` |

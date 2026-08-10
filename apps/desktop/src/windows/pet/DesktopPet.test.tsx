@@ -77,6 +77,22 @@ const pet = {
 
 describe("DesktopPet", () => {
   beforeEach(() => {
+    // jsdom has no PointerEvent; React's onPointerDown/Move read button and
+    // screenX off the native event, so polyfill with MouseEvent which carries
+    // both in jsdom.
+    if (typeof window.PointerEvent !== "function") {
+      class PointerEventPolyfill extends MouseEvent {
+        pointerId: number;
+        constructor(type: string, init: PointerEventInit = {}) {
+          super(type, init);
+          this.pointerId = init.pointerId ?? 0;
+        }
+      }
+      Object.defineProperty(window, "PointerEvent", {
+        configurable: true,
+        value: PointerEventPolyfill,
+      });
+    }
     petTestMocks.listeners.clear();
     petTestMocks.fetchSettings.mockResolvedValue({ settings: { language: "en" } });
     petTestMocks.fetchPetWindowSettings.mockResolvedValue(settings);
@@ -187,4 +203,102 @@ describe("DesktopPet", () => {
       expect(lastRect?.[2]).toBe(window.innerWidth);
     });
   });
+
+  function spriteMetrics() {
+    const viewW = window.innerWidth;
+    const viewH = window.innerHeight;
+    const spriteW = Math.max(48, Math.min(96, viewW - 12));
+    const spriteH = Math.round(spriteW * (208 / 192));
+    return {
+      viewW,
+      viewH,
+      spriteW,
+      spriteH,
+      hOffset: (viewW - spriteW) / 2,
+      vOffset: viewH - spriteH - 6,
+      screenW: 1920,
+      screenH: 1080,
+    };
+  }
+
+  function startPosition(m: ReturnType<typeof spriteMetrics>) {
+    const spriteLeft = (m.screenW - m.viewW) / 2 + m.hOffset;
+    const spriteTop = m.screenH - m.viewH - 48 + m.vOffset;
+    return {
+      x: spriteLeft - m.hOffset,
+      y: spriteTop - m.vOffset,
+    };
+  }
+
+  function lastMove(): [number, number] {
+    const calls = petTestMocks.movePetWindow.mock.calls;
+    return [calls.at(-1)?.[0] as number, calls.at(-1)?.[1] as number];
+  }
+
+  async function dragSprite(dx: number, dy: number) {
+    render(
+      <I18nProvider>
+        <DesktopPet />
+      </I18nProvider>,
+    );
+    const sprite = await screen.findByTitle("Friend Pixel Pet");
+    await act(async () => {
+      fireEvent.pointerDown(sprite, {
+        button: 0,
+        pointerId: 1,
+        screenX: 100,
+        screenY: 100,
+      });
+      fireEvent.pointerMove(sprite, {
+        button: 0,
+        pointerId: 1,
+        screenX: 100 + dx,
+        screenY: 100 + dy,
+      });
+      fireEvent.pointerUp(sprite, {
+        button: 0,
+        pointerId: 1,
+        screenX: 100 + dx,
+        screenY: 100 + dy,
+      });
+    });
+    return lastMove();
+  }
+
+  it("lets the pet sprite touch the left edge of the screen", async () => {
+    const m = spriteMetrics();
+    const start = startPosition(m);
+    const [x, y] = await dragSprite(-10_000, 0);
+
+    // The sprite's left edge must sit at screen x=0: the window itself may
+    // go off screen because the sprite is centered inside the window box.
+    expect(x).toBeCloseTo(0 - m.hOffset);
+    expect(y).toBe(start.y);
+  });
+
+  it("lets the pet sprite touch the right edge of the screen", async () => {
+    const m = spriteMetrics();
+    const [x] = await dragSprite(10_000, 0);
+
+    const expected = m.screenW - m.spriteW - m.hOffset;
+    expect(x).toBeCloseTo(expected);
+  });
+
+  it("lets the pet sprite touch the top edge of the screen", async () => {
+    const m = spriteMetrics();
+    const [, y] = await dragSprite(0, -10_000);
+
+    expect(y).toBeCloseTo(0 - m.vOffset);
+  });
+
+  it("lets the pet sprite touch the bottom edge of the screen", async () => {
+    const m = spriteMetrics();
+    const [, y] = await dragSprite(0, 10_000);
+
+    // Sprite bottom must sit at the screen bottom: the window's y plus the
+    // sprite's bottom offset inside the window box.
+    expect(y).toBeCloseTo(m.screenH - m.spriteH - m.vOffset);
+  });
 });
+
+

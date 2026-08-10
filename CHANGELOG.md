@@ -2,6 +2,56 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [11.0.9] - 2026-08-10
+
+### Detailed Gemini quota from the Antigravity IDE
+
+- When Antigravity IDE is running, lnwdeck discovers its Language Server
+  process, reads the CSRF token from the server command line, and fetches the
+  same per-model-group quota windows the IDE shows in Settings → Models:
+  *Gemini Models* and *Claude and GPT models*, each with a *weekly* and a
+  *5-hour* window, including remaining fraction and reset time.
+- The request is local gRPC over HTTP/1.1 (loopback only, HTTPS); the token is
+  never sent outside the machine.
+- When the IDE is closed, quota falls back to the Gemini Code Assist
+  `retrieveUserQuota` endpoint with the account plan label (Free / Paid), so a
+  closed IDE never produces a fabricated percentage.
+- The Antigravity OAuth credential is read from Windows Credential Manager
+  (`gemini:antigravity`) when present, with the CLI `oauth_creds.json` file as
+  fallback; expired tokens are refreshed before use.
+- The Google OAuth client the vendor ships with Antigravity is extracted at
+  runtime from the installed IDE's `out/main.js` (embedded `oauthClient.js`),
+  like TokenTracker reads gemini-cli's `oauth2.js`; nothing is hardcoded in
+  source, and a missing IDE yields a sanitized refresh error.
+
+### Desktop correctness
+
+- Language Server discovery spawns helper processes hidden (CREATE_NO_WINDOW),
+  so refresh never pops a console window.
+- The desktop pet clamps its visible sprite to the screen bounds instead of its
+  larger transparent window box; dragging or walking keeps the sprite fully
+  visible while the window may extend past the edge.
+
+### Bundled Prompt typeface
+
+- The Prompt font (OFL-1.1) is vendored with the app in four weights (Regular,
+  Medium, SemiBold, Bold) and used across the dashboard, widget, pet and tray,
+  with system fallbacks.
+
+### Documentation
+
+- New `docs/END_USER_GUIDE.md` covers quota setup, the detailed Gemini windows
+  and troubleshooting in nine languages.
+- `docs/PROVIDER_QUOTA_SETUP.md` documents the Gemini Language Server source
+  and credential precedence.
+
+### Verification
+
+- Unit tests cover the Antigravity keyring blob parser, credential precedence,
+  token refresh and plan tier mapping.
+- Regression tests cover sprite-based pet clamping, the movement loop in sprite
+  coordinates, and the bundled font token usage.
+
 ## [11.0.8] - 2026-08-10
 
 ### Pet quota tooltip alignment

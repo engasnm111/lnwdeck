@@ -10,6 +10,8 @@
  * disabled wholesale under `prefers-reduced-motion`.
  */
 
+@import "../../styles/tokens.css";
+
 .pet-window {
   position: fixed;
   inset: 0;
@@ -17,7 +19,7 @@
   /* The hover tooltip renders above the pet; it must be allowed to reach the
      top of the window, so nothing here clips it. */
   overflow: visible;
-  font-family: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif;
+  font-family: var(--font-family);
   user-select: none;
   -webkit-user-select: none;
   /* Anchor the pet at the bottom so the whole height above it is available

@@ -16,6 +16,43 @@
  * reference them, so a redesign changes values, never names.
  */
 
+/*
+ * Bundled "Prompt" typeface (OFL-1.1, see assets/fonts/prompt/OFL.txt).
+ * The weights used by the UI are vendored with the app so the interface never
+ * depends on a network fetch or on which fonts the OS happens to have.
+ */
+@font-face {
+  font-family: "Prompt";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../assets/fonts/prompt/Prompt-Regular.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Prompt";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../assets/fonts/prompt/Prompt-Medium.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Prompt";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../assets/fonts/prompt/Prompt-SemiBold.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Prompt";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../assets/fonts/prompt/Prompt-Bold.ttf") format("truetype");
+}
+
 :root {
   color-scheme: dark;
 
@@ -108,11 +145,11 @@
   --glass-fill-elevated: rgba(255, 255, 255, 0.07);
   --glass-edge: rgba(255, 255, 255, 0.14);
 
-  /* Type: Segoe UI Variable first, a monospace for data. */
-  --font-family: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui,
-    -apple-system, sans-serif;
-  --font-family-display: "Segoe UI Variable Display", "Segoe UI", Inter,
-    system-ui, sans-serif;
+  /* Type: bundled "Prompt" first (Latin + Thai), with system fallbacks. */
+  --font-family: "Prompt", "Segoe UI Variable Text", "Segoe UI", Inter,
+    system-ui, -apple-system, sans-serif;
+  --font-family-display: "Prompt", "Segoe UI Variable Display", "Segoe UI",
+    Inter, system-ui, sans-serif;
   --font-mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
 
   /* Type scale used by the shell and shared components. */

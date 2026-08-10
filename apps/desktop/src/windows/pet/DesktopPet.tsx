@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { currentMonitor } from "@tauri-apps/api/window";
 import {
@@ -77,19 +77,30 @@ interface ContextMenuState {
   y: number;
 }
 
-/** Clamps a window position so the window never leaves the screen. */
-function clampWindow(
+/** Clamps a WINDOW position so the visible sprite stays inside the screen.
+ *
+ * The pet window is larger than the sprite: the sprite is centered
+ * horizontally and bottom-aligned inside the window box. Clamping the window
+ * box itself would trap the sprite inside an invisible margin, so the clamp
+ * maps the sprite rect to the screen and converts back to window coordinates.
+ * The window may then extend past the edge while the sprite still sits flush
+ * against it.
+ */
+function clampSprite(
   x: number,
   y: number,
   screenW: number,
   screenH: number,
   viewW: number,
   viewH: number,
+  spriteW: number,
+  spriteH: number,
 ): { x: number; y: number } {
-  return {
-    x: Math.max(0, Math.min(screenW - viewW, x)),
-    y: Math.max(0, Math.min(screenH - viewH, y)),
-  };
+  const hOffset = (viewW - spriteW) / 2;
+  const vOffset = viewH - spriteH - 6;
+  const spriteX = Math.max(0, Math.min(screenW - spriteW, x + hOffset));
+  const spriteY = Math.max(0, Math.min(screenH - spriteH, y + vOffset));
+  return { x: spriteX - hOffset, y: spriteY - vOffset };
 }
 
 /**
@@ -278,24 +289,36 @@ export function DesktopPet() {
     };
   }, [activePet?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Sprite size follows the size preset, shrinking only when the window
+  // viewport is too small for it.
+  const base = SPRITE_BASE[settings.sizePreset] ?? SPRITE_BASE.medium;
+  const spriteW = Math.max(48, Math.min(base, viewSize.w - 12));
+  const spriteH = Math.round(spriteW * SPRITE_ASPECT);
+  // Live sprite metrics for the drag/movement handlers: the sprite is
+  // centered horizontally and bottom-aligned inside the window box.
+  const spriteRef = useRef({ w: spriteW, h: spriteH, hOffset: 0, vOffset: 0 });
+  spriteRef.current = {
+    w: spriteW,
+    h: spriteH,
+    hOffset: (viewSize.w - spriteW) / 2,
+    vOffset: viewSize.h - spriteH - 6,
+  };
+
   // Start centered near the bottom of the screen.
   useEffect(() => {
-    const start = clampWindow(
+    const s = spriteRef.current;
+    const start = clampSprite(
       (screenSize.w - viewSize.w) / 2,
       screenSize.h - viewSize.h - 48,
       screenSize.w,
       screenSize.h,
       viewSize.w,
       viewSize.h,
+      s.w,
+      s.h,
     );
     setPos(start);
   }, [screenSize.w, screenSize.h, viewSize.w, viewSize.h]);
-
-  // Sprite size follows the size preset, shrinking only when the window
-  // viewport is too small for it.
-  const base = SPRITE_BASE[settings.sizePreset] ?? SPRITE_BASE.medium;
-  const spriteW = Math.max(48, Math.min(base, viewSize.w - 12));
-  const spriteH = Math.round(spriteW * SPRITE_ASPECT);
 
   // Push the window position to the backend whenever it changes (physical).
   useEffect(() => {
@@ -331,26 +354,37 @@ export function DesktopPet() {
     return () => clearInterval(poll);
   }, []);
 
-  // Movement loop: advance the window and bounce off screen edges.
+  // Movement loop: advance the window and bounce off screen edges. The pet
+  // walks in sprite coordinates so it turns around when the SPRITE (not the
+  // transparent window box) reaches the screen edge.
   useEffect(() => {
     const interval = setInterval(() => {
       if (dragging.current) return;
       const state = movementStateRef.current;
       const dir = directionRef.current;
       const bounds = boundsRef.current;
-      const view = viewRef.current;
+      const s = spriteRef.current;
       const config = {
-        petWidth: view.w,
+        petWidth: s.w,
         screenW: bounds.w,
         screenH: bounds.h,
         speed: settingsRef.current.speed as PetSpeed,
         autoSleep: settingsRef.current.autoSleep,
       };
       setPos((prev) => {
-        const result = tickMovement(prev.x, prev.y, state, dir, config);
+        const result = tickMovement(
+          prev.x + s.hOffset,
+          prev.y + s.vOffset,
+          state,
+          dir,
+          config,
+        );
         if (result.state !== state) setMovementState(result.state);
         if (result.direction !== dir) setDirection(result.direction);
-        return { x: result.x, y: result.y };
+        return {
+          x: result.x - s.hOffset,
+          y: result.y - s.vOffset,
+        };
       });
     }, TICK_MS);
     return () => clearInterval(interval);
@@ -398,13 +432,16 @@ export function DesktopPet() {
     didDrag.current = true;
     const bounds = boundsRef.current;
     const view = viewRef.current;
-    const next = clampWindow(
+    const s = spriteRef.current;
+    const next = clampSprite(
       start.winX + dx,
       start.winY + dy,
       bounds.w,
       bounds.h,
       view.w,
       view.h,
+      s.w,
+      s.h,
     );
     void movePetWindow(
       Math.round(next.x * scale),
@@ -612,3 +649,4 @@ export function DesktopPet() {
     </div>
   );
 }
+

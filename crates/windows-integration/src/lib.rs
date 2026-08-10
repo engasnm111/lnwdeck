@@ -1,3 +1,4 @@
+pub mod antigravity_ls;
 pub mod credential;
 pub mod credential_store;
 pub mod startup;

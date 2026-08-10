@@ -20,6 +20,7 @@ use std::path::PathBuf;
 mod antigravity;
 mod transcript;
 
+pub mod ls_quota;
 pub mod quota_api;
 pub use transcript::TranscriptBounds;
 
@@ -107,7 +108,12 @@ impl GeminiAdapter {
         if !self.root.is_dir() {
             return Ok(None);
         }
-        quota_api::fetch_windows(&self.oauth_path(), quota_api::default_timeout())
+        let use_keyring = self.root == GeminiAdapter::new().root;
+        quota_api::fetch_windows(
+            &self.oauth_path(),
+            quota_api::default_timeout(),
+            use_keyring,
+        )
     }
 }
 

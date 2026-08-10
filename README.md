@@ -1,4 +1,4 @@
-# lnwdeck v11.0.5
+# lnwdeck v11.0.9
 
 Universal AI usage and quota tracker for Windows. lnwdeck reads the local
 artifacts already written by AI tools, records token counts and costs, and
@@ -20,6 +20,42 @@ sync is required.
 - Provides budgets, alerts, diagnostics and sanitized JSON export.
 - Includes a floating quota widget and a transparent desktop pet, both using
   the same live provider data as the dashboard.
+
+## v11.0.9 detailed Gemini quota, pet bounds and bundled fonts
+
+This release reads detailed Gemini / Google / Antigravity quota windows
+directly from the running Antigravity IDE Language Server, keeps the desktop
+pet sprite fully visible when dragged or walking, and bundles the Prompt
+typeface so every surface renders Latin and Thai glyphs consistently offline.
+
+- **Detailed Gemini quota.** With Antigravity IDE running, lnwdeck discovers
+  its Language Server process, reads the CSRF token from the server command
+  line, and fetches the same per-model-group windows the IDE shows in
+  Settings → Models: *Gemini Models* and *Claude and GPT models*, each with a
+  *weekly* and a *5-hour* window (remaining fraction and reset time). The
+  request is loopback-only gRPC over HTTP/1.1 and the token never leaves the
+  machine. When the IDE is closed, quota falls back to the Gemini Code Assist
+  `retrieveUserQuota` endpoint with the account plan label, so a closed IDE
+  never produces a fabricated percentage.
+- **Antigravity credentials.** The OAuth credential Antigravity stores in
+  Windows Credential Manager (`gemini:antigravity`) is read directly when
+  present, with the CLI `oauth_creds.json` file as fallback; expired tokens are
+  refreshed before use. No secret is written to SQLite, logs, UI or exports.
+  The vendor's OAuth client is read at runtime from the installed IDE's
+  `out/main.js` (like TokenTracker reads gemini-cli's `oauth2.js`), so no
+  client identifier is hardcoded in source.
+- **No console flash.** Language Server discovery spawns helper processes
+  hidden (CREATE_NO_WINDOW).
+- **Pet stays on screen.** The pet clamps its visible sprite to the screen
+  bounds instead of its larger transparent window box, so the sprite never
+  gets trapped in an invisible margin or leaves the screen.
+- **Prompt font bundled.** The OFL-licensed Prompt typeface ships with the app
+  in four weights (Regular, Medium, SemiBold, Bold) and is used across the
+  dashboard, widget, pet and tray, with system fallbacks.
+
+See [the release notes](docs/releases/v11.0.9.md), the
+[end-user guide](docs/END_USER_GUIDE.md) (nine languages) and the
+[provider setup guide](docs/PROVIDER_QUOTA_SETUP.md).
 
 ## v11.0.5 account-aware quota and desktop correctness
 
@@ -251,7 +287,7 @@ pnpm test:e2e
 pnpm tauri:dev
 ```
 
-## Building and verifying v11.0.5
+## Building and verifying v11.0.9
 
 Signed installers and updater artifacts require the Tauri signing key:
 
@@ -264,10 +300,10 @@ pnpm tauri:build
 pwsh ./scripts/package-portable.ps1 -Arch x64
 
 # Build the updater manifest from signed installers
-node scripts/generate-updater-json.mjs v11.0.5 <assets-dir> <assets-dir>/latest.json
+node scripts/generate-updater-json.mjs v11.0.9 <assets-dir> <assets-dir>/latest.json
 
 # Verify versions, release fixtures, signatures/manifest contract and metadata
-node scripts/check-release-version.mjs v11.0.5
+node scripts/check-release-version.mjs v11.0.9
 pnpm release:test
 ```
 
@@ -275,7 +311,7 @@ The release workflow builds x64, ARM64 and x86 installers and portable ZIPs.
 Each installer and portable ZIP has a `.sig`; the published assets also include
 `latest.json`, `SHA256SUMS`, a CycloneDX SBOM and GitHub build provenance. The
 complete release checklist and rollback procedure are in
-[docs/releases/v11.0.5.md](docs/releases/v11.0.5.md).
+[docs/releases/v11.0.9.md](docs/releases/v11.0.9.md).
 
 ## Privacy
 
