@@ -313,19 +313,15 @@
 }
 
 .pet-tooltip-bars {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-}
-
-.pet-tooltip-bar-row {
   display: grid;
   grid-template-columns: minmax(0, max-content) 78px 44px;
   align-items: center;
   column-gap: 12px;
-  width: max-content;
-  max-width: 100%;
+  row-gap: 3px;
+}
+
+.pet-tooltip-bar-row {
+  display: contents;
 }
 
 .pet-tooltip-bar-label {
@@ -334,6 +330,7 @@
   flex-direction: column;
   gap: 1px;
   line-height: 1.1;
+  text-align: left;
   overflow: hidden;
   max-width: 180px;
 }

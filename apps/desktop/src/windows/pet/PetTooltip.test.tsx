@@ -1,4 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { render, screen } from "@testing-library/react";
 import { PetTooltip } from "./PetTooltip";
 import { I18nProvider } from "../../app/I18nProvider";
@@ -112,5 +114,19 @@ describe("PetTooltip", () => {
     expect(provider).toHaveClass("pet-tooltip-bar-provider");
     expect(screen.getByText("5-hour")).toHaveClass("pet-tooltip-bar-window");
     expect(screen.getByTitle("OpenCode (Go) — 5-hour")).toBeInTheDocument();
+  });
+
+  it("aligns provider names left and keeps every track on one shared right edge", async () => {
+    const css = readFileSync(resolve(process.cwd(), "src/windows/pet/DesktopPet.css"), "utf8");
+    const barsRule = css.match(/\.pet-tooltip-bars\s*\{([\s\S]*?)\}/)?.[1] ?? "";
+    const rowRule = css.match(/\.pet-tooltip-bar-row\s*\{([\s\S]*?)\}/)?.[1] ?? "";
+    const labelRule = css.match(/\.pet-tooltip-bar-label\s*\{([\s\S]*?)\}/)?.[1] ?? "";
+
+    expect(barsRule).toContain("display: grid;");
+    expect(barsRule).toContain("grid-template-columns: minmax(0, max-content) 78px 44px;");
+    expect(barsRule).toContain("column-gap: 12px;");
+    expect(barsRule).toContain("row-gap: 3px;");
+    expect(rowRule).toContain("display: contents;");
+    expect(labelRule).toContain("text-align: left;");
   });
 });

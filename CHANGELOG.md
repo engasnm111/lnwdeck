@@ -2,6 +2,23 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [11.0.8] - 2026-08-10
+
+### Pet quota tooltip alignment
+
+- Provider names in the pet quota tooltip now share one left-aligned column.
+- Quota tracks and percentages now share consistent right-side columns across
+  providers with different label lengths.
+- Added a regression test to protect the shared grid layout and left-aligned
+  provider labels.
+
+### Privacy and compatibility
+
+- No credentials, cookies, prompts, responses or raw provider payloads are
+  added to the UI, storage or logs.
+- Existing quota history, account identity data and provider refresh behavior
+  remain unchanged.
+
 ## [11.0.7] - 2026-08-10
 
 ### Pet layout and provider visibility
