@@ -39,6 +39,61 @@ test("app boots and renders the dashboard", async () => {
   ).toBeVisible();
 });
 
+test("pet quota and speech bubbles stay compact and inside the viewport", async () => {
+  await page.waitForLoadState("domcontentloaded");
+  await page.addStyleTag({ path: "src/windows/pet/DesktopPet.css" });
+  const metrics = await page.evaluate(() => {
+    const fixture = document.createElement("div");
+    fixture.style.cssText =
+      "position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9999";
+    fixture.innerHTML = `
+      <div class="pet-tooltip" data-e2e-tooltip>
+        <div class="pet-tooltip-inner">
+          <div class="pet-tooltip-bars">
+            <div class="pet-tooltip-bar-row">
+              <span class="pet-tooltip-bar-label">
+                <span class="pet-tooltip-bar-provider">OpenCode (Go)</span>
+                <span class="pet-tooltip-bar-window">30-day</span>
+              </span>
+              <span class="pet-tooltip-bar-track"></span>
+              <span class="pet-tooltip-bar-pct">21%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="pet-tooltip" data-e2e-speech>
+        <div class="pet-tooltip-inner pet-tooltip-speech">
+          <span class="pet-tooltip-empty">Hi!</span>
+        </div>
+      </div>`;
+    document.body.appendChild(fixture);
+
+    const quota = fixture.querySelector<HTMLElement>("[data-e2e-tooltip] .pet-tooltip-inner")!;
+    const provider = fixture.querySelector<HTMLElement>(".pet-tooltip-bar-provider")!;
+    const track = fixture.querySelector<HTMLElement>(".pet-tooltip-bar-track")!;
+    const speech = fixture.querySelector<HTMLElement>(".pet-tooltip-speech")!;
+    const quotaRect = quota.getBoundingClientRect();
+    const providerText = document.createRange();
+    providerText.selectNodeContents(provider);
+    const gap = track.getBoundingClientRect().left - providerText.getBoundingClientRect().right;
+    const result = {
+      gap,
+      quotaLeft: quotaRect.left,
+      quotaRight: quotaRect.right,
+      speechWidth: speech.getBoundingClientRect().width,
+      viewportWidth: window.innerWidth,
+    };
+    fixture.remove();
+    return result;
+  });
+
+  expect(metrics.gap).toBeGreaterThanOrEqual(0);
+  expect(metrics.gap).toBeLessThanOrEqual(20);
+  expect(metrics.quotaLeft).toBeGreaterThanOrEqual(0);
+  expect(metrics.quotaRight).toBeLessThanOrEqual(metrics.viewportWidth);
+  expect(metrics.speechWidth).toBeLessThan(160);
+});
+
 test("sidebar navigation reaches every page", async () => {
   const labels: Array<[string, string]> = [
     ["Providers", "ผู้ให้บริการ"],

@@ -205,7 +205,7 @@ describe("FloatingWidget", () => {
     expect(screen.getByText("Claude")).toBeInTheDocument();
   });
 
-  it("shows a localized no-connection card for a pinned provider that is absent", async () => {
+  it("hides a pinned provider that is absent and shows the no-quota state", async () => {
     vi.mocked(native.fetchWidgetSettings).mockResolvedValue({
       opacity: 1,
       locked: false,
@@ -229,8 +229,11 @@ describe("FloatingWidget", () => {
     );
     render(<FloatingWidget />);
 
-    await waitFor(() => expect(screen.getByText("No connection")).toBeInTheDocument());
-    expect(screen.getByText("OpenCode (Go)")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText("No quota data available")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("No connection")).not.toBeInTheDocument();
+    expect(screen.queryByText("OpenCode (Go)")).not.toBeInTheDocument();
     expect(screen.queryByText("SOURCE_UNAVAILABLE")).not.toBeInTheDocument();
     expect(screen.queryByText(/\d+%/)).not.toBeInTheDocument();
   });
@@ -894,6 +897,37 @@ describe("FloatingWidget pet view", () => {
         }),
       ]),
     );
+    render(<FloatingWidget />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Quota mood: Happy")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Shown")).toBeInTheDocument();
+    expect(screen.queryByText("Failed")).not.toBeInTheDocument();
+    expect(screen.getByText(/1 of 1 provider/)).toBeInTheDocument();
+  });
+
+  it("hides an explicitly selected provider whose quota fetch failed", async () => {
+    vi.mocked(native.fetchWidgetSettings).mockResolvedValue(
+      petSettings({ selected_providers: ["shown", "failed"] }),
+    );
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([
+        provider({
+          provider_id: "shown",
+          display_name: "Shown",
+          windows: [windowWith(72)],
+        }),
+        provider({
+          provider_id: "failed",
+          display_name: "Failed",
+          status: "auth_expired",
+          error_code: "AUTH_EXPIRED",
+          windows: [],
+        }),
+      ]),
+    );
+
     render(<FloatingWidget />);
 
     await waitFor(() =>

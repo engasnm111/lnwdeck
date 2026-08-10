@@ -2,6 +2,25 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [11.0.7] - 2026-08-10
+
+### Pet layout and provider visibility
+
+- Pet quota rows now size to their content with a maximum 20px visual gap
+  between the provider label and quota bar, while keeping the glass frame and
+  viewport bounds intact.
+- Short pet speech bubbles now fit their text instead of inheriting the quota
+  tooltip width; longer messages still wrap safely within the viewport.
+- The floating widget now shows only providers whose quota was fetched
+  successfully. Failed or unavailable providers no longer appear as stale
+  pinned rows, while the provider picker still allows recovery after setup.
+
+### Verification
+
+- Added regression coverage for explicitly selected providers whose fetch fails.
+- Added real WebView2 geometry coverage for tooltip gap, speech width and frame
+  bounds.
+
 ## [11.0.5] - 2026-08-10
 
 ### Quota and account correctness

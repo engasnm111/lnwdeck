@@ -956,11 +956,10 @@ export function FloatingWidget() {
     if (settings.selected_providers.length === 0) {
       return fetchedProviders;
     }
-    return allProviders.filter((provider) =>
+    return fetchedProviders.filter((provider) =>
       settings.selected_providers.includes(provider.provider_id),
     );
-  }, [allProviders, fetchedProviders, settings.selected_providers]);
-  const hasExplicitSelection = settings.selected_providers.length > 0;
+  }, [fetchedProviders, settings.selected_providers]);
 
   // The pet mood derives only from what the widget currently shows, after the
   // the fetch filter and provider selection above have been applied. A pinned
@@ -1150,18 +1149,11 @@ export function FloatingWidget() {
               {t("widget.noQuotaYetDetail")}
             </span>
           </div>
-        ) : !hasExplicitSelection && fetchedProviders.length === 0 ? (
+        ) : fetchedProviders.length === 0 || visibleProviders.length === 0 ? (
           <div className="w-message" role="status">
             <span className="w-message-title">{t("widget.noQuotaAvailable")}</span>
             <span className="w-message-detail">
               {t("widget.noQuotaAvailableDetail")}
-            </span>
-          </div>
-        ) : visibleProviders.length === 0 ? (
-          <div className="w-message" role="status">
-            <span className="w-message-title">{t("widget.noProviderSelected")}</span>
-            <span className="w-message-detail">
-              {t("widget.noProviderSelectedDetail")}
             </span>
           </div>
         ) : (
