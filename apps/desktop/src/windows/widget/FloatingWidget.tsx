@@ -84,7 +84,10 @@ export function statusChip(
       return {
         label: t("widget.status.stale"),
         tone: "stale",
-        detail: t("widget.status.staleDetail"),
+        detail:
+          errorCode === "SOURCE_REQUIRES_IDE"
+            ? t("widget.status.requiresIdeDetail")
+            : t("widget.status.staleDetail"),
       };
     case "rate_limited":
       return {
@@ -99,6 +102,13 @@ export function statusChip(
         detail: t("widget.status.notAuthenticatedDetail"),
       };
     case "unavailable":
+      if (errorCode === "SOURCE_REQUIRES_IDE") {
+        return {
+          label: t("widget.status.requiresIde"),
+          tone: "stale",
+          detail: t("widget.status.requiresIdeDetail"),
+        };
+      }
       return {
         label: t("widget.status.unavailable"),
         tone: "muted",
@@ -136,6 +146,20 @@ export function hasFetchedQuota(
   );
 }
 
+/**
+ * A provider whose quota source exists but needs the Antigravity IDE running
+ * is actionable, not a failure: it must stay visible in the widget so the
+ * user is told what to do instead of the card silently disappearing.
+ */
+export function requiresIdeGuidance(
+  provider: Pick<ProviderQuotaCard, "error_code" | "status">,
+): boolean {
+  return (
+    provider.status === "unavailable" &&
+    provider.error_code === "SOURCE_REQUIRES_IDE"
+  );
+}
+
 /** Missing local integrations are expected on a multi-machine installation. */
 export function isNonActionableRefreshError(errorCode: string | null): boolean {
   return (
@@ -143,7 +167,8 @@ export function isNonActionableRefreshError(errorCode: string | null): boolean {
     errorCode === "NOT_INSTALLED" ||
     errorCode === "NOT_CONFIGURED" ||
     errorCode === "NOT_SUPPORTED" ||
-    errorCode === "UNSUPPORTED"
+    errorCode === "UNSUPPORTED" ||
+    errorCode === "SOURCE_REQUIRES_IDE"
   );
 }
 
@@ -456,6 +481,14 @@ function ProviderCard({
             locale={language}
           />
         ))
+      )}
+
+      {provider.status === "stale" && provider.windows.length > 0 && (
+        <p className="w-card-note">
+          {t("widget.status.staleAge", {
+            time: formatRefreshedAgo(provider.collected_at, now, t),
+          })}
+        </p>
       )}
 
       {visibleErrorCode && (
@@ -940,16 +973,21 @@ export function FloatingWidget() {
   const allProviders = dashboard?.providers ?? [];
   // Providers whose quota collection actually produced data. Failed
   // collections are not shown in the widget; the dashboard explains them.
+  // The one exception is a source that needs the Antigravity IDE running:
+  // that card stays visible so the user is told to open it.
   const fetchedProviders = useMemo(
     () =>
-      allProviders.filter((provider) =>
-        hasFetchedQuota(
+      allProviders.filter((provider) => {
+        if (requiresIdeGuidance(provider)) {
+          return true;
+        }
+        return hasFetchedQuota(
           provider.status,
           provider.connection_state,
           provider.quota_support,
           provider.source,
-        ),
-      ),
+        );
+      }),
     [allProviders],
   );
   const visibleProviders = useMemo(() => {

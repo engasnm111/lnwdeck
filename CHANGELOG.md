@@ -2,6 +2,31 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [12.0.1] - 2026-08-11
+
+### Gemini quota: the Antigravity IDE is the only source
+
+- Gemini quota is read exclusively from the running Antigravity IDE Language
+  Server. The `retrieveUserQuota` fallback is removed: it returned placeholder
+  fractions that surfaced as a fabricated "100% remaining" on real machines,
+  and it overwrote accurate readings whenever the IDE was closed.
+- TokenTracker-style caching: when the IDE is closed the last successful
+  reading **stays visible as old data** — the card flips from "Live" to
+  "stale" the moment the IDE closes and shows exactly how long ago the data
+  was fetched ("updated Xm ago"), in the widget, pet tooltip, Overview summary
+  and Providers cards. A closed IDE never shows a fresh percentage, and real
+  numbers never vanish.
+- The UI tells the user what to do next: cards show "Open Antigravity IDE to
+  update Gemini quota" whenever the cached reading cannot be refreshed.
+- Gemini CLI and Antigravity IDE sessions are separated: the account identity
+  is derived from the credential that actually serves quota (Windows
+  Credential Manager keyring first, `oauth_creds.json` fallback), so one
+  account's data is never stored under another account's fingerprint.
+- `SOURCE_REQUIRES_IDE` is an expected provider state: it never turns a
+  refresh cycle into a global failure and never raises an alert.
+- Legacy placeholder reports already stored in the database stop being
+  displayed; nothing is deleted silently.
+
 ## [12.0.0] - 2026-08-10
 
 ### New LD icon and logo pack

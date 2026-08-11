@@ -54,6 +54,9 @@ impl ScanProviders {
             .latest_all()?
             .into_iter()
             .map(crate::quota::sanitize_legacy_opencode_report)
+            .filter_map(|report| {
+                crate::quota::sanitize_legacy_gemini_reports(report, chrono::Utc::now())
+            })
             .collect::<Vec<_>>();
 
         let mut results: Vec<DetailedProviderInfo> = Vec::new();
@@ -85,19 +88,36 @@ impl ScanProviders {
                 raw_last_error_code.to_string()
             };
             // Do not keep displaying a previously valid quota after the latest
-            // scan proved that this machine has no connection for the provider.
-            let report = if !detected
-                && !source_exists
-                && quota_run
-                    .map(|r| is_expected_provider_absence(&r.error_code))
-                    .unwrap_or(false)
+            // scan proved that this machine has no connection for the provider,
+            // and never after the latest quota run failed in a way that
+            // invalidates the data (expired credential, schema mismatch).
+            // The one exception: the source needs the Antigravity IDE running
+            // (SOURCE_REQUIRES_IDE) — that only ages the cached reading, it
+            // does not make the data wrong, so it stays visible.
+            let selected = reports
+                .iter()
+                .filter(|r| r.provider_id == id)
+                .max_by_key(|r| r.collected_at);
+            let run_failed = quota_run
+                .map(|r| {
+                    !r.error_code.is_empty()
+                        && r.error_code != NOT_SUPPORTED
+                        && r.error_code != "UNSUPPORTED"
+                })
+                .unwrap_or(false);
+            let run_requires_ide = quota_run.is_some_and(|r| r.error_code == "SOURCE_REQUIRES_IDE");
+            let report = if run_requires_ide && selected.is_some_and(|r| r.is_usable()) {
+                selected
+            } else if run_failed
+                || (!detected
+                    && !source_exists
+                    && quota_run
+                        .map(|r| is_expected_provider_absence(&r.error_code))
+                        .unwrap_or(false))
             {
                 None
             } else {
-                reports
-                    .iter()
-                    .filter(|r| r.provider_id == id)
-                    .max_by_key(|r| r.collected_at)
+                selected
             };
 
             let health_status = health_label(
@@ -226,11 +246,17 @@ fn health_label(
 
 /// Missing local integrations are expected when the same installation is
 /// opened on another machine. They should remain local to the provider card
-/// instead of being surfaced as a global refresh failure.
+/// instead of being surfaced as a global refresh failure. A quota source that
+/// needs the Antigravity IDE running is the same kind of expected state.
 fn is_expected_provider_absence(code: &str) -> bool {
     matches!(
         code,
-        "SOURCE_UNAVAILABLE" | "NOT_INSTALLED" | "NOT_CONFIGURED" | "UNSUPPORTED" | "NOT_SUPPORTED"
+        "SOURCE_UNAVAILABLE"
+            | "NOT_INSTALLED"
+            | "NOT_CONFIGURED"
+            | "UNSUPPORTED"
+            | "NOT_SUPPORTED"
+            | "SOURCE_REQUIRES_IDE"
     )
 }
 
@@ -554,6 +580,131 @@ mod tests {
         let cards = ScanProviders::execute(&storage.conn, &test_registry()).expect("scan");
         assert_eq!(cards[0].health_status, "Error (AUTH_EXPIRED)");
         assert_eq!(cards[0].last_error_code, "AUTH_EXPIRED");
+    }
+
+    #[test]
+    fn an_ide_required_run_keeps_the_cached_summary() {
+        let storage = open_test_db();
+        // A usable report from an earlier successful collection.
+        lnwdeck_storage::repositories::QuotaRepository::new(&storage.conn)
+            .upsert_report(&QuotaReport::new(
+                "opencode",
+                "provider_api",
+                vec![window("5h", 40, 100, None)],
+                chrono::Duration::hours(1),
+            ))
+            .expect("report");
+        // The provider source exists (transcripts present) but the latest
+        // quota run needs the Antigravity IDE running: the cached summary
+        // stays visible as old data instead of disappearing.
+        let diag = DiagnosticsRepository::new(&storage.conn);
+        diag.upsert_provider_state(&ProviderStateRow {
+            provider_id: "opencode".to_string(),
+            display_name: "OpenCode".to_string(),
+            enabled: true,
+            detected: true,
+            detection_method: "local_sqlite".to_string(),
+            source_type: "local_sqlite".to_string(),
+            source_exists: true,
+            permission_state: "read_ok".to_string(),
+            adapter_version: "0.2.0".to_string(),
+            last_detection_at: Some("2026-08-04T00:00:00+00:00".to_string()),
+            detection_error_code: String::new(),
+        })
+        .expect("state");
+        diag.insert_collector_run(&CollectorRunRow {
+            id: 0,
+            provider_id: "opencode".to_string(),
+            collector_mode: "quota_collect".to_string(),
+            started_at: "2026-08-04T00:00:00+00:00".to_string(),
+            finished_at: "2026-08-04T00:00:01+00:00".to_string(),
+            duration_ms: 1000,
+            source_records_seen: 0,
+            records_parsed: 0,
+            events_normalized: 0,
+            events_rejected: 0,
+            duplicates_skipped: 0,
+            events_inserted: 0,
+            quota_snapshots_inserted: 0,
+            warning_codes: Vec::new(),
+            error_code: "SOURCE_REQUIRES_IDE".to_string(),
+            next_retry_at: None,
+        })
+        .expect("run");
+
+        let cards = ScanProviders::execute(&storage.conn, &test_registry()).expect("scan");
+        let card = cards
+            .iter()
+            .find(|card| card.provider_id == "opencode")
+            .expect("opencode card");
+        assert_eq!(
+            card.quota_summary, "60% left",
+            "closing the IDE must age the cached reading, not delete it"
+        );
+        assert_eq!(
+            card.last_error_code, "",
+            "SOURCE_REQUIRES_IDE is an expected state, not a provider error"
+        );
+    }
+
+    #[test]
+    fn a_failed_quota_run_hides_the_stored_summary() {
+        let storage = open_test_db();
+        // A usable report from an earlier successful collection.
+        lnwdeck_storage::repositories::QuotaRepository::new(&storage.conn)
+            .upsert_report(&QuotaReport::new(
+                "opencode",
+                "provider_api",
+                vec![window("5h", 40, 100, None)],
+                chrono::Duration::hours(1),
+            ))
+            .expect("report");
+        // The provider source exists but the latest quota run failed with an
+        // error that invalidates the data (expired auth).
+        let diag = DiagnosticsRepository::new(&storage.conn);
+        diag.upsert_provider_state(&ProviderStateRow {
+            provider_id: "opencode".to_string(),
+            display_name: "OpenCode".to_string(),
+            enabled: true,
+            detected: true,
+            detection_method: "local_sqlite".to_string(),
+            source_type: "local_sqlite".to_string(),
+            source_exists: true,
+            permission_state: "read_ok".to_string(),
+            adapter_version: "0.2.0".to_string(),
+            last_detection_at: Some("2026-08-04T00:00:00+00:00".to_string()),
+            detection_error_code: String::new(),
+        })
+        .expect("state");
+        diag.insert_collector_run(&CollectorRunRow {
+            id: 0,
+            provider_id: "opencode".to_string(),
+            collector_mode: "quota_collect".to_string(),
+            started_at: "2026-08-04T00:00:00+00:00".to_string(),
+            finished_at: "2026-08-04T00:00:01+00:00".to_string(),
+            duration_ms: 1000,
+            source_records_seen: 0,
+            records_parsed: 0,
+            events_normalized: 0,
+            events_rejected: 0,
+            duplicates_skipped: 0,
+            events_inserted: 0,
+            quota_snapshots_inserted: 0,
+            warning_codes: Vec::new(),
+            error_code: "AUTH_EXPIRED".to_string(),
+            next_retry_at: None,
+        })
+        .expect("run");
+
+        let cards = ScanProviders::execute(&storage.conn, &test_registry()).expect("scan");
+        let card = cards
+            .iter()
+            .find(|card| card.provider_id == "opencode")
+            .expect("opencode card");
+        assert_eq!(
+            card.quota_summary, "No quota data",
+            "a stored percentage must not survive a failed quota run"
+        );
     }
 
     #[test]

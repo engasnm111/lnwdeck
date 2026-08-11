@@ -61,8 +61,12 @@ impl QuotaStatus {
         match code {
             "AUTH_EXPIRED" | "AUTH_FAILED" | "TOKEN_EXPIRED" => Self::AuthExpired,
             "RATE_LIMITED" | "RATE_LIMIT" => Self::RateLimited,
-            "SOURCE_UNAVAILABLE" | "NOT_INSTALLED" | "UNSUPPORTED" | "NOT_SUPPORTED"
-            | "NOT_CONFIGURED" => Self::Unavailable,
+            "SOURCE_UNAVAILABLE"
+            | "NOT_INSTALLED"
+            | "UNSUPPORTED"
+            | "NOT_SUPPORTED"
+            | "NOT_CONFIGURED"
+            | "SOURCE_REQUIRES_IDE" => Self::Unavailable,
             _ => Self::Error,
         }
     }
@@ -495,6 +499,21 @@ mod tests {
         assert!(QuotaStatus::AuthExpired.is_error());
         assert!(QuotaStatus::RateLimited.is_error());
         assert!(!QuotaStatus::Fresh.is_error());
+    }
+
+    #[test]
+    fn a_missing_required_source_maps_to_unavailable_not_error() {
+        assert_eq!(
+            QuotaStatus::from_error_code("SOURCE_REQUIRES_IDE"),
+            QuotaStatus::Unavailable,
+            "a quota source that needs the Antigravity IDE running is an expected
+             unavailable state, not a generic error"
+        );
+        let report = QuotaReport::failed("google_gemini", "antigravity_ls", "SOURCE_REQUIRES_IDE");
+        assert_eq!(report.status, QuotaStatus::Unavailable);
+        assert_eq!(report.error_code.as_deref(), Some("SOURCE_REQUIRES_IDE"));
+        assert!(report.windows.is_empty());
+        assert!(!report.is_usable());
     }
 }
 

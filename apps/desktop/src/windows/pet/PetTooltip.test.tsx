@@ -116,6 +116,130 @@ describe("PetTooltip", () => {
     expect(screen.getByTitle("OpenCode (Go) — 5-hour")).toBeInTheDocument();
   });
 
+  it("shows IDE guidance instead of fabricated bars when quota needs the IDE", async () => {
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue({
+      generated_at: "2026-08-08T00:00:00Z",
+      providers: [
+        {
+          provider_id: "google_gemini",
+          display_name: "Gemini",
+          connection_state: "transient_error",
+          quota_support: "supported",
+          status: "unavailable",
+          plan: null,
+          source: "antigravity_ls",
+          collected_at: "2026-08-08T00:00:00Z",
+          stale_at: "2026-08-08T01:00:00Z",
+          error_code: "SOURCE_REQUIRES_IDE",
+          windows: [],
+        },
+      ],
+    });
+
+    render(
+      <I18nProvider>
+        <PetTooltip visible />
+      </I18nProvider>,
+    );
+
+    expect(
+      await screen.findByText(/Open Antigravity IDE/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/\d+%/)).not.toBeInTheDocument();
+  });
+
+  it("keeps stale readings visible with their percentages", async () => {
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue({
+      generated_at: "2026-08-08T00:00:00Z",
+      providers: [
+        {
+          provider_id: "google_gemini",
+          display_name: "Gemini",
+          connection_state: "connected",
+          quota_support: "supported",
+          status: "stale",
+          plan: null,
+          source: "antigravity_ls",
+          collected_at: "2026-08-08T00:00:00Z",
+          stale_at: "2026-08-07T00:00:00Z",
+          error_code: null,
+          windows: [
+            {
+              window_key: "pro",
+              label: "Gemini Pro",
+              scope: "weekly",
+              kind: "requests",
+              used: 40,
+              limit: 100,
+              remaining: 60,
+              remaining_percent: 60,
+              used_percent: 40,
+              reset_at: null,
+              is_unlimited: false,
+              confidence: "High",
+            },
+          ],
+        },
+      ],
+    });
+
+    render(
+      <I18nProvider>
+        <PetTooltip visible />
+      </I18nProvider>,
+    );
+
+    expect(await screen.findByText("Gemini Pro")).toBeInTheDocument();
+    expect(screen.getByText("60%")).toBeInTheDocument();
+  });
+
+  it("ages the cached reading and explains how to refresh it", async () => {
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue({
+      generated_at: "2026-08-08T00:00:00Z",
+      providers: [
+        {
+          provider_id: "google_gemini",
+          display_name: "Gemini",
+          connection_state: "connected",
+          quota_support: "supported",
+          status: "stale",
+          plan: null,
+          source: "antigravity_ls",
+          collected_at: "2026-08-08T00:00:00Z",
+          stale_at: "2026-08-07T00:00:00Z",
+          error_code: "SOURCE_REQUIRES_IDE",
+          windows: [
+            {
+              window_key: "pro",
+              label: "Gemini Pro",
+              scope: "weekly",
+              kind: "requests",
+              used: 40,
+              limit: 100,
+              remaining: 60,
+              remaining_percent: 60,
+              used_percent: 40,
+              reset_at: null,
+              is_unlimited: false,
+              confidence: "High",
+            },
+          ],
+        },
+      ],
+    });
+
+    render(
+      <I18nProvider>
+        <PetTooltip visible />
+      </I18nProvider>,
+    );
+
+    expect(await screen.findByText("Gemini Pro")).toBeInTheDocument();
+    expect(screen.getByText("60%")).toBeInTheDocument();
+    expect(screen.getByText(/Old data from .*ago/)).toBeInTheDocument();
+    expect(screen.getByText(/open Antigravity IDE/i)).toBeInTheDocument();
+  });
+
   it("aligns provider names left and keeps every track on one shared right edge", async () => {
     const css = readFileSync(resolve(process.cwd(), "src/windows/pet/DesktopPet.css"), "utf8");
     const barsRule = css.match(/\.pet-tooltip-bars\s*\{([\s\S]*?)\}/)?.[1] ?? "";

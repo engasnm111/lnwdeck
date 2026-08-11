@@ -217,9 +217,15 @@ export function ProvidersPage() {
                         {providerQuotaSummaryLabel(provider.quota_summary, t)}
                       </p>
                     ) : cards.every((card) => card.windows.length === 0) ? (
-                      <p className="ui-inline-note">
-                        {providerQuotaSummaryLabel(provider.quota_summary, t)}
-                      </p>
+                      cards.some((card) => card.error_code === "SOURCE_REQUIRES_IDE") ? (
+                        <p className="ui-inline-note">
+                          {t("providers.quota.requiresIde")}
+                        </p>
+                      ) : (
+                        <p className="ui-inline-note">
+                          {providerQuotaSummaryLabel(provider.quota_summary, t)}
+                        </p>
+                      )
                     ) : (
                       <div className="stack-tight">
                         {cards.map((card) => {

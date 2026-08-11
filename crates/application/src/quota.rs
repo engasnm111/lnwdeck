@@ -51,6 +51,23 @@ pub enum ProviderConnectionState {
     Unsupported,
 }
 
+/// Hides legacy Gemini reports that were produced by the retired
+/// `retrieveUserQuota` fallback. That source no longer exists: its placeholder
+/// fractions (observed as a fabricated "100% remaining") and the account
+/// fingerprint it was stored under would otherwise keep a dead card on the
+/// dashboard. The rows stay in storage for history; only the read model hides
+/// them.
+pub(crate) fn sanitize_legacy_gemini_reports(
+    report: QuotaReport,
+    now: DateTime<Utc>,
+) -> Option<QuotaReport> {
+    let report = derive_read_time_status(report, now);
+    if report.provider_id == "google_gemini" && report.source == "provider_api" {
+        return None;
+    }
+    Some(report)
+}
+
 /// Converts the pre-dashboard OpenCode local estimate into an explicit
 /// unavailable state at read time. Old installations may still have a
 /// hard-coded local percentage stored from an earlier adapter version; it
@@ -79,10 +96,12 @@ impl QueryQuotaDashboard {
         conn: &Connection,
         registry: &AdapterRegistry,
     ) -> Result<QuotaDashboard, rusqlite::Error> {
+        let now = Utc::now();
         let reports = QuotaRepository::new(conn)
             .latest_all()?
             .into_iter()
             .map(sanitize_legacy_opencode_report)
+            .filter_map(|report| sanitize_legacy_gemini_reports(report, now))
             .collect::<Vec<_>>();
         let mut reports_by_provider: BTreeMap<String, Vec<QuotaReport>> = BTreeMap::new();
         for report in reports {
@@ -113,18 +132,34 @@ impl QueryQuotaDashboard {
                     None,
                     connection_state,
                     None,
+                    quota_run,
                 ));
             } else {
                 let account_index = (provider_reports.len() > 1).then_some(0u32);
+                let run_requires_ide =
+                    quota_run.is_some_and(|run| run.error_code == "SOURCE_REQUIRES_IDE");
                 for (index, report) in provider_reports.iter().enumerate() {
+                    // The moment the Antigravity IDE closes, the cached
+                    // reading becomes old data: status is forced to stale and
+                    // the error code rides along so the UI can explain what
+                    // to do next. Real percentages stay visible, never fresh.
+                    let report = if run_requires_ide && report.is_usable() {
+                        let mut aged = report.clone();
+                        aged.status = QuotaStatus::Stale;
+                        aged.error_code = Some("SOURCE_REQUIRES_IDE".to_string());
+                        aged
+                    } else {
+                        report.clone()
+                    };
                     let connection_state =
-                        connection_state_for(descriptor, state, quota_run, Some(report));
+                        connection_state_for(descriptor, state, quota_run, Some(&report));
                     let account_index = account_index.map(|_| index as u32 + 1);
                     cards.push(card_from_descriptor(
                         descriptor,
-                        Some(report),
+                        Some(&report),
                         connection_state,
                         account_index,
+                        quota_run,
                     ));
                 }
             }
@@ -213,6 +248,13 @@ fn connection_state_for(
             }
             return ProviderConnectionState::TransientError;
         }
+        // The source needs the Antigravity IDE running. When a usable
+        // reading is cached it stays connected so the UI can present it as
+        // old data instead of hiding it; without cached data the card reads
+        // as a transient error with guidance.
+        Some("SOURCE_REQUIRES_IDE") if report.is_some_and(QuotaReport::is_usable) => {
+            return ProviderConnectionState::Connected;
+        }
         Some(code) if !code.is_empty() && code != "NOT_SUPPORTED" && code != "UNSUPPORTED" => {
             return ProviderConnectionState::TransientError;
         }
@@ -243,11 +285,23 @@ fn state_error_code(state: ProviderConnectionState) -> Option<String> {
     }
 }
 
+/// Presents a stored report with its read-time status: a fresh report whose
+/// freshness window has already closed reads as stale (the last reading stays
+/// visible, clearly aged, instead of masquerading as live). The stored row is
+/// not rewritten by a read; the refresh loop keeps storage truthful.
+pub(crate) fn derive_read_time_status(mut report: QuotaReport, now: DateTime<Utc>) -> QuotaReport {
+    if report.status == QuotaStatus::Fresh && now >= report.stale_at {
+        report.status = QuotaStatus::Stale;
+    }
+    report
+}
+
 fn card_from_descriptor(
     descriptor: &AdapterDescriptor,
     report: Option<&QuotaReport>,
     connection_state: ProviderConnectionState,
     account_index: Option<u32>,
+    quota_run: Option<&CollectorRunRow>,
 ) -> ProviderQuotaCard {
     let now = Utc::now();
     let effective_report =
@@ -278,7 +332,9 @@ fn card_from_descriptor(
             source: descriptor.source_kind.label().to_string(),
             collected_at: now,
             stale_at: now,
-            error_code: state_error_code(connection_state),
+            error_code: quota_run
+                .and_then(|run| (!run.error_code.is_empty()).then_some(run.error_code.clone()))
+                .or_else(|| state_error_code(connection_state)),
             windows: Vec::new(),
         },
     }
@@ -473,6 +529,244 @@ mod tests {
         );
         assert_eq!(accounts[0].windows[0].used, 10);
         assert_eq!(accounts[1].windows[0].used, 70);
+    }
+
+    #[test]
+    fn expired_fresh_reports_read_as_stale_but_stay_visible() {
+        let storage = open_test_db();
+        let mut report = QuotaReport::new(
+            "anthropic_claude",
+            "provider_api",
+            vec![window("5h", 40, 100)],
+            chrono::Duration::hours(1),
+        );
+        // Simulate a reading collected before the freshness window closed:
+        // the stored status is still fresh because no newer collection ran.
+        let now = Utc::now();
+        report.collected_at = now - chrono::Duration::hours(2);
+        report.stale_at = now - chrono::Duration::hours(1);
+        QuotaRepository::new(&storage.conn)
+            .upsert_report(&report)
+            .expect("report");
+
+        let dashboard =
+            QueryQuotaDashboard::execute(&storage.conn, &test_registry()).expect("dashboard");
+        let card = dashboard
+            .providers
+            .iter()
+            .find(|card| card.provider_id == "anthropic_claude")
+            .expect("claude card");
+        assert_eq!(
+            card.status,
+            QuotaStatus::Stale,
+            "a reading older than its freshness window must never present as live"
+        );
+        assert_eq!(card.connection_state, ProviderConnectionState::Connected);
+        assert_eq!(card.windows.len(), 1, "the last reading stays visible");
+        assert_eq!(card.collected_at, now - chrono::Duration::hours(2));
+    }
+
+    #[test]
+    fn legacy_gemini_fallback_reports_never_reach_the_dashboard() {
+        let storage = open_test_db();
+        let repo = QuotaRepository::new(&storage.conn);
+        // The retired retrieveUserQuota fallback stored placeholder windows
+        // (0% used / 100% remaining) under the Gemini CLI account fingerprint.
+        let mut legacy = QuotaReport::new(
+            "google_gemini",
+            "provider_api",
+            vec![window("pro", 0, 1)],
+            chrono::Duration::hours(1),
+        );
+        legacy.account_fingerprint = Some("old-cli-account".to_string());
+        repo.upsert_report(&legacy).expect("legacy report");
+        // The current Language Server source is the only one that may show.
+        let mut current = QuotaReport::new(
+            "google_gemini",
+            "antigravity_ls",
+            vec![window("pro", 40, 100)],
+            chrono::Duration::hours(1),
+        );
+        current.account_fingerprint = Some("keyring-account".to_string());
+        repo.upsert_report(&current).expect("current report");
+
+        let dashboard =
+            QueryQuotaDashboard::execute(&storage.conn, &test_registry()).expect("dashboard");
+        let gemini: Vec<&ProviderQuotaCard> = dashboard
+            .providers
+            .iter()
+            .filter(|card| card.provider_id == "google_gemini")
+            .collect();
+        assert_eq!(
+            gemini.len(),
+            1,
+            "the retired fallback account must not keep a card on the dashboard"
+        );
+        assert_eq!(gemini[0].source, "antigravity_ls");
+        assert_eq!(gemini[0].windows[0].used, 40);
+    }
+
+    #[test]
+    fn an_ide_required_run_keeps_the_cached_reading_as_stale() {
+        let storage = open_test_db();
+        // A usable report from an earlier successful collection.
+        let mut report = QuotaReport::new(
+            "anthropic_claude",
+            "provider_api",
+            vec![window("5h", 40, 100)],
+            chrono::Duration::hours(1),
+        );
+        report.collected_at = Utc::now() - chrono::Duration::minutes(5);
+        report.stale_at = Utc::now() + chrono::Duration::minutes(55);
+        QuotaRepository::new(&storage.conn)
+            .upsert_report(&report)
+            .expect("report");
+        // The latest quota run needs the Antigravity IDE running: the cached
+        // reading stays visible but must read as stale, not live.
+        let diag = DiagnosticsRepository::new(&storage.conn);
+        diag.insert_collector_run(&CollectorRunRow {
+            id: 0,
+            provider_id: "anthropic_claude".to_string(),
+            collector_mode: "quota_collect".to_string(),
+            started_at: (Utc::now() - chrono::Duration::seconds(5)).to_rfc3339(),
+            finished_at: Utc::now().to_rfc3339(),
+            duration_ms: 500,
+            source_records_seen: 0,
+            records_parsed: 0,
+            events_normalized: 0,
+            events_rejected: 0,
+            duplicates_skipped: 0,
+            events_inserted: 0,
+            quota_snapshots_inserted: 0,
+            warning_codes: Vec::new(),
+            error_code: "SOURCE_REQUIRES_IDE".to_string(),
+            next_retry_at: None,
+        })
+        .expect("run");
+
+        let dashboard =
+            QueryQuotaDashboard::execute(&storage.conn, &test_registry()).expect("dashboard");
+        let card = dashboard
+            .providers
+            .iter()
+            .find(|card| card.provider_id == "anthropic_claude")
+            .expect("claude card");
+        assert_eq!(card.connection_state, ProviderConnectionState::Connected);
+        assert_eq!(
+            card.status,
+            QuotaStatus::Stale,
+            "the last reading is old data the moment the IDE closes, not live"
+        );
+        assert_eq!(card.error_code.as_deref(), Some("SOURCE_REQUIRES_IDE"));
+        assert_eq!(card.windows.len(), 1, "the cached reading stays visible");
+        assert_eq!(card.windows[0].used, 40);
+    }
+
+    #[test]
+    fn a_failed_run_without_cached_data_hides_windows_and_carries_the_real_code() {
+        let storage = open_test_db();
+        // A usable report from an earlier successful collection.
+        let mut report = QuotaReport::new(
+            "anthropic_claude",
+            "provider_api",
+            vec![window("5h", 40, 100)],
+            chrono::Duration::hours(1),
+        );
+        report.collected_at = Utc::now() - chrono::Duration::minutes(5);
+        report.stale_at = Utc::now() + chrono::Duration::minutes(55);
+        QuotaRepository::new(&storage.conn)
+            .upsert_report(&report)
+            .expect("report");
+        // The latest quota run failed for a reason that invalidates the data.
+        let diag = DiagnosticsRepository::new(&storage.conn);
+        diag.insert_collector_run(&CollectorRunRow {
+            id: 0,
+            provider_id: "anthropic_claude".to_string(),
+            collector_mode: "quota_collect".to_string(),
+            started_at: (Utc::now() - chrono::Duration::seconds(5)).to_rfc3339(),
+            finished_at: Utc::now().to_rfc3339(),
+            duration_ms: 500,
+            source_records_seen: 0,
+            records_parsed: 0,
+            events_normalized: 0,
+            events_rejected: 0,
+            duplicates_skipped: 0,
+            events_inserted: 0,
+            quota_snapshots_inserted: 0,
+            warning_codes: Vec::new(),
+            error_code: "AUTH_EXPIRED".to_string(),
+            next_retry_at: None,
+        })
+        .expect("run");
+
+        let dashboard =
+            QueryQuotaDashboard::execute(&storage.conn, &test_registry()).expect("dashboard");
+        let card = dashboard
+            .providers
+            .iter()
+            .find(|card| card.provider_id == "anthropic_claude")
+            .expect("claude card");
+        assert_eq!(card.connection_state, ProviderConnectionState::AuthExpired);
+        assert_eq!(card.status, QuotaStatus::Unavailable);
+        assert_eq!(card.error_code.as_deref(), Some("AUTH_EXPIRED"));
+        assert!(
+            card.windows.is_empty(),
+            "a failed run must not keep stale percentages on screen"
+        );
+    }
+
+    #[test]
+    fn an_ide_required_run_without_cached_data_shows_only_the_guidance_card() {
+        let storage = open_test_db();
+        let diag = DiagnosticsRepository::new(&storage.conn);
+        diag.upsert_provider_state(&ProviderStateRow {
+            provider_id: "anthropic_claude".to_string(),
+            display_name: "Claude".to_string(),
+            enabled: true,
+            detected: true,
+            detection_method: "local_scan".to_string(),
+            source_type: "local_files".to_string(),
+            source_exists: true,
+            permission_state: "read_ok".to_string(),
+            adapter_version: "0.2.0".to_string(),
+            last_detection_at: Some(Utc::now().to_rfc3339()),
+            detection_error_code: String::new(),
+        })
+        .expect("state");
+        diag.insert_collector_run(&CollectorRunRow {
+            id: 0,
+            provider_id: "anthropic_claude".to_string(),
+            collector_mode: "quota_collect".to_string(),
+            started_at: (Utc::now() - chrono::Duration::seconds(5)).to_rfc3339(),
+            finished_at: Utc::now().to_rfc3339(),
+            duration_ms: 500,
+            source_records_seen: 0,
+            records_parsed: 0,
+            events_normalized: 0,
+            events_rejected: 0,
+            duplicates_skipped: 0,
+            events_inserted: 0,
+            quota_snapshots_inserted: 0,
+            warning_codes: Vec::new(),
+            error_code: "SOURCE_REQUIRES_IDE".to_string(),
+            next_retry_at: None,
+        })
+        .expect("run");
+
+        let dashboard =
+            QueryQuotaDashboard::execute(&storage.conn, &test_registry()).expect("dashboard");
+        let card = dashboard
+            .providers
+            .iter()
+            .find(|card| card.provider_id == "anthropic_claude")
+            .expect("claude card");
+        assert_eq!(
+            card.connection_state,
+            ProviderConnectionState::TransientError
+        );
+        assert_eq!(card.status, QuotaStatus::Unavailable);
+        assert_eq!(card.error_code.as_deref(), Some("SOURCE_REQUIRES_IDE"));
+        assert!(card.windows.is_empty());
     }
 
     #[test]

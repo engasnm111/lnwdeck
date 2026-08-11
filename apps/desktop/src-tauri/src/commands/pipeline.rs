@@ -290,10 +290,17 @@ fn cycle_has_provider_failure(cycle: &RefreshCycleOutcome) -> bool {
 /// A multi-machine installation normally has providers that are not installed
 /// or not configured on every machine. Those outcomes are represented on the
 /// provider card and must not turn the shared refresh job into a global error.
+/// `SOURCE_REQUIRES_IDE` is the same kind of expected state: the quota source
+/// exists but needs the Antigravity IDE running.
 fn is_expected_provider_absence(code: &str) -> bool {
     matches!(
         code,
-        "SOURCE_UNAVAILABLE" | "NOT_INSTALLED" | "NOT_CONFIGURED" | "UNSUPPORTED" | "NOT_SUPPORTED"
+        "SOURCE_UNAVAILABLE"
+            | "NOT_INSTALLED"
+            | "NOT_CONFIGURED"
+            | "UNSUPPORTED"
+            | "NOT_SUPPORTED"
+            | "SOURCE_REQUIRES_IDE"
     )
 }
 
@@ -707,6 +714,7 @@ mod tests {
             "NOT_CONFIGURED",
             "UNSUPPORTED",
             "NOT_SUPPORTED",
+            "SOURCE_REQUIRES_IDE",
         ] {
             assert!(
                 is_expected_provider_absence(code),

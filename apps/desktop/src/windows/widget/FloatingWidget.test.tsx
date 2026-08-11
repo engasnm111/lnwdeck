@@ -238,6 +238,53 @@ describe("FloatingWidget", () => {
     expect(screen.queryByText(/\d+%/)).not.toBeInTheDocument();
   });
 
+  it("shows the Gemini card with IDE guidance instead of hiding it silently", async () => {
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([
+        provider({
+          provider_id: "google_gemini",
+          display_name: "Gemini",
+          connection_state: "transient_error",
+          status: "unavailable",
+          error_code: "SOURCE_REQUIRES_IDE",
+          source: "antigravity_ls",
+          windows: [],
+        }),
+      ]),
+    );
+    render(<FloatingWidget />);
+
+    await waitFor(() => expect(screen.getByText("Gemini")).toBeInTheDocument());
+    expect(screen.getByText("Antigravity IDE required")).toBeInTheDocument();
+    expect(screen.getByText(/Open Antigravity IDE/)).toBeInTheDocument();
+    expect(screen.queryByText(/\d+%/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the cached reading visible as old data with its age", async () => {
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([
+        provider({
+          provider_id: "google_gemini",
+          display_name: "Gemini",
+          connection_state: "connected",
+          status: "stale",
+          error_code: "SOURCE_REQUIRES_IDE",
+          source: "antigravity_ls",
+          collected_at: new Date(NOW - 3 * 60_000).toISOString(),
+          windows: [windowWith(60)],
+        }),
+      ]),
+    );
+    render(<FloatingWidget />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Old data — updated 3m ago")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Stale")).toBeInTheDocument();
+    expect(screen.getByText("60%")).toBeInTheDocument();
+    expect(screen.queryByText("Live")).not.toBeInTheDocument();
+  });
+
   it("does not render a local usage estimate as a quota percentage", async () => {
     vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
       dashboard([
@@ -1146,6 +1193,28 @@ describe("statusChip", () => {
     );
     expect(statusChip("unavailable", "SOURCE_UNAVAILABLE", en).detail).toContain(
       "No source",
+    );
+  });
+
+  it("tells the user to open the Antigravity IDE when quota needs it", () => {
+    expect(statusChip("unavailable", "SOURCE_REQUIRES_IDE", en).label).toBe(
+      "Antigravity IDE required",
+    );
+    expect(statusChip("unavailable", "SOURCE_REQUIRES_IDE", en).detail).toContain(
+      "Open Antigravity IDE",
+    );
+    expect(statusChip("unavailable", "SOURCE_REQUIRES_IDE", en).tone).toBe(
+      "stale",
+    );
+  });
+
+  it("keeps the cached reading labeled stale and explains how to refresh it", () => {
+    expect(statusChip("stale", "SOURCE_REQUIRES_IDE", en).label).toBe("Stale");
+    expect(statusChip("stale", "SOURCE_REQUIRES_IDE", en).detail).toContain(
+      "Open Antigravity IDE",
+    );
+    expect(statusChip("stale", null, en).detail).toContain(
+      "older than the provider freshness window",
     );
   });
 

@@ -45,9 +45,9 @@ issues that data to the IDE's own language server.
 
 - **Antigravity IDE open** → lnwdeck shows the real weekly / 5-hour
   percentages, identical to the IDE.
-- **Antigravity IDE closed** → lnwdeck falls back to the basic request-quota
-  endpoint, which may show 100% even when you have used some quota. Open the
-  IDE and press **Refresh all providers** to see the detailed numbers again.
+- **Antigravity IDE closed** → lnwdeck shows no quota until you open the
+  IDE. The last reading stays visible, marked **stale** with its collection
+  time, so a closed IDE never shows a fresh percentage again.
 
 The login token lives in Windows Credential Manager (`gemini:antigravity`).
 lnwdeck never asks you to paste it, and it never leaves your machine.
@@ -58,8 +58,9 @@ lnwdeck never asks you to paste it, and it never leaves your machine.
   this machine. Install / log in, then refresh.
 - **"Authentication expired"** — re-login to the provider (Antigravity IDE,
   `claude`, `codex login`, Kimi, ...) and refresh again.
-- **Gemini shows 100%** — the Antigravity IDE is not running, so lnwdeck
-  cannot read the detailed weekly / 5-hour quota. Open the IDE and refresh.
+- **Gemini shows no quota / "Antigravity IDE required"** — the Antigravity
+  IDE is not running, so lnwdeck cannot read the detailed weekly / 5-hour
+  quota and never fabricates a percentage. Open the IDE and refresh.
 
 ---
 
@@ -93,9 +94,9 @@ language server ของ IDE เท่านั้น
 
 - **เปิด Antigravity IDE อยู่** → lnwdeck แสดงเปอร์เซ็นต์รายสัปดาห์ / 5 ชั่วโมง
   จริง ตรงกับใน IDE ทุกอย่าง
-- **ปิด Antigravity IDE** → lnwdeck ใช้ endpoint โควต้าคำขอแบบพื้นฐาน ซึ่งอาจ
-  แสดง 100% ทั้งที่คุณใช้โควต้าไปแล้ว เปิด IDE แล้วกด **รีเฟรชผู้ให้บริการ
-  ทั้งหมด** เพื่อดูตัวเลขแบบละเอียดอีกครั้ง
+- **ปิด Antigravity IDE** → lnwdeck จะไม่แสดงโควต้าจนกว่าคุณจะเปิด IDE
+  ข้อมูลล่าสุดที่เคยอ่านได้ยังคงแสดงอยู่ แต่จะทำเครื่องหมาย **เก่า** พร้อม
+  เวลาที่เก็บข้อมูล เพื่อไม่ให้ตัวเลขเก่าดูเหมือนสดอีกต่อไป
 
 โทเคนล็อกอินอยู่ใน Windows Credential Manager (`gemini:antigravity`) lnwdeck
 ไม่เคยขอให้คุณวางโทเคน และไม่เคยส่งออกจากเครื่องของคุณ
@@ -106,8 +107,9 @@ language server ของ IDE เท่านั้น
   เครื่องนี้ ติดตั้ง/ล็อกอิน แล้วรีเฟรชใหม่
 - **การยืนยันตัวตนหมดอายุ** — ล็อกอินผู้ให้บริการใหม่ (Antigravity IDE,
   `claude`, `codex login`, Kimi, …) แล้วรีเฟรชใหม่
-- **Gemini แสดง 100%** — Antigravity IDE ไม่ได้เปิดอยู่ lnwdeck จึงอ่านโควต้า
-  รายสัปดาห์ / 5 ชั่วโมงแบบละเอียดไม่ได้ เปิด IDE แล้วรีเฟรช
+- **Gemini ไม่แสดงโควต้า / ขึ้นข้อความ "ต้องเปิด Antigravity IDE"** —
+  Antigravity IDE ไม่ได้เปิดอยู่ lnwdeck จึงอ่านโควต้าละเอียดไม่ได้ และจะ
+  ไม่สร้างเปอร์เซ็นต์ปลอม เปิด IDE แล้วรีเฟรช
 
 ---
 
@@ -140,9 +142,9 @@ Antigravity IDE 在 **设置 → 模型** 页面显示两组配额：*Gemini Mod
 
 - **Antigravity IDE 已打开** → lnwdeck 显示真实的每周 / 5 小时百分比，与
   IDE 完全一致。
-- **Antigravity IDE 已关闭** → lnwdeck 回退到基本的请求配额接口，即使您已
-  使用部分配额也可能显示 100%。打开 IDE 并点击**全部刷新**即可再次查看
-  详细数字。
+- **Antigravity IDE 已关闭** → lnwdeck 不会显示配额，直到您打开 IDE。最后
+  读取的数据会保留，但会标记为**已过期**并显示收集时间，关闭 IDE 后再也
+  不会显示新鲜的百分比。
 
 登录令牌位于 Windows 凭据管理器（`gemini:antigravity`）。lnwdeck 从不要求
 您粘贴令牌，也绝不会将其传出您的电脑。
@@ -152,8 +154,9 @@ Antigravity IDE 在 **设置 → 模型** 页面显示两组配额：*Gemini Mod
 - **未连接** — 提供商未在这台电脑上安装或未登录。请安装/登录后刷新。
 - **身份验证已过期** — 重新登录提供商（Antigravity IDE、`claude`、
   `codex login`、Kimi 等）后再次刷新。
-- **Gemini 显示 100%** — Antigravity IDE 未运行，lnwdeck 无法读取详细的
-  每周 / 5 小时配额。请打开 IDE 并刷新。
+- **Gemini 不显示配额 / 显示"需要 Antigravity IDE"** — Antigravity IDE 未
+  运行，lnwdeck 无法读取详细的每周 / 5 小时配额，也绝不伪造百分比。请
+  打开 IDE 并刷新。
 
 ---
 
@@ -188,10 +191,10 @@ Antigravity IDE の **設定 → モデル** 画面には、*Gemini Models* と
 
 - **Antigravity IDE が起動中** → lnwdeck は IDE と完全に同じ毎週 / 5時間の
   実パーセンテージを表示します。
-- **Antigravity IDE が停止中** → lnwdeck は基本的なリクエスト・クォータの
-  エンドポイントにフォールバックするため、一部使用済みでも 100% と表示
-  されることがあります。IDE を開いて**すべて更新**を押すと詳細な数値が
-  再表示されます。
+- **Antigravity IDE が停止中** → lnwdeck は IDE を開くまでクォータを表示
+  しません。最後に読み取った値は**古い**とマークされたうえで収集時刻と
+  ともに残ります。IDE が停止している間は新鮮なパーセンテージを表示
+  しません。
 
 ログイントークンは Windows 資格情報マネージャー（`gemini:antigravity`）に
 保存されています。lnwdeck がトークンの貼り付けを求めることはなく、トークン
@@ -203,8 +206,10 @@ Antigravity IDE の **設定 → モデル** 画面には、*Gemini Models* と
   されていません。インストール/ログインしてから更新してください。
 - **認証の有効期限が切れました** — プロバイダー（Antigravity IDE、
   `claude`、`codex login`、Kimi など）に再ログインしてから更新してください。
-- **Gemini が 100% と表示される** — Antigravity IDE が起動していないため、
-  lnwdeck は詳細な毎週 / 5時間クォータを読み取れません。IDE を開いて更新
+- **Gemini のクォータが表示されない / 「Antigravity IDE が必要」** —
+  Antigravity IDE が起動していないため、lnwdeck は詳細な毎週 / 5時間
+  クォータを読み取れず、パーセンテージを偽造しません。IDE を開いて
+  更新してください。
   してください。
 
 ---
@@ -240,9 +245,9 @@ lnwdeck도 같은 숫자를 표시할 수 있지만, **Antigravity IDE가 이 �
 
 - **Antigravity IDE가 열려 있음** → lnwdeck가 IDE와 동일한 실제 주간 / 5시간
   백분율을 표시합니다.
-- **Antigravity IDE가 닫혀 있음** → lnwdeck가 기본 요청 할당량 엔드포인트로
-  대체되어, 일부를 사용했어도 100%로 표시될 수 있습니다. IDE를 열고 **모두
-  새로고침**을 누르면 상세 숫자를 다시 볼 수 있습니다.
+- **Antigravity IDE가 닫혀 있음** → lnwdeck는 IDE를 열 때까지 할당량을
+  표시하지 않습니다. 마지막으로 읽은 값은 **오래됨**으로 표시되고 수집
+  시각과 함께 남아, 닫힌 IDE가 새 비율을 표시하지 않습니다.
 
 로그인 토큰은 Windows 자격 증명 관리자(`gemini:antigravity`)에 있습니다.
 lnwdeck는 토큰을 붙여넣으라고 요구하지 않으며, 토큰이 내 컴퓨터 밖으로
@@ -254,8 +259,9 @@ lnwdeck는 토큰을 붙여넣으라고 요구하지 않으며, 토큰이 내 �
   설치/로그인 후 새로고침하세요.
 - **인증 만료** — 프로바이더(Antigravity IDE, `claude`, `codex login`,
   Kimi 등)에 다시 로그인하고 새로고침하세요.
-- **Gemini가 100%로 표시됨** — Antigravity IDE가 실행되지 않아 lnwdeck가
-  상세 주간 / 5시간 할당량을 읽을 수 없습니다. IDE를 열고 새로고침하세요.
+- **Gemini 할당량이 표시되지 않음 / "Antigravity IDE 필요"** — Antigravity
+  IDE가 실행되지 않아 lnwdeck가 상세 주간 / 5시간 할당량을 읽을 수 없으며
+  비율을 만들지 않습니다. IDE를 열고 새로고침하세요.
 
 ---
 
@@ -291,10 +297,10 @@ Google diese Daten nur dem eigenen Language Server der IDE ausstellt.
 
 - **Antigravity IDE geöffnet** → lnwdeck zeigt die echten wöchentlichen /
   5-Stunden-Prozentsätze, identisch zur IDE.
-- **Antigravity IDE geschlossen** → lnwdeck fällt auf den einfachen
-  Anfragekontingent-Endpunkt zurück, der auch bei teilweise verbrauchtem
-  Kontingent 100 % anzeigen kann. Öffnen Sie die IDE und drücken Sie **Alle
-  aktualisieren**, um die detaillierten Zahlen wieder zu sehen.
+- **Antigravity IDE geschlossen** → lnwdeck zeigt kein Kontingent, bis Sie
+  die IDE öffnen. Die letzte Messung bleibt sichtbar, wird aber als
+  **veraltet** mit Sammelzeit markiert — ein geschlossenes IDE zeigt nie
+  wieder frische Prozentwerte.
 
 Das Anmeldetoken liegt im Windows-Anmeldeinformations-Manager
 (`gemini:antigravity`). lnwdeck fordert Sie nie auf, es einzufügen, und es
@@ -306,9 +312,10 @@ verlässt nie Ihr Gerät.
   oder nicht angemeldet. Installieren/anmelden und dann aktualisieren.
 - **Anmeldung abgelaufen** — Melden Sie sich erneut beim Anbieter an
   (Antigravity IDE, `claude`, `codex login`, Kimi, ...) und aktualisieren Sie.
-- **Gemini zeigt 100 %** — Die Antigravity IDE läuft nicht, daher kann lnwdeck
-  das detaillierte wöchentliche / 5-Stunden-Kontingent nicht lesen. Öffnen Sie
-  die IDE und aktualisieren Sie.
+- **Gemini zeigt kein Kontingent / „Antigravity IDE erforderlich“** — Die
+  Antigravity IDE läuft nicht, daher kann lnwdeck das detaillierte Kontingent
+  nicht lesen und erfindet keine Prozentwerte. Öffnen Sie die IDE und
+  aktualisieren Sie.
 
 ---
 
@@ -345,10 +352,10 @@ serveur de langage de l'IDE.
 
 - **Antigravity IDE ouvert** → lnwdeck affiche les pourcentages hebdomadaires /
   5 heures réels, identiques à l'IDE.
-- **Antigravity IDE fermé** → lnwdeck revient à l'endpoint de quota de
-  requêtes de base, qui peut afficher 100 % même si vous avez déjà consommé du
-  quota. Ouvrez l'IDE et appuyez sur **Tout actualiser** pour revoir les
-  chiffres détaillés.
+- **Antigravity IDE fermé** → lnwdeck n'affiche aucun quota tant que vous
+  n'ouvrez pas l'IDE. La dernière lecture reste visible, marquée **périmée**
+  avec son heure de collecte : un IDE fermé ne montre plus jamais de
+  pourcentage frais.
 
 Le jeton de connexion se trouve dans le Gestionnaire d'identifiants Windows
 (`gemini:antigravity`). lnwdeck ne vous demande jamais de le coller et il ne
@@ -360,9 +367,9 @@ quitte jamais votre machine.
   cette machine. Installez/connectez-vous, puis actualisez.
 - **Authentification expirée** — Reconnectez-vous au fournisseur (Antigravity
   IDE, `claude`, `codex login`, Kimi, ...) puis actualisez.
-- **Gemini affiche 100 %** — Antigravity IDE ne tourne pas, donc lnwdeck ne
-  peut pas lire le quota hebdomadaire / 5 heures détaillé. Ouvrez l'IDE et
-  actualisez.
+- **Gemini n'affiche aucun quota / « Antigravity IDE requise »** —
+  Antigravity IDE ne tourne pas, donc lnwdeck ne peut pas lire le quota
+  détaillé et n'invente aucun pourcentage. Ouvrez l'IDE et actualisez.
 
 ---
 
@@ -398,9 +405,10 @@ equipo**, porque Google solo emite esos datos al servidor de lenguaje del IDE.
 
 - **Antigravity IDE abierto** → lnwdeck muestra los porcentajes semanales / de
   5 horas reales, idénticos a los del IDE.
-- **Antigravity IDE cerrado** → lnwdeck recurre al endpoint básico de cuota de
-  solicitudes, que puede mostrar 100 % aunque ya haya consumido cuota. Abra el
-  IDE y pulse **Actualizar todo** para volver a ver los números detallados.
+- **Antigravity IDE cerrado** → lnwdeck no muestra cuota hasta que abra el
+  IDE. La última lectura permanece visible, marcada como **obsoleta** con su
+  hora de recogida: un IDE cerrado nunca vuelve a mostrar un porcentaje
+  fresco.
 
 El token de inicio de sesión está en el Administrador de credenciales de
 Windows (`gemini:antigravity`). lnwdeck nunca le pide que lo pegue y nunca sale
@@ -412,9 +420,9 @@ de su equipo.
   este equipo. Instale/inicie sesión y actualice.
 - **Autenticación caducada** — Vuelva a iniciar sesión en el proveedor
   (Antigravity IDE, `claude`, `codex login`, Kimi, ...) y actualice.
-- **Gemini muestra 100 %** — Antigravity IDE no está en ejecución, por lo que
-  lnwdeck no puede leer la cuota semanal / de 5 horas detallada. Abra el IDE y
-  actualice.
+- **Gemini no muestra cuota / «Antigravity IDE requerido»** — Antigravity
+  IDE no está en ejecución, por lo que lnwdeck no puede leer la cuota
+  detallada y no inventa porcentajes. Abra el IDE y actualice.
 
 ---
 
@@ -450,10 +458,10 @@ lnwdeck читает квоту, опубликованную провайдер
 
 - **Antigravity IDE открыт** → lnwdeck показывает реальные недельные /
   5-часовые проценты, идентичные IDE.
-- **Antigravity IDE закрыт** → lnwdeck переключается на базовый endpoint
-  квоты запросов, который может показывать 100 %, даже если квота частично
-  израсходована. Откройте IDE и нажмите **Обновить все** — детальные числа
-  появятся снова.
+- **Antigravity IDE закрыт** → lnwdeck не показывает квоту, пока вы не
+  откроете IDE. Последнее значение остаётся видимым, но помечается как
+  **устаревшее** с временем сбора — закрытая IDE никогда больше не
+  показывает свежие проценты.
 
 Токен входа хранится в диспетчере учётных данных Windows
 (`gemini:antigravity`). lnwdeck никогда не просит вас вставлять его, и он
@@ -465,6 +473,6 @@ lnwdeck читает квоту, опубликованную провайдер
   компьютере. Установите/войдите, затем обновите.
 - **Срок действия авторизации истёк** — Повторно войдите у провайдера
   (Antigravity IDE, `claude`, `codex login`, Kimi и т. д.) и обновите.
-- **Gemini показывает 100 %** — Antigravity IDE не запущен, поэтому lnwdeck
-  не может прочитать детальную недельную / 5-часовую квоту. Откройте IDE и
-  обновите.
+- **Gemini не показывает квоту / «Требуется Antigravity IDE»** —
+  Antigravity IDE не запущен, поэтому lnwdeck не может прочитать
+  детальную квоту и не выдумывает проценты. Откройте IDE и обновите.

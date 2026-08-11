@@ -107,7 +107,7 @@ lnwdeck จึงไม่ใช้ local token total เป็น quota โด�
 | Claude | session JSONL | Anthropic OAuth usage API | รัน `claude` login บนเครื่องนั้น |
 | OpenAI Codex | session JSONL | ChatGPT `/wham/usage` และ reset-credit endpoint; local rate snapshot เป็น fallback ที่ provider ประกาศ | รัน `codex login` |
 | Cursor | account API/local state | Cursor account usage summary API | ล็อกอิน Cursor บนเครื่องนั้น |
-| Gemini | session/log | Gemini Code Assist quota API; รายละเอียดราย window จาก Antigravity IDE Language Server เมื่อ IDE เปิดอยู่ | ล็อกอิน Antigravity IDE หรือ Gemini CLI บนเครื่องนั้น |
+| Gemini | session/log | Antigravity IDE Language Server เท่านั้น (ต้องเปิด IDE อยู่); ปิด IDE = ไม่มีโควต้า แสดงข้อความให้เปิด IDE | ล็อกอิน Antigravity IDE บนเครื่องนั้น |
 | OpenCode Go | OpenCode SQLite | `https://opencode.ai/workspace/{workspace}/go` | คู่ env หรือ Settings ตามขั้นตอนด้านบน |
 | ZCode | ZCode SQLite | Z.AI/BigModel monitor API หรือ `billing/balance` log ที่ ZCode เขียนเอง | coding-plan credential ของ ZCode ถ้ามี |
 | Kimi Code | `wire.jsonl` | `https://api.kimi.com/coding/v1/usages` และ OAuth refresh | ล็อกอิน Kimi; รองรับ `KIMI_HOME`/`KIMI_CODE_HOME` |
@@ -162,6 +162,24 @@ process ของ lnwdeck ที่รันบน Windows และ Credential 
 การอ่านข้อมูลเป็น passive read-only: lnwdeck ไม่สั่ง login แทนผู้ใช้ ไม่เขียนทับ
 ไฟล์ credential และไม่ส่งข้อมูลจาก WSL หรือ Windows ไป cloud ของ lnwdeck
 
+## Gemini: ต้องเปิด Antigravity IDE ถึงจะอ่านโควต้าได้
+
+โควต้าของ Gemini อ่านจาก **Antigravity IDE Language Server** เท่านั้น เพราะ
+Google ออกข้อมูลราย window (รายสัปดาห์ / 5 ชั่วโมง) ให้กับ language server
+ของ IDE เท่านั้น:
+
+- **เปิด Antigravity IDE อยู่** → lnwdeck แสดงเปอร์เซ็นต์จริงเหมือนในหน้า
+  IDE → Settings → Models
+- **ปิด Antigravity IDE** → lnwdeck **ไม่แสดงโควต้า** และแจ้งให้ผู้ใช้เปิด IDE
+  (card/widget/pet tooltip แสดง "ต้องเปิด Antigravity IDE")
+- ข้อมูลเก่าที่ยังเก็บอยู่จะแสดงเป็น **stale (เก่า)** พร้อมเวลาที่อ่านครั้ง
+  ล่าสุด ไม่ถูกนำเสนอเป็นข้อมูลสด และ lnwdeck จะไม่สร้างเปอร์เซ็นต์แทนจาก
+  endpoint อื่นอีกต่อไป (การ fallback ไป `retrieveUserQuota` ถูกยกเลิก เพราะ
+  คืนค่า placeholder ที่ทำให้แสดง 100% ผิดๆ)
+
+ถ้าเครื่องไม่มี Antigravity IDE ติดตั้ง จะแสดง "ไม่มีการเชื่อมต่อ" (ไม่ใช่
+error ของ refresh ทั้งรอบ)
+
 ## การแก้ปัญหาโดยดูสถานะ
 
 ### `ไม่มีการเชื่อมต่อ`
@@ -169,6 +187,12 @@ process ของ lnwdeck ที่รันบน Windows และ Credential 
 หมายถึง source ของ provider ไม่พบในเครื่อง เช่น ยังไม่ได้ติดตั้ง CLI, ยังไม่เคย
 เปิด provider หรือ profile อยู่คนละตำแหน่ง ให้ติดตั้ง/ล็อกอิน provider นั้นแล้ว
 กด refresh ใหม่
+
+### Gemini ไม่แสดงโควต้า / ขึ้น "ต้องเปิด Antigravity IDE"
+
+Antigravity IDE ไม่ได้เปิดอยู่ โควต้า Gemini อ่านได้จาก IDE ที่เปิดเท่านั้น ให้
+เปิด Antigravity IDE แล้วกด refresh ใหม่ ข้อมูลจะกลับมาแสดงพร้อมเวลาอัปเดต
+ล่าสุด
 
 ### `ต้องตั้งค่า` หรือ `ยังไม่ได้ตั้งค่า`
 

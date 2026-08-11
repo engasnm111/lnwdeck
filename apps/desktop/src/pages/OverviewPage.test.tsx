@@ -151,8 +151,59 @@ describe("OverviewPage", () => {
     ).toBeTruthy();
   });
 
-  it("keeps the daily breakdown bounded and exposes an accessible scroll viewport", async () => {
+  it("does not derive a lowest reading from a provider whose collection failed", async () => {
     vi.mocked(native.fetchUsageDashboard).mockResolvedValue(dashboard());
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue({
+      generated_at: "2026-08-08T00:00:00Z",
+      providers: [
+        {
+          provider_id: "google_gemini",
+          display_name: "Gemini",
+          connection_state: "transient_error",
+          quota_support: "supported",
+          status: "unavailable",
+          plan: null,
+          source: "antigravity_ls",
+          collected_at: "2026-08-08T00:00:00Z",
+          stale_at: "2026-08-08T01:00:00Z",
+          error_code: "SOURCE_REQUIRES_IDE",
+          windows: [
+            {
+              window_key: "pro",
+              label: "Gemini Pro",
+              scope: "weekly",
+              kind: "requests",
+              used: 0,
+              limit: null,
+              remaining: null,
+              remaining_percent: 100,
+              used_percent: 0,
+              reset_at: null,
+              is_unlimited: false,
+              confidence: "High",
+            },
+          ],
+        },
+      ],
+    });
+
+    render(
+      <I18nProvider>
+        <OverviewPage />
+      </I18nProvider>,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          "No provider reports a real limit; quota is shown as usage estimates.",
+        ),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/100% remaining/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the daily breakdown bounded and exposes an accessible scroll viewport", async () => {    vi.mocked(native.fetchUsageDashboard).mockResolvedValue(dashboard());
 
     const { container } = render(
       <I18nProvider>

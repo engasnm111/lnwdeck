@@ -75,6 +75,7 @@ export function providerSourceLabel(source: string, t: Translate): string {
       : t("providers.source.remote");
   }
   if (value === "local estimate") return t("providers.source.localEstimate");
+  if (value === "antigravity ls") return t("providers.source.antigravityIde");
   if (value === "none") return t("providers.source.none");
   return source.trim() ? humanize(source) : t("providers.source.unknown");
 }

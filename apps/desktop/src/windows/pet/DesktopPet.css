@@ -393,6 +393,26 @@
   color: rgba(255, 255, 255, 0.5);
 }
 
+/* Actionable guidance (e.g. "open the Antigravity IDE to update quota"):
+   spans the full tooltip width instead of a quota column. */
+.pet-tooltip-guidance {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(251, 191, 36, 0.12);
+}
+
+.pet-tooltip-guidance-text {
+  font-size: 0.6rem;
+  font-weight: 500;
+  line-height: 1.25;
+  color: rgba(255, 255, 255, 0.8);
+  text-align: left;
+}
+
 /* Random quip bubble (tap on the pet): short lines hug their content while
    long lines wrap inside a bounded, viewport-safe bubble. */
 .pet-tooltip-speech {

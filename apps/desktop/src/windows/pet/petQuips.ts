@@ -9,6 +9,7 @@
 
 import { formatCompactTokenCount } from "../../lib/token-format";
 import type { LanguageCode } from "../../lib/i18n";
+import type { QuotaDashboardData } from "../../lib/native";
 
 export interface QuipData {
   todayTokens: number;
@@ -17,6 +18,43 @@ export interface QuipData {
   /** Lowest remaining percentage across published windows, if any. */
   lowestRemainingPercent: number | null;
   plan: string | null;
+}
+
+/**
+ * Derives the quip numbers from a quota dashboard, using only readings the
+ * provider actually published: a provider whose last collection failed (or
+ * whose source needs the Antigravity IDE open) never contributes a
+ * percentage or token count, so a fabricated "100% remaining" can never be
+ * spoken by the pet.
+ */
+export function deriveQuipData(dashboard: QuotaDashboardData): QuipData {
+  let lowest: number | null = null;
+  let plan: string | null = null;
+  let tokens = 0;
+  for (const provider of dashboard.providers) {
+    if (provider.status !== "fresh" && provider.status !== "stale") {
+      continue;
+    }
+    if (provider.plan) plan = provider.plan;
+    for (const window of provider.windows) {
+      const remaining = window.remaining_percent;
+      if (
+        remaining !== null &&
+        Number.isFinite(remaining) &&
+        (lowest === null || remaining < lowest)
+      ) {
+        lowest = remaining;
+      }
+      tokens += window.used;
+    }
+  }
+  return {
+    todayTokens: tokens,
+    costUsd: 0,
+    currencySymbol: "$",
+    lowestRemainingPercent: lowest,
+    plan,
+  };
 }
 
 function pick<T>(items: readonly T[]): T {

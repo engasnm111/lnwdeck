@@ -21,7 +21,7 @@ import {
   type PetMovementState,
   type PetSpeed,
 } from "./petMovement";
-import { pickPetQuip } from "./petQuips";
+import { pickPetQuip, deriveQuipData } from "./petQuips";
 import { useI18n } from "../../lib/i18n";
 import { PetTooltip } from "./PetTooltip";
 import "./DesktopPet.css";
@@ -454,35 +454,7 @@ export function DesktopPet() {
   // the live quota dashboard, held for a few seconds.
   const triggerTap = useCallback(() => {
     void fetchQuotaDashboard()
-      .then((dashboard) => {
-        let lowest: number | null = null;
-        let plan: string | null = null;
-        let tokens = 0;
-        let cost = 0;
-        for (const provider of dashboard.providers) {
-          if (provider.plan) plan = provider.plan;
-          for (const window of provider.windows) {
-            if (window.used_percent !== null) {
-              const remaining = window.remaining_percent;
-              if (remaining !== null && (lowest === null || remaining < lowest)) {
-                lowest = remaining;
-              }
-            }
-            tokens += window.used;
-            cost += window.used_percent !== null ? 0 : 0;
-          }
-        }
-        return pickPetQuip(
-          {
-            todayTokens: tokens,
-            costUsd: cost,
-            currencySymbol: "$",
-            lowestRemainingPercent: lowest,
-            plan,
-          },
-          language,
-        );
-      })
+      .then((dashboard) => pickPetQuip(deriveQuipData(dashboard), language))
       .catch(() =>
         pickPetQuip(
           {

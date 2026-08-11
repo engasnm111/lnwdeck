@@ -100,20 +100,19 @@ impl GeminiAdapter {
         result
     }
 
-    /// Real Gemini quota windows from the Code Assist API.
+    /// Real Gemini quota windows from the running Antigravity IDE Language
+    /// Server.
     ///
     /// Local transcripts remain a usage source only. They do not contain the
     /// account limit and therefore must never be converted into quota windows.
+    /// The IDE is the only quota source: when it is closed the fetch reports
+    /// `SOURCE_REQUIRES_IDE` so the UI can tell the user to open it, instead
+    /// of fabricating percentages.
     fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
         if !self.root.is_dir() {
             return Ok(None);
         }
-        let use_keyring = self.root == GeminiAdapter::new().root;
-        quota_api::fetch_windows(
-            &self.oauth_path(),
-            quota_api::default_timeout(),
-            use_keyring,
-        )
+        quota_api::fetch_windows(quota_api::default_timeout()).map(Some)
     }
 }
 
@@ -151,7 +150,14 @@ impl ProviderAdapter for GeminiAdapter {
         self.quota_estimate()
     }
     fn account_identity(&self) -> Option<String> {
-        quota_api::read_oauth(&self.oauth_path()).map(|oauth| oauth.access_token)
+        // The quota source is the Antigravity IDE Language Server, which
+        // serves the account whose session the IDE holds. The keyring blob is
+        // that session's credential, so it wins over the legacy CLI file when
+        // present; mixing the two would store one account's data under
+        // another account's fingerprint.
+        let use_keyring = self.root == GeminiAdapter::new().root;
+        quota_api::read_oauth_preferring_keyring(&self.oauth_path(), use_keyring)
+            .map(|oauth| oauth.access_token)
     }
 
     fn health_check(&self) -> AdapterHealth {
@@ -290,8 +296,10 @@ mod tests {
         assert_eq!(event.timestamp.to_rfc3339(), "2026-05-24T07:00:00+00:00");
 
         assert!(
-            adapter.collect_quota().expect("quota").is_none(),
-            "local transcript usage must not be presented as Gemini quota"
+            adapter.collect_quota().is_err(),
+            "local transcript usage must never be presented as Gemini quota:
+             the only quota source is the Antigravity IDE Language Server,
+             which is not running in tests"
         );
         assert_eq!(adapter.health_check().status, AdapterHealthStatus::Healthy);
         assert!(adapter.detect().expect("detect").detected);
@@ -453,8 +461,9 @@ mod tests {
         let batch = adapter.collect_usage().expect("usage");
         assert!(batch.events.is_empty());
         assert!(
-            adapter.collect_quota().expect("quota").is_none(),
-            "no records must not become zeroed windows"
+            adapter.collect_quota().is_err(),
+            "no records must not become zeroed windows; quota comes only from
+             the running Antigravity IDE Language Server"
         );
         assert_eq!(adapter.health_check().status, AdapterHealthStatus::Degraded);
     }

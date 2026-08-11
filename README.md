@@ -1,4 +1,4 @@
-# lnwdeck v12.0.0
+# lnwdeck v12.0.1
 
 Universal AI usage and quota tracker for Windows. lnwdeck reads the local
 artifacts already written by AI tools, records token counts and costs, and
@@ -20,6 +20,26 @@ sync is required.
 - Provides budgets, alerts, diagnostics and sanitized JSON export.
 - Includes a floating quota widget and a transparent desktop pet, both using
   the same live provider data as the dashboard.
+
+## v12.0.1 Gemini quota: the Antigravity IDE is the only source
+
+This release fixes the Gemini quota channel. Gemini quota is now read only
+from the running Antigravity IDE Language Server; the fallback that produced
+fabricated "100% remaining" readings is removed.
+
+- **TokenTracker-style caching.** When the Antigravity IDE is closed the last
+  successful reading stays visible as old data: the card flips from "Live" to
+  "stale" immediately and shows how long ago the data was fetched ("updated
+  Xm ago"), in the widget, pet tooltip, Overview summary and Providers cards.
+- **Guidance instead of silence.** Cards tell you to open the Antigravity IDE
+  to refresh Gemini quota instead of hiding the provider or keeping old
+  numbers looking live.
+- **Account separation.** The Antigravity IDE session (Windows Credential
+  Manager) and the Gemini CLI login are tracked as separate accounts.
+
+See [the release notes](docs/releases/v12.0.1.md), the
+[end-user guide](docs/END_USER_GUIDE.md) (nine languages) and the
+[provider setup guide](docs/PROVIDER_QUOTA_SETUP.md).
 
 ## v12.0.0 new LD icon and logo pack
 
@@ -271,7 +291,7 @@ pnpm test:e2e
 pnpm tauri:dev
 ```
 
-## Building and verifying v12.0.0
+## Building and verifying v12.0.1
 
 Signed installers and updater artifacts require the Tauri signing key:
 
@@ -284,10 +304,10 @@ pnpm tauri:build
 pwsh ./scripts/package-portable.ps1 -Arch x64
 
 # Build the updater manifest from signed installers
-node scripts/generate-updater-json.mjs v12.0.0 <assets-dir> <assets-dir>/latest.json
+node scripts/generate-updater-json.mjs v12.0.1 <assets-dir> <assets-dir>/latest.json
 
 # Verify versions, release fixtures, signatures/manifest contract and metadata
-node scripts/check-release-version.mjs v12.0.0
+node scripts/check-release-version.mjs v12.0.1
 pnpm release:test
 ```
 
@@ -295,7 +315,7 @@ The release workflow builds x64, ARM64 and x86 installers and portable ZIPs.
 Each installer and portable ZIP has a `.sig`; the published assets also include
 `latest.json`, `SHA256SUMS`, a CycloneDX SBOM and GitHub build provenance. The
 complete release checklist and rollback procedure are in
-[docs/releases/v12.0.0.md](docs/releases/v12.0.0.md).
+[docs/releases/v12.0.1.md](docs/releases/v12.0.1.md).
 
 ## Privacy
 

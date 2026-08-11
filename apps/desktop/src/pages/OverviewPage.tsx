@@ -254,8 +254,13 @@ export function OverviewPage() {
       ? providerDisplayName({ providerId, displayName: providerId })
       : t("dashboard.all");
   const quotaProviders = quota?.providers ?? [];
-  const withRealLimit = quotaProviders.filter((provider) =>
-    provider.windows.some((window) => window.remaining_percent !== null),
+  // Only usable readings count toward the headline number: a provider whose
+  // last collection failed (or whose source needs the Antigravity IDE open)
+  // keeps its stored windows out of the derived "lowest remaining" line.
+  const withRealLimit = quotaProviders.filter(
+    (provider) =>
+      (provider.status === "fresh" || provider.status === "stale") &&
+      provider.windows.some((window) => window.remaining_percent !== null),
   );
   const lowest = withRealLimit
     .flatMap((provider) =>

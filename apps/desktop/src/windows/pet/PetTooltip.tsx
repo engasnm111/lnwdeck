@@ -14,6 +14,7 @@ import { useI18n } from "../../lib/i18n";
 import { TokenValue } from "../../components/TokenValue";
 import { formatCompactTokenCount, formatFullTokenCount } from "../../lib/token-format";
 import { providerKindLabel } from "../../lib/providerText";
+import { formatRefreshedAgo } from "../widget/widgetTime";
 
 interface QuotaBar {
   provider: string;
@@ -33,8 +34,10 @@ export function PetTooltip({ visible }: { visible: boolean }) {
   const { t } = useI18n();
   const [data, setData] = useState<QuotaDashboardData | null>(null);
   const [totalTokens, setTotalTokens] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
 
   const load = useCallback(async () => {
+    setNow(Date.now());
     try {
       const result = await fetchQuotaDashboard();
       setData(result);
@@ -70,10 +73,13 @@ export function PetTooltip({ visible }: { visible: boolean }) {
 
   if (!visible) return null;
 
-  // Every window the providers published: percent windows become bars,
-  // usage-only windows become compact rows.
+  // Every window the providers actually published: percent windows become
+  // bars, usage-only windows become compact rows. Windows from a provider
+  // whose last collection failed (or whose source needs the Antigravity IDE
+  // open) are never rendered — a fabricated percentage is worse than none.
   const bars: QuotaBar[] = [];
   const usageRows: UsageRow[] = [];
+  const guidance: Array<{ provider: string; text: string }> = [];
   if (data) {
     for (const p of data.providers) {
       const accountLabel = p.account_index == null
@@ -82,6 +88,20 @@ export function PetTooltip({ visible }: { visible: boolean }) {
       const providerName = accountLabel
         ? `${p.display_name} - ${accountLabel}`
         : p.display_name;
+      const usable =
+        (p.status === "fresh" || p.status === "stale") &&
+        p.connection_state === "connected";
+      if (p.error_code === "SOURCE_REQUIRES_IDE") {
+        guidance.push({
+          provider: providerName,
+          text: t("petTooltip.requiresIde", {
+            time: formatRefreshedAgo(p.collected_at, now, t),
+          }),
+        });
+      }
+      if (!usable) {
+        continue;
+      }
       for (const w of p.windows) {
         if (w.remaining_percent !== null && Number.isFinite(w.remaining_percent)) {
           const pct = Math.max(0, Math.min(100, w.remaining_percent));
@@ -106,7 +126,7 @@ export function PetTooltip({ visible }: { visible: boolean }) {
   const toneColor = (tone: QuotaBar["tone"]) =>
     tone === "danger" ? "#f87171" : tone === "warn" ? "#fbbf24" : "#22d3ee";
 
-  const hasRows = bars.length > 0 || usageRows.length > 0;
+  const hasRows = bars.length > 0 || usageRows.length > 0 || guidance.length > 0;
 
   return (
     <div className="pet-tooltip" role="status" aria-live="polite">
@@ -167,6 +187,12 @@ export function PetTooltip({ visible }: { visible: boolean }) {
                     kind: providerKindLabel(row.kind, t),
                   })}
                 </span>
+              </div>
+            ))}
+            {guidance.map((entry) => (
+              <div key={`${entry.provider}-guidance`} className="pet-tooltip-guidance">
+                <span className="pet-tooltip-bar-provider">{entry.provider}</span>
+                <span className="pet-tooltip-guidance-text">{entry.text}</span>
               </div>
             ))}
           </div>

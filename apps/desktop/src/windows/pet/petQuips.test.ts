@@ -1,6 +1,88 @@
 import { describe, expect, it } from "vitest";
-import { pickPetQuip } from "./petQuips";
+import { pickPetQuip, deriveQuipData } from "./petQuips";
 import { LANGUAGES, type LanguageCode } from "../../lib/i18n";
+import type { ProviderQuotaCard } from "../../lib/native";
+
+function card(
+  overrides: Partial<ProviderQuotaCard> = {},
+): ProviderQuotaCard {
+  return {
+    provider_id: "google_gemini",
+    display_name: "Gemini",
+    connection_state: "connected",
+    quota_support: "supported",
+    status: "fresh",
+    plan: null,
+    source: "antigravity_ls",
+    collected_at: "2026-08-08T00:00:00Z",
+    stale_at: "2026-08-08T01:00:00Z",
+    error_code: null,
+    windows: [
+      {
+        window_key: "pro",
+        label: "Gemini Pro",
+        scope: "weekly",
+        kind: "requests",
+        used: 0,
+        limit: null,
+        remaining: null,
+        remaining_percent: 100,
+        used_percent: 0,
+        reset_at: null,
+        is_unlimited: false,
+        confidence: "High",
+      },
+    ],
+    ...overrides,
+  };
+}
+
+describe("deriveQuipData", () => {
+  it("ignores windows from a provider whose collection failed", () => {
+    const data = deriveQuipData({
+      generated_at: "2026-08-08T00:00:00Z",
+      providers: [
+        card({
+          connection_state: "transient_error",
+          status: "unavailable",
+          error_code: "SOURCE_REQUIRES_IDE",
+        }),
+      ],
+    });
+    expect(data.lowestRemainingPercent).toBeNull();
+    expect(data.todayTokens).toBe(0);
+  });
+
+  it("uses usable readings from connected providers", () => {
+    const data = deriveQuipData({
+      generated_at: "2026-08-08T00:00:00Z",
+      providers: [
+        card({
+          status: "stale",
+          windows: [
+            {
+              window_key: "pro",
+              label: "Gemini Pro",
+              scope: "weekly",
+              kind: "requests",
+              used: 40,
+              limit: 100,
+              remaining: 60,
+              remaining_percent: 60,
+              used_percent: 40,
+              reset_at: null,
+              is_unlimited: false,
+              confidence: "High",
+            },
+          ],
+        }),
+      ],
+    });
+    expect(data.lowestRemainingPercent).toBe(60);
+    expect(data.todayTokens).toBe(40);
+  });
+});
+
 
 describe("pickPetQuip", () => {
   it("reports real token usage when data exists", () => {
