@@ -648,9 +648,24 @@ pub fn apply_pet_size(app: &tauri::AppHandle) {
 }
 
 /// Current widget settings, for the widget webview to render.
+///
+/// `widget_settings` locks the storage mutex; the whole body runs inside
+/// `spawn_blocking` so the future stays `Send` and Tauri executes it off the
+/// main thread. A synchronous command (or an async command holding the guard
+/// directly) freezes the window while a reload burst holds the same lock.
 #[tauri::command]
-pub fn get_widget_settings(app: tauri::AppHandle) -> WidgetSettings {
-    widget_settings(&app)
+pub async fn get_widget_settings(app: tauri::AppHandle) -> WidgetSettings {
+    tauri::async_runtime::spawn_blocking(move || widget_settings(&app))
+        .await
+        .unwrap_or_else(|_| WidgetSettings {
+            opacity: 1.0,
+            locked: false,
+            visible: false,
+            selected_providers: Vec::new(),
+            view: "bars".to_string(),
+            pet_id: String::new(),
+            size_preset: DEFAULT_WIDGET_SIZE.to_string(),
+        })
 }
 
 #[tauri::command]

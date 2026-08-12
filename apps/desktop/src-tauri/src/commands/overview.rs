@@ -18,29 +18,35 @@ pub struct OverviewResponse {
     pub oldest_event_at: Option<String>,
 }
 
-/// Async on purpose: a blocking SQLite read on the main thread would freeze
-/// the window during the reload burst after a refresh cycle.
+/// The blocking body runs inside `spawn_blocking` so the future stays `Send`
+/// and Tauri executes it off the main thread. Holding the `MutexGuard` from
+/// `ensure_storage()` directly would make the future `!Send` and freeze the
+/// window during the reload burst after a refresh cycle.
 #[tauri::command]
 pub async fn get_overview(app: tauri::AppHandle) -> Result<OverviewResponse, String> {
-    let state = app.state::<AppState>();
-    let storage_guard = state.ensure_storage()?;
-    let storage = storage_guard.as_ref().ok_or("storage not initialized")?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let storage_guard = state.ensure_storage()?;
+        let storage = storage_guard.as_ref().ok_or("storage not initialized")?;
 
-    let result = QueryOverview::execute(&storage.conn).map_err(|e| e.to_string())?;
+        let result = QueryOverview::execute(&storage.conn).map_err(|e| e.to_string())?;
 
-    Ok(OverviewResponse {
-        total_events: result.total_events,
-        total_tokens_input: result.total_tokens_input,
-        total_tokens_output: result.total_tokens_output,
-        total_cost: result.total_cost,
-        cost_formatted: result.cost_formatted,
-        cost_status: result.cost_status,
-        provider_count: result.provider_count,
-        high_confidence_count: result.high_confidence_count,
-        confidence_coverage: result.confidence_coverage,
-        latest_event_at: result.latest_event_at,
-        oldest_event_at: result.oldest_event_at,
+        Ok(OverviewResponse {
+            total_events: result.total_events,
+            total_tokens_input: result.total_tokens_input,
+            total_tokens_output: result.total_tokens_output,
+            total_cost: result.total_cost,
+            cost_formatted: result.cost_formatted,
+            cost_status: result.cost_status,
+            provider_count: result.provider_count,
+            high_confidence_count: result.high_confidence_count,
+            confidence_coverage: result.confidence_coverage,
+            latest_event_at: result.latest_event_at,
+            oldest_event_at: result.oldest_event_at,
+        })
     })
+    .await
+    .map_err(|error| format!("overview task failed: {error}"))?
 }
 
 #[cfg(test)]

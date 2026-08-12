@@ -14,19 +14,24 @@ fn price_resolver(conn: &rusqlite::Connection) -> PriceResolver {
     PriceResolver::new_with_overrides(&overrides)
 }
 
-/// Async on purpose: a blocking SQLite read on the main thread would freeze
-/// the window during the reload burst after a refresh cycle. Every command
-/// that touches the database must stay off the main thread.
+/// The blocking body runs inside `spawn_blocking` so the future stays `Send`
+/// and Tauri executes it off the main thread. Holding the `MutexGuard` from
+/// `ensure_storage()` directly would make the future `!Send` and freeze the
+/// window during the reload burst after a refresh cycle.
 #[tauri::command]
 pub async fn get_analytics(
     app: tauri::AppHandle,
     filter: Option<AnalyticsFilter>,
 ) -> Result<AnalyticsResult, String> {
-    let state = app.state::<AppState>();
-    let storage_guard = state.ensure_storage()?;
-    let storage = storage_guard.as_ref().ok_or("storage not initialized")?;
-    let resolver = price_resolver(&storage.conn);
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let storage_guard = state.ensure_storage()?;
+        let storage = storage_guard.as_ref().ok_or("storage not initialized")?;
+        let resolver = price_resolver(&storage.conn);
 
-    QueryAnalytics::execute(&storage.conn, filter.unwrap_or_default(), &resolver)
-        .map_err(|e| e.to_string())
+        QueryAnalytics::execute(&storage.conn, filter.unwrap_or_default(), &resolver)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|error| format!("analytics task failed: {error}"))?
 }

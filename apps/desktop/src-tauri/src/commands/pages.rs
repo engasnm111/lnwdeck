@@ -45,20 +45,26 @@ fn price_resolver(conn: &rusqlite::Connection) -> PriceResolver {
     PriceResolver::new_with_overrides(&overrides)
 }
 
-/// Async on purpose: a blocking SQLite read on the main thread would freeze
-/// the window during the reload burst after a refresh cycle.
+/// The blocking body runs inside `spawn_blocking` so the future stays `Send`
+/// and Tauri executes it off the main thread. Holding the `MutexGuard` from
+/// `ensure_storage()` directly would make the future `!Send` and freeze the
+/// window during the reload burst after a refresh cycle.
 #[tauri::command]
 pub async fn get_usage_history(
     app: tauri::AppHandle,
     window: Option<String>,
     provider_id: Option<String>,
 ) -> Result<UsageHistory, String> {
-    let state = app.state::<AppState>();
-    let window = parse_window(window)?;
-    let guard = state.ensure_storage()?;
-    let storage = guard.as_ref().ok_or("storage not initialized")?;
-    QueryUsageHistory::execute(&storage.conn, window, provider_id.as_deref())
-        .map_err(|e| format!("usage history: {e}"))
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let window = parse_window(window)?;
+        let guard = state.ensure_storage()?;
+        let storage = guard.as_ref().ok_or("storage not initialized")?;
+        QueryUsageHistory::execute(&storage.conn, window, provider_id.as_deref())
+            .map_err(|e| format!("usage history: {e}"))
+    })
+    .await
+    .map_err(|error| format!("usage history task failed: {error}"))?
 }
 
 #[tauri::command]
@@ -67,22 +73,30 @@ pub async fn get_costs(
     window: Option<String>,
     provider_id: Option<String>,
 ) -> Result<CostBreakdown, String> {
-    let state = app.state::<AppState>();
-    let window = parse_window(window)?;
-    let guard = state.ensure_storage()?;
-    let storage = guard.as_ref().ok_or("storage not initialized")?;
-    let resolver = price_resolver(&storage.conn);
-    QueryCosts::execute_with_provider(&storage.conn, window, provider_id.as_deref(), &resolver)
-        .map_err(|e| format!("costs: {e}"))
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let window = parse_window(window)?;
+        let guard = state.ensure_storage()?;
+        let storage = guard.as_ref().ok_or("storage not initialized")?;
+        let resolver = price_resolver(&storage.conn);
+        QueryCosts::execute_with_provider(&storage.conn, window, provider_id.as_deref(), &resolver)
+            .map_err(|e| format!("costs: {e}"))
+    })
+    .await
+    .map_err(|error| format!("costs task failed: {error}"))?
 }
 
 #[tauri::command]
 pub async fn get_budgets(app: tauri::AppHandle) -> Result<BudgetOverview, String> {
-    let state = app.state::<AppState>();
-    let guard = state.ensure_storage()?;
-    let storage = guard.as_ref().ok_or("storage not initialized")?;
-    let resolver = price_resolver(&storage.conn);
-    QueryBudgets::execute(&storage.conn, &resolver).map_err(|e| format!("budgets: {e}"))
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let guard = state.ensure_storage()?;
+        let storage = guard.as_ref().ok_or("storage not initialized")?;
+        let resolver = price_resolver(&storage.conn);
+        QueryBudgets::execute(&storage.conn, &resolver).map_err(|e| format!("budgets: {e}"))
+    })
+    .await
+    .map_err(|error| format!("budgets task failed: {error}"))?
 }
 
 /// Budget as submitted by the form.
@@ -102,91 +116,111 @@ pub struct BudgetInput {
 
 #[tauri::command]
 pub async fn save_budget(budget: BudgetInput, app: tauri::AppHandle) -> Result<i64, String> {
-    let state = app.state::<AppState>();
-    let scope = match budget.scope.as_str() {
-        "global" => BudgetScope::Global,
-        "provider" => BudgetScope::Provider(
-            budget
-                .provider_id
-                .clone()
-                .ok_or("a provider budget needs a provider id")?,
-        ),
-        other => return Err(format!("unknown budget scope: {other}")),
-    };
-    let period = BudgetPeriod::parse(&budget.period)
-        .ok_or_else(|| format!("unknown budget period: {}", budget.period))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let scope = match budget.scope.as_str() {
+            "global" => BudgetScope::Global,
+            "provider" => BudgetScope::Provider(
+                budget
+                    .provider_id
+                    .clone()
+                    .ok_or("a provider budget needs a provider id")?,
+            ),
+            other => return Err(format!("unknown budget scope: {other}")),
+        };
+        let period = BudgetPeriod::parse(&budget.period)
+            .ok_or_else(|| format!("unknown budget period: {}", budget.period))?;
 
-    let guard = state.ensure_storage()?;
-    let storage = guard.as_ref().ok_or("storage not initialized")?;
-    BudgetRepository::new(&storage.conn)
-        .upsert(&BudgetRow {
-            id: 0,
-            scope,
-            period,
-            cost_limit: budget.cost_limit,
-            token_limit: budget.token_limit,
-            warn_percent: budget.warn_percent,
-            enabled: budget.enabled,
-            created_at: String::new(),
-            updated_at: String::new(),
-        })
-        .map_err(|e| e.to_string())
+        let guard = state.ensure_storage()?;
+        let storage = guard.as_ref().ok_or("storage not initialized")?;
+        BudgetRepository::new(&storage.conn)
+            .upsert(&BudgetRow {
+                id: 0,
+                scope,
+                period,
+                cost_limit: budget.cost_limit,
+                token_limit: budget.token_limit,
+                warn_percent: budget.warn_percent,
+                enabled: budget.enabled,
+                created_at: String::new(),
+                updated_at: String::new(),
+            })
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|error| format!("save budget task failed: {error}"))?
 }
 
 #[tauri::command]
 pub async fn delete_budget(id: i64, app: tauri::AppHandle) -> Result<(), String> {
-    let state = app.state::<AppState>();
-    let guard = state.ensure_storage()?;
-    let storage = guard.as_ref().ok_or("storage not initialized")?;
-    let removed = BudgetRepository::new(&storage.conn)
-        .delete(id)
-        .map_err(|e| e.to_string())?;
-    if removed {
-        Ok(())
-    } else {
-        Err(format!("budget {id} does not exist"))
-    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let guard = state.ensure_storage()?;
+        let storage = guard.as_ref().ok_or("storage not initialized")?;
+        let removed = BudgetRepository::new(&storage.conn)
+            .delete(id)
+            .map_err(|e| e.to_string())?;
+        if removed {
+            Ok(())
+        } else {
+            Err(format!("budget {id} does not exist"))
+        }
+    })
+    .await
+    .map_err(|error| format!("delete budget task failed: {error}"))?
 }
 
-/// Async on purpose: a blocking SQLite read on the main thread would freeze
-/// the window during the reload burst after a refresh cycle.
+/// The blocking body runs inside `spawn_blocking` so the future stays `Send`
+/// and Tauri executes it off the main thread.
 #[tauri::command]
 pub async fn get_alerts(app: tauri::AppHandle) -> Result<AlertsView, String> {
-    let state = app.state::<AppState>();
-    let guard = state.ensure_storage()?;
-    let storage = guard.as_ref().ok_or("storage not initialized")?;
-    let hash_key = load_or_create_hash_key(&storage.conn)?;
-    let registry = ensure_registry(state.inner(), &hash_key)?;
-    let resolver = price_resolver(&storage.conn);
-    let display_name = |id: &str| registry.display_name(id).unwrap_or(id).to_string();
-    EvaluateAlerts::execute(&storage.conn, &resolver, &display_name)
-        .map_err(|e| format!("alerts: {e}"))
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let guard = state.ensure_storage()?;
+        let storage = guard.as_ref().ok_or("storage not initialized")?;
+        let hash_key = load_or_create_hash_key(&storage.conn)?;
+        let registry = ensure_registry(state.inner(), &hash_key)?;
+        let resolver = price_resolver(&storage.conn);
+        let display_name = |id: &str| registry.display_name(id).unwrap_or(id).to_string();
+        EvaluateAlerts::execute(&storage.conn, &resolver, &display_name)
+            .map_err(|e| format!("alerts: {e}"))
+    })
+    .await
+    .map_err(|error| format!("alerts task failed: {error}"))?
 }
 
 #[tauri::command]
 pub async fn acknowledge_alert(id: i64, app: tauri::AppHandle) -> Result<(), String> {
-    let state = app.state::<AppState>();
-    let guard = state.ensure_storage()?;
-    let storage = guard.as_ref().ok_or("storage not initialized")?;
-    let updated = AlertRepository::new(&storage.conn)
-        .acknowledge(id)
-        .map_err(|e| e.to_string())?;
-    if updated {
-        Ok(())
-    } else {
-        Err(format!("alert {id} is unknown or already acknowledged"))
-    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let guard = state.ensure_storage()?;
+        let storage = guard.as_ref().ok_or("storage not initialized")?;
+        let updated = AlertRepository::new(&storage.conn)
+            .acknowledge(id)
+            .map_err(|e| e.to_string())?;
+        if updated {
+            Ok(())
+        } else {
+            Err(format!("alert {id} is unknown or already acknowledged"))
+        }
+    })
+    .await
+    .map_err(|error| format!("acknowledge alert task failed: {error}"))?
 }
 
 /// Marks all open alerts as read in one storage transaction.
 #[tauri::command]
 pub async fn acknowledge_all_alerts(app: tauri::AppHandle) -> Result<usize, String> {
-    let state = app.state::<AppState>();
-    let guard = state.ensure_storage()?;
-    let storage = guard.as_ref().ok_or("storage not initialized")?;
-    AlertRepository::new(&storage.conn)
-        .acknowledge_all_open()
-        .map_err(|error| format!("mark all alerts read: {error}"))
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let guard = state.ensure_storage()?;
+        let storage = guard.as_ref().ok_or("storage not initialized")?;
+        AlertRepository::new(&storage.conn)
+            .acknowledge_all_open()
+            .map_err(|error| format!("mark all alerts read: {error}"))
+    })
+    .await
+    .map_err(|error| format!("mark alerts task failed: {error}"))?
 }
 
 /// Settings plus the platform facts the page needs to render honestly.
@@ -278,8 +312,12 @@ fn get_settings_view(state: &AppState) -> Result<SettingsView, String> {
 
 #[tauri::command]
 pub async fn get_settings(app: tauri::AppHandle) -> Result<SettingsView, String> {
-    let state = app.state::<AppState>();
-    get_settings_view(&state)
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        get_settings_view(&state)
+    })
+    .await
+    .map_err(|error| format!("settings task failed: {error}"))?
 }
 
 #[tauri::command]
@@ -287,27 +325,34 @@ pub async fn save_settings(
     settings: AppSettings,
     app: tauri::AppHandle,
 ) -> Result<SettingsView, String> {
-    let state = app.state::<AppState>();
-    {
-        let guard = state.ensure_storage()?;
-        let storage = guard.as_ref().ok_or("storage not initialized")?;
+    let view = tauri::async_runtime::spawn_blocking({
+        let app = app.clone();
+        move || {
+            let state = app.state::<AppState>();
+            {
+                let guard = state.ensure_storage()?;
+                let storage = guard.as_ref().ok_or("storage not initialized")?;
 
-        // Apply the startup entry first: if Windows refuses, nothing is saved
-        // and the reported state stays truthful.
-        if StartupRegistration::is_supported() {
-            StartupRegistration::set_enabled(settings.launch_at_startup)
-                .map_err(|e| e.to_string())?;
-        } else if settings.launch_at_startup {
-            return Err("launch at startup is not supported on this platform".to_string());
+                // Apply the startup entry first: if Windows refuses, nothing
+                // is saved and the reported state stays truthful.
+                if StartupRegistration::is_supported() {
+                    StartupRegistration::set_enabled(settings.launch_at_startup)
+                        .map_err(|e| e.to_string())?;
+                } else if settings.launch_at_startup {
+                    return Err("launch at startup is not supported on this platform".to_string());
+                }
+
+                SettingsService::save(&storage.conn, &settings).map_err(|e| e.to_string())?;
+            }
+            get_settings_view(&state)
         }
-
-        SettingsService::save(&storage.conn, &settings).map_err(|e| e.to_string())?;
-    }
+    })
+    .await
+    .map_err(|error| format!("save settings task failed: {error}"))??;
     // The widget size preset is stored with the rest of the settings, but it
     // only takes effect when the window is resized — do that here so saving
     // the form changes the widget immediately.
     crate::windows::apply_widget_size(&app);
-    let view = get_settings_view(&state)?;
     let _ = app.emit("settings-changed", view.settings.theme.clone());
     Ok(view)
 }
@@ -319,29 +364,33 @@ pub async fn set_provider_key(
     provider_id: String,
     api_key: String,
 ) -> Result<SettingsView, String> {
-    let state = app.state::<AppState>();
-    {
-        let guard = state.ensure_storage()?;
-        let storage = guard.as_ref().ok_or("storage not initialized")?;
-        let hash_key = load_or_create_hash_key(&storage.conn)?;
-        let registry = ensure_registry(state.inner(), &hash_key)?;
-        let descriptor = registry
-            .descriptors()
-            .into_iter()
-            .find(|descriptor| descriptor.id == provider_id)
-            .ok_or_else(|| format!("unknown provider: {provider_id}"))?;
-        if descriptor.auth != AuthKind::ApiKey {
-            return Err(format!(
-                "{} does not use an API key",
-                descriptor.display_name
-            ));
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        {
+            let guard = state.ensure_storage()?;
+            let storage = guard.as_ref().ok_or("storage not initialized")?;
+            let hash_key = load_or_create_hash_key(&storage.conn)?;
+            let registry = ensure_registry(state.inner(), &hash_key)?;
+            let descriptor = registry
+                .descriptors()
+                .into_iter()
+                .find(|descriptor| descriptor.id == provider_id)
+                .ok_or_else(|| format!("unknown provider: {provider_id}"))?;
+            if descriptor.auth != AuthKind::ApiKey {
+                return Err(format!(
+                    "{} does not use an API key",
+                    descriptor.display_name
+                ));
+            }
+            if api_key.trim().is_empty() {
+                return Err("the API key must not be empty".to_string());
+            }
+            CredentialStore::set(&provider_id, api_key.trim()).map_err(|e| e.to_string())?;
         }
-        if api_key.trim().is_empty() {
-            return Err("the API key must not be empty".to_string());
-        }
-        CredentialStore::set(&provider_id, api_key.trim()).map_err(|e| e.to_string())?;
-    }
-    get_settings_view(&state)
+        get_settings_view(&state)
+    })
+    .await
+    .map_err(|error| format!("set key task failed: {error}"))?
 }
 
 #[tauri::command]
@@ -349,15 +398,19 @@ pub async fn delete_provider_key(
     app: tauri::AppHandle,
     provider_id: String,
 ) -> Result<SettingsView, String> {
-    let state = app.state::<AppState>();
-    if provider_id == "opencode" {
-        return Err(
-            "OpenCode Go uses the workspace and auth cookie configuration instead of an API key"
-                .to_string(),
-        );
-    }
-    CredentialStore::delete(&provider_id).map_err(|e| e.to_string())?;
-    get_settings_view(&state)
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        if provider_id == "opencode" {
+            return Err(
+                "OpenCode Go uses the workspace and auth cookie configuration instead of an API key"
+                    .to_string(),
+            );
+        }
+        CredentialStore::delete(&provider_id).map_err(|e| e.to_string())?;
+        get_settings_view(&state)
+    })
+    .await
+    .map_err(|error| format!("delete key task failed: {error}"))?
 }
 
 /// Values submitted by the dedicated OpenCode Go settings form.
@@ -387,24 +440,32 @@ pub async fn set_opencode_go_config(
     app: tauri::AppHandle,
     config: OpenCodeGoConfigInput,
 ) -> Result<SettingsView, String> {
-    let state = app.state::<AppState>();
-    let serialized = encode_go_config(&config.workspace_id, &config.auth_cookie)?;
-    CredentialStore::set(OPENCODE_GO_CREDENTIAL_ID, &serialized).map_err(|e| e.to_string())?;
-    clear_opencode_go_quota_report(state.inner())?;
-    get_settings_view(&state)
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let serialized = encode_go_config(&config.workspace_id, &config.auth_cookie)?;
+        CredentialStore::set(OPENCODE_GO_CREDENTIAL_ID, &serialized).map_err(|e| e.to_string())?;
+        clear_opencode_go_quota_report(state.inner())?;
+        get_settings_view(&state)
+    })
+    .await
+    .map_err(|error| format!("set opencode config task failed: {error}"))?
 }
 
 /// Removes the OpenCode Go credential pair and clears any previously stored
 /// quota windows so an old estimate cannot remain visible as a fake bar.
 #[tauri::command]
 pub async fn delete_opencode_go_config(app: tauri::AppHandle) -> Result<SettingsView, String> {
-    let state = app.state::<AppState>();
-    match CredentialStore::delete(OPENCODE_GO_CREDENTIAL_ID) {
-        Ok(()) | Err(lnwdeck_windows_integration::CredentialError::NotFound) => {}
-        Err(error) => return Err(error.to_string()),
-    }
-    clear_opencode_go_quota_report(state.inner())?;
-    get_settings_view(&state)
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        match CredentialStore::delete(OPENCODE_GO_CREDENTIAL_ID) {
+            Ok(()) | Err(lnwdeck_windows_integration::CredentialError::NotFound) => {}
+            Err(error) => return Err(error.to_string()),
+        }
+        clear_opencode_go_quota_report(state.inner())?;
+        get_settings_view(&state)
+    })
+    .await
+    .map_err(|error| format!("delete opencode config task failed: {error}"))?
 }
 
 /// Background events (refresh loop, updater, migrations) for the System page.
@@ -413,10 +474,14 @@ pub async fn get_app_events(
     app: tauri::AppHandle,
     limit: Option<usize>,
 ) -> Result<Vec<lnwdeck_storage::repositories::AppEventRow>, String> {
-    let state = app.state::<AppState>();
-    let guard = state.ensure_storage()?;
-    let storage = guard.as_ref().ok_or("storage not initialized")?;
-    AppEventRepository::new(&storage.conn)
-        .recent(limit.unwrap_or(50))
-        .map_err(|e| format!("app events: {e}"))
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let guard = state.ensure_storage()?;
+        let storage = guard.as_ref().ok_or("storage not initialized")?;
+        AppEventRepository::new(&storage.conn)
+            .recent(limit.unwrap_or(50))
+            .map_err(|e| format!("app events: {e}"))
+    })
+    .await
+    .map_err(|error| format!("app events task failed: {error}"))?
 }

@@ -355,11 +355,12 @@ pub fn start_refresh(app: tauri::AppHandle) -> Result<RefreshStartResult, String
                             Some(provider_id.to_string()),
                             None,
                         );
-                        // Each persisted provider is immediately visible: windows
-                        // reload incrementally (debounced) instead of waiting for
-                        // the whole cycle and blanking behind a spinner.
-                        let _ = app.emit("quota-updated", ());
-                        let _ = app.emit("usage-updated", ());
+                        // Data becomes visible once the cycle finishes: the
+                        // single end-of-cycle emit below triggers one debounced
+                        // reload per window. Emitting per provider here fires
+                        // 50+ WebView2 reloads during the cycle, and the main
+                        // thread marshalling those reloads is what made the
+                        // window Not Responding while refresh ran.
                         !state
                             .refresh_cancel_requested
                             .load(std::sync::atomic::Ordering::SeqCst)
@@ -384,11 +385,23 @@ pub fn start_refresh(app: tauri::AppHandle) -> Result<RefreshStartResult, String
                 let cancelled = state
                     .refresh_cancel_requested
                     .load(std::sync::atomic::Ordering::SeqCst);
-                crate::record_sync_time(&worker_app);
-                crate::tray::update_sync_label(&worker_app);
+                // Everything below touches the database or the tray. `set_text`
+                // on the tray menu is marshalled to the main thread and blocks
+                // until it is processed, so running it on the async runtime
+                // stalled the window for seconds after every cycle. The whole
+                // post-cycle block runs on the blocking pool instead; the emits
+                // stay here (they must not block), and the final refresh event
+                // still goes out on the async task.
+                let post = worker_app.clone();
+                let _ = tauri::async_runtime::spawn_blocking(move || {
+                    crate::record_sync_time(&post);
+                    crate::tray::update_sync_label(&post);
+                    let state = post.state::<AppState>();
+                    let _ = evaluate_alerts_now(&state);
+                })
+                .await;
                 let _ = worker_app.emit("quota-updated", ());
                 let _ = worker_app.emit("usage-updated", ());
-                let _ = evaluate_alerts_now(&state);
                 let phase = if cancelled || cycle_has_provider_failure(&cycle) {
                     "partial"
                 } else {
@@ -469,36 +482,40 @@ pub async fn refresh_provider(
     Ok(cycle)
 }
 
-/// Async on purpose: a blocking SQLite read on the main thread would freeze
-/// the window during the reload burst after a refresh cycle.
+/// The blocking body runs inside `spawn_blocking` so the future stays `Send`
+/// and Tauri executes it off the main thread.
 #[tauri::command]
 pub async fn get_pipeline_diagnostics(
     app: tauri::AppHandle,
 ) -> Result<PipelineDiagnostics, String> {
-    let state = app.state::<AppState>();
-    let storage_guard = state.ensure_storage()?;
-    let storage = storage_guard.as_ref().ok_or("storage not initialized")?;
-    let diag = DiagnosticsRepository::new(&storage.conn);
-    let totals = diag.pipeline_totals().map_err(|e| e.to_string())?;
-    let providers = diag.provider_states().map_err(|e| e.to_string())?;
-    let runs = diag.latest_runs().map_err(|e| e.to_string())?;
-    let migration_version = diag.migration_version().map_err(|e| e.to_string())?;
-    let total_events: i64 = storage
-        .conn
-        .query_row("SELECT COUNT(*) FROM usage_events", [], |row| row.get(0))
-        .map_err(|e| e.to_string())?;
-    let integrity_ok = storage.integrity_check().is_ok();
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let storage_guard = state.ensure_storage()?;
+        let storage = storage_guard.as_ref().ok_or("storage not initialized")?;
+        let diag = DiagnosticsRepository::new(&storage.conn);
+        let totals = diag.pipeline_totals().map_err(|e| e.to_string())?;
+        let providers = diag.provider_states().map_err(|e| e.to_string())?;
+        let runs = diag.latest_runs().map_err(|e| e.to_string())?;
+        let migration_version = diag.migration_version().map_err(|e| e.to_string())?;
+        let total_events: i64 = storage
+            .conn
+            .query_row("SELECT COUNT(*) FROM usage_events", [], |row| row.get(0))
+            .map_err(|e| e.to_string())?;
+        let integrity_ok = storage.integrity_check().is_ok();
 
-    Ok(PipelineDiagnostics {
-        app_version: env!("CARGO_PKG_VERSION").to_string(),
-        db_ok: true,
-        integrity_ok,
-        migration_version,
-        total_events,
-        totals,
-        providers,
-        runs,
+        Ok(PipelineDiagnostics {
+            app_version: env!("CARGO_PKG_VERSION").to_string(),
+            db_ok: true,
+            integrity_ok,
+            migration_version,
+            total_events,
+            totals,
+            providers,
+            runs,
+        })
     })
+    .await
+    .map_err(|error| format!("diagnostics task failed: {error}"))?
 }
 
 /// The user's Downloads folder, or the profile directory as a fallback.
@@ -533,12 +550,16 @@ fn downloads_dir() -> Result<std::path::PathBuf, String> {
 #[tauri::command]
 pub async fn export_diagnostics(app: tauri::AppHandle) -> Result<String, String> {
     let diagnostics = get_pipeline_diagnostics(app).await?;
-    let json = serde_json::to_string_pretty(&diagnostics).map_err(|e| e.to_string())?;
-    let downloads = downloads_dir()?;
-    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
-    let path = downloads.join(format!("lnwdeck-diagnostics-{stamp}.json"));
-    std::fs::write(&path, json).map_err(|e| format!("write diagnostics: {e}"))?;
-    Ok(path.to_string_lossy().to_string())
+    tauri::async_runtime::spawn_blocking(move || {
+        let json = serde_json::to_string_pretty(&diagnostics).map_err(|e| e.to_string())?;
+        let downloads = downloads_dir()?;
+        let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+        let path = downloads.join(format!("lnwdeck-diagnostics-{stamp}.json"));
+        std::fs::write(&path, json).map_err(|e| format!("write diagnostics: {e}"))?;
+        Ok(path.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|error| format!("export task failed: {error}"))?
 }
 
 /// Opens the file explorer with the given file selected.
