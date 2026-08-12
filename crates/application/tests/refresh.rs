@@ -117,6 +117,66 @@ impl ProviderAdapter for SuccessAdapter {
     }
 }
 
+struct SlowAdapter {
+    id: &'static str,
+    sleep_ms: u64,
+}
+
+impl ProviderAdapter for SlowAdapter {
+    fn descriptor(&self) -> AdapterDescriptor {
+        fixture_descriptor(self.id, self.id, ChannelSupport::LocalEstimate)
+    }
+    fn collect_usage(&self) -> Result<UsageBatch, String> {
+        Ok(UsageBatch {
+            batch_id: format!("{}_batch", self.id),
+            events: vec![],
+        })
+    }
+    fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
+        std::thread::sleep(std::time::Duration::from_millis(self.sleep_ms));
+        Ok(None)
+    }
+    fn health_check(&self) -> AdapterHealth {
+        AdapterHealth {
+            status: AdapterHealthStatus::Healthy,
+            message: "ok".to_string(),
+        }
+    }
+    fn required_permissions(&self) -> Vec<Permission> {
+        vec![]
+    }
+}
+
+#[test]
+fn refresh_collects_providers_concurrently() {
+    let storage = setup_db();
+    let slow_a = SlowAdapter {
+        id: "slow_a",
+        sleep_ms: 300,
+    };
+    let slow_b = SlowAdapter {
+        id: "slow_b",
+        sleep_ms: 300,
+    };
+    let adapters: Vec<&dyn ProviderAdapter> = vec![&slow_a, &slow_b];
+
+    let started = std::time::Instant::now();
+    let cycle = RefreshAll::execute(&storage.conn, &adapters);
+    let elapsed = started.elapsed();
+
+    assert_eq!(cycle.usage.len(), 2, "both providers produce outcomes");
+    assert_eq!(cycle.quota.len(), 2);
+    assert_eq!(cycle.usage[0].provider_id, "slow_a");
+    assert_eq!(
+        cycle.usage[1].provider_id, "slow_b",
+        "outcomes stay in registry order"
+    );
+    assert!(
+        elapsed.as_millis() < 550,
+        "two 300ms providers must run in parallel, took {elapsed:?}"
+    );
+}
+
 struct FailingAdapter;
 
 impl ProviderAdapter for FailingAdapter {

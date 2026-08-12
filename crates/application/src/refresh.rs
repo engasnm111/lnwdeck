@@ -1,4 +1,7 @@
-use lnwdeck_provider_runtime::{CollectionOutcome, ProviderAdapter, QuotaCollectionOutcome};
+use lnwdeck_provider_runtime::{
+    CollectionOutcome, CollectionResult, DetectionResult, ProviderAdapter, QuotaCollectionOutcome,
+    QuotaCollectionResult,
+};
 use lnwdeck_security::{IdentifierHasher, PrivacyGuard};
 use lnwdeck_storage::repositories::{
     CollectorRunRow, DiagnosticsRepository, ProviderStateRow, QuotaRepository,
@@ -66,13 +69,33 @@ impl RefreshAll {
     where
         F: FnMut(&str, usize, usize) -> bool,
     {
+        // Cursor reads are cheap and must happen before collection starts.
+        let cursor_repo = SyncCursorRepository::new(conn);
+        let cursors: Vec<Result<Option<String>, rusqlite::Error>> = adapters
+            .iter()
+            .map(|adapter| cursor_repo.get_cursor(adapter.id()))
+            .collect();
+
+        let collected = collect_all(adapters, hash_key, &cursors);
+
         let mut cycle = RefreshCycleOutcome {
             usage: Vec::new(),
             quota: Vec::new(),
         };
         let total = adapters.len();
-        for (index, adapter) in adapters.iter().enumerate() {
-            let single = Self::refresh_provider_with_hash_key(conn, *adapter, hash_key);
+        for (index, (adapter, collection)) in adapters.iter().zip(collected).enumerate() {
+            let single = match collection {
+                Some(collection) => Self::persist_provider(conn, *adapter, collection),
+                None => {
+                    // Cursor read failed: same outcome the old loop produced.
+                    let outcome = Self::storage_failure_outcome(adapter.id());
+                    let _ = Self::record_run(conn, &outcome);
+                    RefreshCycleOutcome {
+                        usage: vec![outcome],
+                        quota: Vec::new(),
+                    }
+                }
+            };
             cycle.usage.extend(single.usage);
             cycle.quota.extend(single.quota);
             if !on_provider(adapter.id(), index + 1, total) {
@@ -97,23 +120,23 @@ impl RefreshAll {
         hash_key: &[u8],
     ) -> RefreshCycleOutcome {
         let fingerprint = account_fingerprint(adapter, hash_key);
-        RefreshCycleOutcome {
-            usage: vec![Self::refresh_adapter(conn, adapter, fingerprint.as_deref())],
-            quota: vec![Self::refresh_quota(conn, adapter, fingerprint.as_deref())],
-        }
+        let cursor = SyncCursorRepository::new(conn)
+            .get_cursor(adapter.id())
+            .ok()
+            .flatten();
+        let collection = collect_one(adapter, cursor.as_deref(), fingerprint);
+        Self::persist_provider(conn, adapter, collection)
     }
 
-    /// Runs the quota channel for one adapter: collects the normalized
-    /// report, validates it, persists it, and records a quota run.
-    fn refresh_quota(
+    /// Persists one adapter's collected quota report and records the run.
+    fn persist_quota(
         conn: &Connection,
         adapter: &dyn ProviderAdapter,
-        fingerprint: Option<&str>,
+        collection: &ProviderCollection,
     ) -> QuotaCollectionOutcome {
-        let result = adapter.collect_quota_report();
-
-        if let Some(mut report) = result.report {
-            report.account_fingerprint = fingerprint.map(str::to_string);
+        let mut result = collection.quota.clone();
+        if let Some(mut report) = result.report.take() {
+            report.account_fingerprint = collection.fingerprint.clone();
             if PrivacyGuard::validate_quota_report(&report).is_err() {
                 let outcome = QuotaCollectionOutcome::failure(
                     adapter.id(),
@@ -141,15 +164,16 @@ impl RefreshAll {
         result.outcome
     }
 
-    fn refresh_adapter(
+    /// Persists one adapter's collected detection, usage batch and run record.
+    fn persist_usage(
         conn: &Connection,
         adapter: &dyn ProviderAdapter,
-        fingerprint: Option<&str>,
+        collection: &ProviderCollection,
     ) -> CollectionOutcome {
         let diag = DiagnosticsRepository::new(conn);
         let cursor_repo = SyncCursorRepository::new(conn);
 
-        match adapter.detect() {
+        match &collection.detection {
             Ok(detection) => {
                 if diag
                     .upsert_provider_state(&ProviderStateRow {
@@ -183,7 +207,7 @@ impl RefreshAll {
                         permission_state: "n/a".to_string(),
                         adapter_version: "0.2.0".to_string(),
                         last_detection_at: None,
-                        detection_error_code: code,
+                        detection_error_code: code.clone(),
                     })
                     .is_err()
                 {
@@ -192,22 +216,11 @@ impl RefreshAll {
             }
         }
 
-        let cursor = match cursor_repo.get_cursor(adapter.id()) {
-            Ok(cursor) => cursor,
-            Err(_) => {
-                let outcome = Self::storage_failure_outcome(adapter.id());
-                let _ = Self::record_run(conn, &outcome);
-                return outcome;
-            }
-        };
-
-        let full_scan = matches!(adapter.id(), "openai_codex" | "opencode");
-        let mut result =
-            adapter.collect_usage_with_cursor(if full_scan { None } else { cursor.as_deref() });
+        let mut result = collection.usage.clone();
         let mut outcome = result.outcome.clone();
 
         if let Some(mut batch) = result.batch.take() {
-            normalize_usage_batch(&mut batch, fingerprint);
+            normalize_usage_batch(&mut batch, collection.fingerprint.as_deref());
             match PrivacyGuard::validate_usage_batch(&batch) {
                 Err(_) => {
                     outcome.events_rejected = batch.events.len() as u64;
@@ -215,7 +228,7 @@ impl RefreshAll {
                 }
                 Ok(()) => {
                     let repo = UsageRepository::new(conn);
-                    let ingestion = if full_scan {
+                    let ingestion = if collection.full_scan {
                         let (current_source, legacy_source) = if adapter.id() == "openai_codex" {
                             ("local_jsonl_v2", "local_jsonl")
                         } else {
@@ -249,6 +262,18 @@ impl RefreshAll {
 
         let _ = Self::record_run(conn, &outcome);
         outcome
+    }
+
+    /// Persists one adapter's collected evidence and returns its outcomes.
+    fn persist_provider(
+        conn: &Connection,
+        adapter: &dyn ProviderAdapter,
+        collection: ProviderCollection,
+    ) -> RefreshCycleOutcome {
+        RefreshCycleOutcome {
+            usage: vec![Self::persist_usage(conn, adapter, &collection)],
+            quota: vec![Self::persist_quota(conn, adapter, &collection)],
+        }
     }
 
     fn storage_failure_outcome(provider_id: &str) -> CollectionOutcome {
@@ -302,6 +327,78 @@ impl RefreshAll {
             next_retry_at: None,
         })
     }
+}
+
+/// How many adapters collect at once. Collection is network/disk I/O bound;
+/// persistence is serialized on one connection afterward.
+const COLLECTION_WORKERS: usize = 4;
+
+/// Everything collected for one adapter before any database write.
+struct ProviderCollection {
+    fingerprint: Option<String>,
+    detection: Result<DetectionResult, String>,
+    usage: CollectionResult,
+    quota: QuotaCollectionResult,
+    /// Full-scan providers ignore the persisted cursor (cumulative snapshots).
+    full_scan: bool,
+}
+
+/// Collects one adapter's detect/usage/quota channels without touching the
+/// database. This is where all the network and transcript-read time goes.
+fn collect_one(
+    adapter: &dyn ProviderAdapter,
+    cursor: Option<&str>,
+    fingerprint: Option<String>,
+) -> ProviderCollection {
+    let full_scan = matches!(adapter.id(), "openai_codex" | "opencode");
+    let usage_cursor = if full_scan { None } else { cursor };
+    ProviderCollection {
+        fingerprint,
+        detection: adapter.detect(),
+        usage: adapter.collect_usage_with_cursor(usage_cursor),
+        quota: adapter.collect_quota_report(),
+        full_scan,
+    }
+}
+
+/// Collects every adapter concurrently with a bounded worker pool.
+/// Returns one slot per adapter in registry order; a `None` slot means the
+/// cursor could not be read and the adapter is skipped (recorded as a
+/// storage failure in the persist phase, matching the previous behavior).
+fn collect_all(
+    adapters: &[&dyn ProviderAdapter],
+    hash_key: &[u8],
+    cursors: &[Result<Option<String>, rusqlite::Error>],
+) -> Vec<Option<ProviderCollection>> {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Mutex;
+
+    let next = AtomicUsize::new(0);
+    let slots = Mutex::new((0..adapters.len()).map(|_| None).collect::<Vec<_>>());
+    let workers = COLLECTION_WORKERS.min(adapters.len());
+    std::thread::scope(|scope| {
+        for _ in 0..workers {
+            scope.spawn(|| {
+                loop {
+                    let index = next.fetch_add(1, Ordering::SeqCst);
+                    if index >= adapters.len() {
+                        break;
+                    }
+                    let Ok(cursor) = cursors[index].as_ref() else {
+                        continue; // slot stays None; persist records the failure
+                    };
+                    let adapter = adapters[index];
+                    let collected = collect_one(
+                        adapter,
+                        cursor.as_deref(),
+                        account_fingerprint(adapter, hash_key),
+                    );
+                    slots.lock().expect("slots lock")[index] = Some(collected);
+                }
+            });
+        }
+    });
+    slots.into_inner().expect("slots")
 }
 
 /// Derives the only account identifier that is allowed to cross the storage
