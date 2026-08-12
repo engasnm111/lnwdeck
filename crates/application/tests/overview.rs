@@ -109,6 +109,39 @@ fn overview_has_freshness() {
 }
 
 #[test]
+fn overview_aggregates_cost_per_provider_model_group() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("test.db");
+    let storage = Storage::open(&db_path).unwrap();
+    apply_all(&storage.conn).unwrap();
+    let repo = UsageRepository::new(&storage.conn);
+
+    // Three events, two of them unpriced but on the same provider/model.
+    let mut priced = sample_event("e_priced", "openai", "gpt-4o", 100, 50);
+    priced.cost = "0.01".to_string();
+    let mut unpriced_a = sample_event("e_unpriced_a", "openai", "gpt-4o", 100, 50);
+    unpriced_a.cost = "0".to_string();
+    let mut unpriced_b = sample_event("e_unpriced_b", "openai", "gpt-4o", 100, 50);
+    unpriced_b.cost = "0".to_string();
+    let batch = UsageBatch {
+        batch_id: "batch_cost".to_string(),
+        events: vec![priced, unpriced_a, unpriced_b],
+    };
+    repo.ingest_batch(&batch).unwrap();
+
+    let overview = QueryOverview::execute(&storage.conn).unwrap();
+
+    // Recorded 0.01 plus the generic estimate for the 300 unpriced input
+    // tokens (2.50 per 1M input) applied once per group.
+    assert!(
+        overview.total_cost > 0.01,
+        "total_cost = {}",
+        overview.total_cost
+    );
+    assert_eq!(overview.cost_status, "estimated");
+}
+
+#[test]
 fn overview_confidence_coverage_is_tracked() {
     let dir = tempdir().unwrap();
     let db_path = dir.path().join("test.db");

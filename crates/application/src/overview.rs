@@ -88,40 +88,52 @@ impl QueryOverview {
             0.0
         };
 
-        // Calculate Cost Pipeline
+        // Calculate Cost Pipeline. Aggregated per (provider, model) group in
+        // SQL so a large history never streams every row into Rust: recorded
+        // costs are summed directly, and the tokens of events without a
+        // recorded cost get one estimate for the whole group (pricing is
+        // linear in tokens, so this equals the old per-event estimates).
         let price_resolver = PriceResolver::new_with_overrides(&json!([]));
         let mut total_cost: f64 = 0.0;
         let mut has_computable_cost = false;
 
         if total_events > 0 {
-            let mut event_stmt = conn.prepare(
-                "SELECT provider_id, model, tokens_input, tokens_output, cost FROM usage_events",
+            let mut group_stmt = conn.prepare(
+                "SELECT provider_id, model,
+                        COALESCE(SUM(CASE WHEN CAST(cost AS REAL) > 0 THEN CAST(cost AS REAL) ELSE 0 END), 0),
+                        COALESCE(SUM(CASE WHEN CAST(cost AS REAL) > 0 THEN 0 ELSE tokens_input END), 0),
+                        COALESCE(SUM(CASE WHEN CAST(cost AS REAL) > 0 THEN 0 ELSE tokens_output END), 0)
+                 FROM usage_events
+                 GROUP BY provider_id, model",
             )?;
-            let rows = event_stmt.query_map([], |row| {
-                let pid: String = row.get(0)?;
-                let model: String = row.get(1)?;
-                let tin: i64 = row.get(2)?;
-                let tout: i64 = row.get(3)?;
-                let raw_cost: String = row.get(4)?;
-                Ok((pid, model, tin, tout, raw_cost))
+            let groups = group_stmt.query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, f64>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, i64>(4)?,
+                ))
             })?;
 
-            for r in rows.flatten() {
-                let (pid, model, tin, tout, raw_cost) = r;
-                let parsed_cost = raw_cost.parse::<f64>().unwrap_or(0.0);
-                if parsed_cost > 0.0 {
-                    total_cost += parsed_cost;
+            for group in groups {
+                let (pid, model, recorded, unpriced_input, unpriced_output) = group?;
+                if recorded > 0.0 {
+                    total_cost += recorded;
                     has_computable_cost = true;
-                } else if let Ok(estimate) = calculate_cost_with_provider(
-                    &pid,
-                    &model,
-                    tin as u64,
-                    tout as u64,
-                    &price_resolver,
-                ) {
-                    if let Ok(val) = estimate.cost.parse::<f64>() {
-                        total_cost += val;
-                        has_computable_cost = true;
+                }
+                if unpriced_input > 0 || unpriced_output > 0 {
+                    if let Ok(estimate) = calculate_cost_with_provider(
+                        &pid,
+                        &model,
+                        unpriced_input as u64,
+                        unpriced_output as u64,
+                        &price_resolver,
+                    ) {
+                        if let Ok(val) = estimate.cost.parse::<f64>() {
+                            total_cost += val;
+                            has_computable_cost = true;
+                        }
                     }
                 }
             }
