@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { listen } from "@tauri-apps/api/event";
 import { OverviewPage } from "./OverviewPage";
@@ -377,7 +377,42 @@ describe("OverviewPage", () => {
     expect(screen.getAllByText("9M").length).toBeGreaterThan(0);
   });
 
+  it("debounces reloads while usage-updated events stream", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let usageListener: (() => void) | undefined;
+    vi.mocked(listen).mockImplementation(async (event, handler) => {
+      if (event === "usage-updated") {
+        usageListener = handler as unknown as () => void;
+      }
+      return () => {};
+    });
+    vi.mocked(native.fetchUsageDashboard).mockResolvedValue(dashboard());
+
+    render(
+      <I18nProvider>
+        <OverviewPage />
+      </I18nProvider>,
+    );
+    // Flush the initial mount load before counting reloads.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    vi.mocked(native.fetchUsageDashboard).mockClear();
+
+    usageListener?.();
+    usageListener?.();
+    usageListener?.();
+    expect(native.fetchUsageDashboard).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_200);
+    });
+    expect(native.fetchUsageDashboard).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
   it("reloads the selected range when the background refresh finishes", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     let usageListener: (() => void) | undefined;
     vi.mocked(listen).mockImplementation(async (event, handler) => {
       if (event === "usage-updated") {
@@ -411,6 +446,10 @@ describe("OverviewPage", () => {
     await screen.findByText("No usage in this range");
 
     usageListener?.();
-    await waitFor(() => expect(screen.getAllByText("803.2M").length).toBeGreaterThan(0));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_200);
+    });
+    expect(screen.getAllByText("803.2M").length).toBeGreaterThan(0);
+    vi.useRealTimers();
   });
 });

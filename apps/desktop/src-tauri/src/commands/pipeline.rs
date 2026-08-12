@@ -348,6 +348,11 @@ pub fn start_refresh(app: tauri::AppHandle) -> Result<RefreshStartResult, String
                             Some(provider_id.to_string()),
                             None,
                         );
+                        // Each persisted provider is immediately visible: windows
+                        // reload incrementally (debounced) instead of waiting for
+                        // the whole cycle and blanking behind a spinner.
+                        let _ = app.emit("quota-updated", ());
+                        let _ = app.emit("usage-updated", ());
                         !state
                             .refresh_cancel_requested
                             .load(std::sync::atomic::Ordering::SeqCst)

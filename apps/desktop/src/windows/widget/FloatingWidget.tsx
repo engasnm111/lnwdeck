@@ -693,6 +693,7 @@ export function FloatingWidget() {
   const pickerButtonRef = useRef<HTMLButtonElement | null>(null);
   const [reaction, setReaction] = useState<PetReaction>(null);
   const reactionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const quotaReloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activePet, setActivePet] = useState<ImportedPet | null>(null);
   const unlistenRef = useRef<UnlistenFn[]>([]);
 
@@ -741,6 +742,18 @@ export function FloatingWidget() {
     }
   }, [t]);
 
+  // Per-provider persistence emits a burst of quota-updated events during a
+  // cycle; a trailing debounce collapses them into one reload once it settles.
+  const scheduleQuotaReload = useCallback(() => {
+    if (quotaReloadTimer.current !== null) {
+      clearTimeout(quotaReloadTimer.current);
+    }
+    quotaReloadTimer.current = setTimeout(() => {
+      quotaReloadTimer.current = null;
+      void load();
+    }, 800);
+  }, [load]);
+
   const applySettings = useCallback((payload: WidgetSettingsData) => {
     setSettings({
       ...payload,
@@ -781,7 +794,7 @@ export function FloatingWidget() {
     const subscribe = async () => {
       try {
         unlistenRef.current.push(
-          await listen("quota-updated", () => void load()),
+          await listen("quota-updated", () => scheduleQuotaReload()),
         );
         unlistenRef.current.push(
           await listen<WidgetSettingsData>(
@@ -802,8 +815,12 @@ export function FloatingWidget() {
         unlisten();
       }
       unlistenRef.current = [];
+      if (quotaReloadTimer.current !== null) {
+        clearTimeout(quotaReloadTimer.current);
+        quotaReloadTimer.current = null;
+      }
     };
-  }, [load, loadSettings, applySettings]);
+  }, [load, loadSettings, applySettings, scheduleQuotaReload]);
 
   /**
    * Starts the brief refresh-success celebration. A repeated refresh replaces

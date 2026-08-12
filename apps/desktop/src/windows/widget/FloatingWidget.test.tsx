@@ -9,6 +9,7 @@ type RefreshHandler = (event: {
   payload: native.RefreshProgressEvent;
 }) => void;
 let refreshEventHandler: RefreshHandler | null = null;
+let quotaUpdatedHandler: (() => void) | null = null;
 
 vi.mock("../../lib/native", async (importOriginal) => {
   const actual = await importOriginal<typeof native>();
@@ -36,6 +37,9 @@ vi.mock("@tauri-apps/api/event", () => ({
     async (event: string, handler: RefreshHandler) => {
       if (event === "refresh-progress") {
         refreshEventHandler = handler;
+      }
+      if (event === "quota-updated") {
+        quotaUpdatedHandler = handler as unknown as () => void;
       }
       return () => {};
     },
@@ -128,12 +132,34 @@ describe("FloatingWidget", () => {
     );
     vi.mocked(native.startRefresh).mockClear();
     refreshEventHandler = null;
+    quotaUpdatedHandler = null;
     vi.mocked(native.hideWidgetWindow).mockClear();
     vi.mocked(native.showMainWindow).mockClear();
   });
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("debounces reloads while quota-updated events stream", async () => {
+    vi.mocked(native.fetchQuotaDashboard).mockResolvedValue(
+      dashboard([provider()]),
+    );
+    render(<FloatingWidget />);
+    await waitFor(() => expect(screen.getByText("Claude")).toBeInTheDocument());
+    vi.mocked(native.fetchQuotaDashboard).mockClear();
+
+    act(() => {
+      quotaUpdatedHandler?.();
+      quotaUpdatedHandler?.();
+      quotaUpdatedHandler?.();
+    });
+    expect(native.fetchQuotaDashboard).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(800);
+    });
+    expect(native.fetchQuotaDashboard).toHaveBeenCalledTimes(1);
   });
 
   it("uses compact icon-only header controls with localized hover explanations", async () => {

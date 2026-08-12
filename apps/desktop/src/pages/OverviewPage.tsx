@@ -141,6 +141,7 @@ export function OverviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const requestVersion = useRef(0);
+  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const customStartRef = useRef<HTMLInputElement | null>(null);
   const customEndRef = useRef<HTMLInputElement | null>(null);
 
@@ -177,11 +178,13 @@ export function OverviewPage() {
     [customEnd, customStart, range],
   );
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (background = false) => {
     if (range === "custom" && (!customStart || !customEnd)) return;
     const version = ++requestVersion.current;
     const isCurrent = () => requestVersion.current === version;
-    setLoading(true);
+    // Background reloads (refresh events, debounced) keep the previous data
+    // on screen instead of blanking the page behind the loading state.
+    if (!background) setLoading(true);
     setError(null);
     try {
       const [allResult, selectedResult] = await Promise.all([
@@ -216,12 +219,25 @@ export function OverviewPage() {
     }
   }, [baseQuery, customEnd, customStart, providerId, query, range]);
 
+  // Providers persist one at a time during a refresh cycle, so update events
+  // arrive in a burst. Reloading per event would flash the page; a trailing
+  // debounce collapses the burst into one reload once the cycle settles.
+  const scheduleReload = useCallback(() => {
+    if (reloadTimer.current !== null) {
+      clearTimeout(reloadTimer.current);
+    }
+    reloadTimer.current = setTimeout(() => {
+      reloadTimer.current = null;
+      void load(true);
+    }, 1_200);
+  }, [load]);
+
   useEffect(() => {
     void load();
     let cancelled = false;
     let unlisten: UnlistenFn | null = null;
     void listen("usage-updated", () => {
-      void load();
+      scheduleReload();
     })
       .then((cleanup) => {
         if (cancelled) {
@@ -236,8 +252,12 @@ export function OverviewPage() {
     return () => {
       cancelled = true;
       unlisten?.();
+      if (reloadTimer.current !== null) {
+        clearTimeout(reloadTimer.current);
+        reloadTimer.current = null;
+      }
     };
-  }, [load]);
+  }, [load, scheduleReload]);
 
   const maxTrend = Math.max(...(dashboard?.trend.map((point) => point.total_tokens) ?? [0]), 1);
   const maxHeat = Math.max(...(dashboard?.heatmap.map((cell) => cell.total_tokens) ?? [0]), 1);
