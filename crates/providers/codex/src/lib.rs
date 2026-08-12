@@ -11,7 +11,10 @@ use lnwdeck_provider_runtime::{
     DetectionResult, Permission, ProviderAdapter, SourceKind,
 };
 use serde_json::Value;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::SystemTime;
 
 pub mod usage_api;
 
@@ -30,6 +33,19 @@ const MAX_TOTAL_BYTES: u64 = 256 * 1024 * 1024;
 pub struct CodexAdapter {
     sessions_dir: PathBuf,
     auth_path: PathBuf,
+    /// Parsed session files keyed by their (size, mtime) at parse time.
+    /// Codex histories grow to gigabytes; re-reading every file on every
+    /// refresh saturated the disk/CPU for ~20s and froze the UI. Session
+    /// files are append-only, so an unchanged (size, mtime) is a sound
+    /// freshness check and the cached records are reused.
+    cache: Mutex<HashMap<PathBuf, CachedSession>>,
+}
+
+/// A parsed session file plus the metadata it was parsed from.
+struct CachedSession {
+    size: u64,
+    modified: Option<SystemTime>,
+    records: Vec<TokenCountRecord>,
 }
 
 impl CodexAdapter {
@@ -46,6 +62,7 @@ impl CodexAdapter {
         Self {
             sessions_dir,
             auth_path,
+            cache: Mutex::new(HashMap::new()),
         }
     }
 
@@ -123,28 +140,57 @@ impl CodexAdapter {
     /// record of that session. Summing every `token_count` line would count
     /// each turn's cumulative total multiple times.
     fn scan_token_records(&self) -> Result<Vec<Vec<TokenCountRecord>>, String> {
+        let files = collect_jsonl_files(&self.sessions_dir)?;
+        let mut cache = self
+            .cache
+            .lock()
+            .map_err(|_| "codex cache poisoned".to_string())?;
+
+        // Sessions that no longer exist stop contributing. The cached records
+        // themselves are kept as parsed history only while the file is live.
+        let live: HashSet<&Path> = files.iter().map(|path| path.as_path()).collect();
+        cache.retain(|path, _| live.contains(path.as_path()));
+
         let mut sessions = Vec::new();
-        for file in collect_jsonl_files(&self.sessions_dir)? {
+        for file in files {
             let Ok(meta) = file.metadata() else {
                 continue;
             };
-            if meta.len() > MAX_TOTAL_BYTES {
+            let size = meta.len();
+            if size > MAX_TOTAL_BYTES {
                 continue;
             }
-            let Ok(content) = std::fs::read_to_string(&file) else {
-                continue;
+            let modified = meta.modified().ok();
+            let records = match cache.get(&file) {
+                Some(entry) if entry.size == size && entry.modified == modified => {
+                    entry.records.clone()
+                }
+                _ => {
+                    let Ok(content) = std::fs::read_to_string(&file) else {
+                        continue;
+                    };
+                    let mut current_model = None;
+                    let mut records = Vec::new();
+                    for line in content.lines() {
+                        if let Some(model) = model_from_metadata_line(line) {
+                            current_model = Some(model);
+                        }
+                        if let Some(mut record) = parse_token_count_line(line) {
+                            record.model = current_model.clone();
+                            records.push(record);
+                        }
+                    }
+                    cache.insert(
+                        file,
+                        CachedSession {
+                            size,
+                            modified,
+                            records: records.clone(),
+                        },
+                    );
+                    records
+                }
             };
-            let mut current_model = None;
-            let mut records = Vec::new();
-            for line in content.lines() {
-                if let Some(model) = model_from_metadata_line(line) {
-                    current_model = Some(model);
-                }
-                if let Some(mut record) = parse_token_count_line(line) {
-                    record.model = current_model.clone();
-                    records.push(record);
-                }
-            }
             if !records.is_empty() {
                 sessions.push(records);
             }
@@ -233,20 +279,8 @@ impl CodexAdapter {
     /// unavailable.
     fn local_rate_limits(&self) -> Result<Option<QuotaReport>, String> {
         let mut newest: Option<(DateTime<Utc>, Value)> = None;
-        for file in collect_jsonl_files(&self.sessions_dir)? {
-            let Ok(meta) = file.metadata() else {
-                continue;
-            };
-            if meta.len() > MAX_TOTAL_BYTES {
-                continue;
-            }
-            let Ok(content) = std::fs::read_to_string(&file) else {
-                continue;
-            };
-            for line in content.lines() {
-                let Some(record) = parse_token_count_line(line) else {
-                    continue;
-                };
+        for records in self.scan_token_records()? {
+            for record in records {
                 let Some(limits) = record.rate_limits else {
                     continue;
                 };
@@ -922,6 +956,53 @@ mod tests {
         let missing = dir.path().join("nope");
         let adapter = adapter_for(&missing);
         assert_eq!(adapter.health_check().status, AdapterHealthStatus::Degraded);
+    }
+
+    #[test]
+    fn unchanged_sessions_are_reused_and_new_sessions_are_picked_up() {
+        let dir = tempdir().expect("temp dir");
+        let root = dir.path().join("sessions");
+        std::fs::create_dir_all(&root).expect("create root");
+        write_session(
+            &root,
+            "old.jsonl",
+            &[&token_count(&now_minus(600), 300, 100, None)],
+        );
+
+        let adapter = CodexAdapter::with_paths(root.clone(), root.join("auth.json"));
+        let first = adapter.collect_usage().expect("first usage");
+        assert_eq!(first.events.len(), 1);
+
+        // A new session appears: the cached file is reused and only the new
+        // file is parsed, and both end up in the snapshot.
+        write_session(
+            &root,
+            "new.jsonl",
+            &[&token_count(&now_minus(300), 700, 250, None)],
+        );
+        let second = adapter.collect_usage().expect("second usage");
+        assert_eq!(
+            second.events.len(),
+            2,
+            "cached session plus the newly added session"
+        );
+        assert!(second.events.iter().any(|event| event.tokens_input == 300));
+        assert!(second.events.iter().any(|event| event.tokens_input == 700));
+
+        // An existing session gains another turn: its size/mtime changed, so
+        // the file is re-read and the turn is reconstructed from the delta.
+        let old_path = root.join("old.jsonl");
+        let mut content = std::fs::read_to_string(&old_path).expect("read old");
+        content.push('\n');
+        content.push_str(&token_count(&now_minus(60), 900, 350, None));
+        std::fs::write(&old_path, content).expect("append old");
+
+        let third = adapter.collect_usage().expect("third usage");
+        assert_eq!(
+            third.events.len(),
+            3,
+            "the changed session's new turn is added to the snapshot"
+        );
     }
 
     #[test]

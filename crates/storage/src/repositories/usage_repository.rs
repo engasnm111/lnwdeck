@@ -27,14 +27,21 @@ impl<'a> UsageRepository<'a> {
         let mut inserted: u64 = 0;
         let mut duplicates: u64 = 0;
 
-        for event in &batch.events {
-            let timestamp = event.timestamp.to_rfc3339();
-            let account_fingerprint = event.account_fingerprint.as_deref().unwrap_or("");
-
-            let changed = tx.execute(
+        // Prepared once and reused: `Connection::execute` re-prepares the
+        // statement on every call, and the codex batch alone is ~26k events,
+        // so per-event re-preparing turned one refresh into ~18s of statement
+        // builds. The batch is large but the statement is fixed.
+        {
+            let mut stmt = tx.prepare(
                 "INSERT OR IGNORE INTO usage_events (id, batch_id, timestamp, provider_id, model, tokens_input, tokens_cached, tokens_cache_write, tokens_output, tokens_reasoning, confidence, data_source, cost, session_hash, project_hash, account_fingerprint)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
-                rusqlite::params![
+            )?;
+
+            for event in &batch.events {
+                let timestamp = event.timestamp.to_rfc3339();
+                let account_fingerprint = event.account_fingerprint.as_deref().unwrap_or("");
+
+                let changed = stmt.execute(rusqlite::params![
                     event.id,
                     batch.batch_id,
                     timestamp,
@@ -51,12 +58,12 @@ impl<'a> UsageRepository<'a> {
                     event.session_hash.as_deref().unwrap_or(""),
                     event.project_hash.as_deref().unwrap_or(""),
                     account_fingerprint,
-                ],
-            )?;
-            if changed == 1 {
-                inserted += 1;
-            } else {
-                duplicates += 1;
+                ])?;
+                if changed == 1 {
+                    inserted += 1;
+                } else {
+                    duplicates += 1;
+                }
             }
         }
 
@@ -100,12 +107,16 @@ impl<'a> UsageRepository<'a> {
         }
 
         let mut inserted = 0u64;
-        for event in &batch.events {
-            let account_fingerprint = event.account_fingerprint.as_deref().unwrap_or("");
-            inserted += tx.execute(
+        // See `ingest_batch_with_counts`: one prepared statement, not one per
+        // event. The codex replace is the largest write of a refresh cycle.
+        {
+            let mut stmt = tx.prepare(
                 "INSERT OR IGNORE INTO usage_events (id, batch_id, timestamp, provider_id, model, tokens_input, tokens_cached, tokens_cache_write, tokens_output, tokens_reasoning, confidence, data_source, cost, session_hash, project_hash, account_fingerprint)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
-                rusqlite::params![
+            )?;
+            for event in &batch.events {
+                let account_fingerprint = event.account_fingerprint.as_deref().unwrap_or("");
+                inserted += stmt.execute(rusqlite::params![
                     event.id,
                     batch.batch_id,
                     event.timestamp.to_rfc3339(),
@@ -122,8 +133,8 @@ impl<'a> UsageRepository<'a> {
                     event.session_hash.as_deref().unwrap_or(""),
                     event.project_hash.as_deref().unwrap_or(""),
                     account_fingerprint,
-                ],
-            )? as u64;
+                ])? as u64;
+            }
         }
         tx.commit()?;
         Ok((inserted, 0))
