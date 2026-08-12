@@ -62,7 +62,7 @@ const view = (
     },
   ],
   opencode_go: { state: "missing" },
-  allowed_refresh_intervals: [0, 30, 60, 300, 900, 3600],
+  allowed_refresh_intervals: [0, 300, 900, 3600],
   allowed_themes: ["dark", "light", "system"],
   allowed_retention_days: [7, 30, 90, 365, 0],
   ...overrides,
@@ -125,12 +125,12 @@ describe("SettingsPage", () => {
     );
     await userEvent.selectOptions(
       screen.getByLabelText("Automatic refresh"),
-      "60",
+      "900",
     );
 
     await waitFor(() => expect(native.saveSettings).toHaveBeenCalledTimes(1));
     expect(native.saveSettings).toHaveBeenCalledWith(
-      expect.objectContaining({ refresh_interval_seconds: 60 }),
+      expect.objectContaining({ refresh_interval_seconds: 900 }),
     );
     expect(screen.queryByRole("button", { name: /save/i })).not.toBeInTheDocument();
   });
@@ -147,7 +147,7 @@ describe("SettingsPage", () => {
     );
     await userEvent.selectOptions(
       screen.getByLabelText("Automatic refresh"),
-      "60",
+      "900",
     );
 
     await waitFor(() =>

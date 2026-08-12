@@ -15,6 +15,13 @@ use tauri::Manager;
 const FIRST_REFRESH_DELAY: Duration = Duration::from_secs(15);
 /// How often the loop re-reads the interval while refreshing is disabled.
 const DISABLED_POLL_INTERVAL: Duration = Duration::from_secs(60);
+/// A background cycle is skipped when a refresh completed inside this window.
+/// Manual refreshes reset the cooldown, so the loop never piles a background
+/// cycle on top of a button press. With the shortest allowed interval (5 min)
+/// and a ~10s fast cycle this makes the effective background spacing ~10 min,
+/// which is the point of the setting. Chrono duration on purpose: it is
+/// compared against `signed_duration_since`.
+const BACKGROUND_REFRESH_COOLDOWN: chrono::Duration = chrono::Duration::minutes(5);
 
 #[cfg(windows)]
 const SINGLE_INSTANCE_NAME: &str = "Local\\lnwdeck.app.lnwdeck.desktop";
@@ -161,9 +168,23 @@ fn spawn_refresh_loop(app: tauri::AppHandle) {
     });
 }
 
+/// True when a background cycle should be skipped because a refresh already
+/// completed recently. `last_sync_time` is only written by successful cycles,
+/// so a failed cycle never suppresses the next retry.
+fn should_skip_background_refresh(
+    last_sync: Option<chrono::DateTime<chrono::Local>>,
+    now: chrono::DateTime<chrono::Local>,
+) -> bool {
+    last_sync.is_some_and(|last| now.signed_duration_since(last) < BACKGROUND_REFRESH_COOLDOWN)
+}
+
 /// One refresh cycle plus alert evaluation, with every failure recorded.
-/// Skips the cycle when a manual refresh is already running.
+/// Skips the cycle when a manual refresh just completed (cooldown) or when a
+/// manual refresh is already running.
 fn run_refresh_cycle(app: &tauri::AppHandle) {
+    if should_skip_background_refresh(last_sync_time(app), chrono::Local::now()) {
+        return;
+    }
     if let Err(error) = commands::pipeline::start_refresh(app.clone()) {
         record_event(
             app,
@@ -365,6 +386,23 @@ mod tests {
     use super::*;
 
     #[test]
+    fn background_cycle_skips_when_a_refresh_completed_recently() {
+        let now = chrono::Local::now();
+        assert!(
+            should_skip_background_refresh(Some(now - chrono::Duration::minutes(1)), now),
+            "a refresh one minute ago suppresses the background cycle"
+        );
+        assert!(
+            !should_skip_background_refresh(Some(now - chrono::Duration::minutes(20)), now),
+            "a refresh twenty minutes ago does not suppress the background cycle"
+        );
+        assert!(
+            !should_skip_background_refresh(None, now),
+            "never-synced installs still run the first background cycle"
+        );
+    }
+
+    #[test]
     fn refresh_intervals_are_sane() {
         assert!(
             FIRST_REFRESH_DELAY.as_secs() > 0,
@@ -374,6 +412,10 @@ mod tests {
         assert!(
             lnwdeck_application::settings::ALLOWED_REFRESH_INTERVALS.contains(&0),
             "the user must be able to disable background refreshing"
+        );
+        assert!(
+            BACKGROUND_REFRESH_COOLDOWN.num_seconds() > 0,
+            "the cooldown must actually suppress a recent background cycle"
         );
     }
 

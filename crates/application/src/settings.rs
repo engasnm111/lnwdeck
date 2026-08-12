@@ -36,8 +36,11 @@ pub const KEY_PET_POSE_WAITING: &str = "pet_pose_waiting";
 pub const KEY_PET_POSE_REVIEW: &str = "pet_pose_review";
 pub const KEY_LANGUAGE: &str = "language";
 
-/// Refresh intervals the UI offers. Zero disables the background loop.
-pub const ALLOWED_REFRESH_INTERVALS: &[u64] = &[0, 30, 60, 300, 900, 3600];
+/// Refresh intervals the UI offers. Zero disables the background loop. The
+/// shortest allowed spacing is five minutes: collection is network-bound and
+/// quota readings age in minutes, so sub-five-minute background cycles only
+/// waste bandwidth and keep the machine busy.
+pub const ALLOWED_REFRESH_INTERVALS: &[u64] = &[0, 300, 900, 3600];
 /// Themes the UI offers.
 pub const ALLOWED_THEMES: &[&str] = &["dark", "light", "system"];
 /// Retention windows the UI offers, in days.
@@ -65,8 +68,11 @@ pub const ALLOWED_LANGUAGES: &[&str] = &["en", "th", "zh", "ja", "ko", "de", "fr
 /// Built-in desktop pet characters.
 pub const BUILTIN_PET_CHARACTERS: &[&str] = &["robot", "cat", "ghost", "dragon", "crab", "blob"];
 
-/// Defaults used when a key has never been written.
-const DEFAULT_REFRESH_INTERVAL: u64 = 300;
+/// Defaults used when a key has never been written. Fifteen minutes: quota
+/// readings age in minutes and a fast cycle still takes seconds, so this is
+/// the point where background refreshes stay useful without keeping the
+/// machine busy.
+const DEFAULT_REFRESH_INTERVAL: u64 = 900;
 const DEFAULT_RETENTION_DAYS: u64 = 90;
 const DEFAULT_WIDGET_OPACITY: f64 = 1.0;
 const DEFAULT_WIDGET_SIZE: &str = "medium";
@@ -634,7 +640,7 @@ mod tests {
         let storage = open_db();
         let settings = SettingsService::load(&storage.conn).expect("load");
         assert_eq!(settings, AppSettings::default());
-        assert_eq!(settings.refresh_interval_seconds, 300);
+        assert_eq!(settings.refresh_interval_seconds, 900);
         assert_eq!(settings.theme, "system");
         assert!(!settings.launch_at_startup);
         assert!(settings.auto_update_check);
@@ -646,7 +652,7 @@ mod tests {
         let desired = AppSettings {
             launch_at_startup: true,
             theme: "light".to_string(),
-            refresh_interval_seconds: 60,
+            refresh_interval_seconds: 900,
             auto_update_check: false,
             widget_opacity: 0.7,
             widget_locked: true,
@@ -683,7 +689,7 @@ mod tests {
         let storage = open_db();
         let good = AppSettings {
             theme: "dark".to_string(),
-            refresh_interval_seconds: 30,
+            refresh_interval_seconds: 900,
             ..AppSettings::default()
         };
         SettingsService::save(&storage.conn, &good).expect("save");
@@ -745,7 +751,7 @@ mod tests {
 
         let settings = SettingsService::load(&storage.conn).expect("load");
         assert_eq!(settings.theme, "system");
-        assert_eq!(settings.refresh_interval_seconds, 300);
+        assert_eq!(settings.refresh_interval_seconds, 900);
         assert_eq!(settings.widget_opacity, 1.0);
     }
 
@@ -764,7 +770,7 @@ mod tests {
         assert!(settings.widget_locked);
         assert!(settings.widget_visible);
         assert_eq!(
-            settings.refresh_interval_seconds, 300,
+            settings.refresh_interval_seconds, 900,
             "unrelated settings keep their value"
         );
 
