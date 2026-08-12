@@ -1,0 +1,19 @@
+{
+  "version": "13.0.1",
+  "notes": "",
+  "pub_date": "2026-08-12T19:30:07.470Z",
+  "platforms": {
+    "windows-aarch64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTTkIvdjYwV28zK3BMbHNhanRGdHk0Rzd3dXhacW1SVzRrZFptZmg1c2REMGdFcTRkUElvMkNlWittZnp1cFVaOW9FRXpNQmtXVkhtNUV3UUtXYWlBRzByVWk0QlpoVXdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NTYyMjg0CWZpbGU6bG53ZGVja18xMy4wLjFfYXJtNjQtc2V0dXAuZXhlCmIzNUZoeXBPNEhsT1pITENlT3dwelZWMzdkcndaaWdYem9XTWtCZFo5WkFacVMzendaQ2xnNXZWeHk3ZURZYTdVc2JxeGVsZWtlMWJXd210YXIrTkFnPT0K",
+      "url": "https://api.github.com/repos/engasnm111/lnwdeck/releases/assets/511979571"
+    },
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTTkIvdjYwV28zK2dxZElOQkZjakhBYnZBNFUrQ2tnZUdPYzd4RVRUUlVNbGdpMENnMXBabGdUUFFwcHRpQW1UaUwrc28xS0Vva04wek1BamVNd1Frdlc5Yy9ONW90SXdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NTYyNjQyCWZpbGU6bG53ZGVja18xMy4wLjFfeDY0LXNldHVwLmV4ZQpyUDdKYkxXMGt5d3VZZnhlaSs1dnk5V2luMTV4Z0dsaElVWjJlQXVJS0k3N3RNeGdVakViQXJwWkplbDdTV0dMdnZUU3FjTXNuZ3E5SGsrTWVjWFNCUT09Cg==",
+      "url": "https://api.github.com/repos/engasnm111/lnwdeck/releases/assets/511979570"
+    },
+    "windows-i686": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTTkIvdjYwV28zK20zNWdPUFp6QTEvRHZQVklzSW1WWnZtd0Y0dWVVK0cxNURWTG4yZlFtbW96TVZGOWorcDdJNEJldHVTUGlIQVZDNmREQXQ0bHZ2MEFsV1dLQWZQbUFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NTYyOTc3CWZpbGU6bG53ZGVja18xMy4wLjFfeDg2LXNldHVwLmV4ZQplY0lBb2UvenFxR3ZaaGQyUFdJWlE1YThyaVliZmJnTE1RUi9aRHcwc0FHWEZRSlhHQkNWZnFOM0RxdTIrSUxJc1JNTXk4bGt3SXJ4WU0xTEE5YjVBQT09Cg==",
+      "url": "https://api.github.com/repos/engasnm111/lnwdeck/releases/assets/511979567"
+    }
+  }
+}
