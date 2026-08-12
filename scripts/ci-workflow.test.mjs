@@ -146,6 +146,22 @@ test("draft release upload globs match Tauri NSIS and portable asset names", () 
   );
 });
 
+test("draft release asset lookup does not use the published-only tags endpoint", () => {
+  // GET /releases/tags/{tag} returns 404 for draft releases (they stay
+  // "untagged-..." until published). Asset ids must come from the releases
+  // list (or the release id) so the updater can pin api.github.com URLs.
+  assert.doesNotMatch(
+    releaseWorkflow,
+    /releases\/tags\/\$\{\{\s*github\.ref_name\s*\}\}/,
+    "draft asset lookup must not use /releases/tags/{tag}",
+  );
+  assert.match(
+    releaseWorkflow,
+    /gh api ["']repos\/\$\{\{\s*github\.repository\s*\}\}\/releases["']/,
+    "draft asset lookup should list releases",
+  );
+});
+
 test("Cargo release profile and Windows targets are tuned for fast release links", () => {
   assert.match(cargoManifest, /^\[profile\.release\]/m);
   assert.match(cargoManifest, /^lto\s*=\s*false$/m);

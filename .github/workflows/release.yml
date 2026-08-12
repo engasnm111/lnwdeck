@@ -232,6 +232,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Re-runs leave an untagged draft that blocks create. Drafts also
+          # cannot be resolved via GET /releases/tags/{tag} (always 404).
+          EXISTING=$(gh api "repos/${{ github.repository }}/releases" \
+            --jq '.[] | select(.tag_name=="${{ github.ref_name }}" and .draft==true) | .id')
+          for id in $EXISTING; do
+            echo "deleting leftover draft release $id"
+            gh api -X DELETE "repos/${{ github.repository }}/releases/$id"
+          done
           gh release create "${{ github.ref_name }}" \
             release-assets/lnwdeck_*-setup.exe \
             release-assets/lnwdeck_*_portable.zip \
@@ -247,10 +255,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          IDS=$(gh api "repos/${{ github.repository }}/releases/tags/${{ github.ref_name }}" \
+          # List releases (not /releases/tags/{tag}) so draft releases resolve.
+          RELEASE_ID=$(gh api "repos/${{ github.repository }}/releases" \
+            --jq '.[] | select(.tag_name=="${{ github.ref_name }}") | .id' | head -n1)
+          if [ -z "$RELEASE_ID" ]; then
+            echo "::error::no release found for ${{ github.ref_name }}"
+            exit 1
+          fi
+          IDS=$(gh api "repos/${{ github.repository }}/releases/${RELEASE_ID}" \
             --jq '[.assets[] | {key: .name, value: .id}] | from_entries')
           echo "LNWDECK_ASSET_IDS=$IDS" >> "$GITHUB_ENV"
-          echo "resolved asset ids: $IDS"
+          echo "resolved release $RELEASE_ID asset ids: $IDS"
 
       - name: Generate updater latest.json
         run: |
