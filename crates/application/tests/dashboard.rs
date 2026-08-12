@@ -1,4 +1,4 @@
-use chrono::{Duration, FixedOffset, Local, TimeZone, Utc};
+use chrono::{Duration, Local, TimeZone, Utc};
 use lnwdeck_application::dashboard::{DashboardQuery, DashboardRange, QueryDashboard};
 use lnwdeck_provider_runtime::{
     AdapterDescriptor, AdapterRegistry, AuthKind, ChannelSupport, ProviderAdapter, SourceKind,
@@ -289,19 +289,21 @@ fn dashboard_week_range_is_trailing_seven_days() {
 }
 
 #[test]
-fn dashboard_day_includes_offset_timestamp_that_lands_on_today_locally() {
+fn dashboard_day_includes_a_utc_timestamp_that_lands_on_today_locally() {
+    // Stored timestamps are canonical UTC RFC3339 (`+00:00`), the form the
+    // refresh pipeline writes via `DateTime<Utc>::to_rfc3339()`. The
+    // index-friendly dashboard comparison relies on this storage contract, so
+    // the local-day boundary is exercised with the canonical representation.
     let storage = open_db();
     let local_today = Local::now().date_naive();
     let local_noon = Local
         .from_local_datetime(&local_today.and_hms_opt(12, 0, 0).expect("local noon"))
         .single()
         .expect("unambiguous local noon");
-    let timestamp = local_noon
-        .with_timezone(&FixedOffset::west_opt(14 * 60 * 60).expect("fixed offset"))
-        .to_rfc3339();
+    let timestamp = local_noon.with_timezone(&Utc).to_rfc3339();
     insert_event(
         &storage,
-        "evt_today_offset",
+        "evt_today",
         "claude",
         "session-today",
         timestamp,
@@ -322,6 +324,55 @@ fn dashboard_day_includes_offset_timestamp_that_lands_on_today_locally() {
 
     assert_eq!(dashboard.total_tokens, 9_000_000);
     assert_eq!(dashboard.request_count, 1);
+}
+
+#[test]
+fn dashboard_time_filter_uses_the_timestamp_index() {
+    let storage = open_db();
+    let now = Utc::now();
+    insert_event(
+        &storage,
+        "evt_index",
+        "claude",
+        "session-index",
+        now.to_rfc3339(),
+        10,
+        5,
+    );
+
+    let summary_sql = format!(
+        "SELECT COUNT(*) FROM usage_events
+         WHERE {} AND {}",
+        lnwdeck_application::dashboard::time_filter_sql(),
+        "(?3 = '' OR provider_id = ?3 OR (?3 = 'opencode' AND provider_id = 'opencode_cli'))"
+    );
+    let plan: Vec<String> = storage
+        .conn
+        .prepare(&format!("EXPLAIN QUERY PLAN {summary_sql}"))
+        .expect("prepare explain")
+        // EXPLAIN QUERY PLAN still requires the bound parameters to plan the
+        // statement, so pass a representative month window.
+        .query_map(
+            rusqlite::params![
+                "2026-08-01T00:00:00+00:00",
+                "2026-09-01T00:00:00+00:00",
+                "claude"
+            ],
+            |row| row.get::<_, String>(3),
+        )
+        .expect("query map")
+        .collect::<Result<Vec<_>, _>>()
+        .expect("plan rows");
+    assert!(
+        plan.iter()
+            .any(|detail| detail.contains("USING INDEX idx_usage_timestamp")),
+        "dashboard summary must search the timestamp index, got: {plan:?}"
+    );
+    assert!(
+        plan.iter()
+            .all(|detail| !detail.contains("SCAN usage_events")),
+        "dashboard summary must not scan the table, got: {plan:?}"
+    );
 }
 
 #[test]

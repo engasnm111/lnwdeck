@@ -285,6 +285,14 @@ fn provider_filter_matches_sql() -> &'static str {
     "(?3 = '' OR provider_id = ?3 OR (?3 = 'opencode' AND provider_id = 'opencode_cli'))"
 }
 
+/// Index-friendly time predicate. `usage_events.timestamp` is stored as
+/// canonical UTC RFC3339 (`DateTime<Utc>::to_rfc3339()`), so text comparison
+/// matches chronological order and lets SQLite use `idx_usage_timestamp`.
+/// This contract is why the storage layer writes UTC-normalized timestamps.
+pub fn time_filter_sql() -> &'static str {
+    "timestamp >= ?1 AND timestamp < ?2"
+}
+
 pub struct QueryDashboard;
 
 impl QueryDashboard {
@@ -309,8 +317,8 @@ impl QueryDashboard {
     ) -> Result<UsageDashboard, String> {
         let generated_at = Utc::now();
         let bounds = bounds_for(&query, generated_at.with_timezone(&Local))?;
-        let start = bound_text(bounds.start, "0000-01-01T00:00:00Z");
-        let end = bound_text(bounds.end, "9999-12-31T23:59:59Z");
+        let start = bound_text(bounds.start, "0000-01-01T00:00:00+00:00");
+        let end = bound_text(bounds.end, "9999-12-31T23:59:59+00:00");
         let provider = query.provider_id.unwrap_or_default();
         let params = rusqlite::params![start, end, provider];
         let catalog = registry
@@ -338,9 +346,8 @@ impl QueryDashboard {
                     COALESCE(SUM(tokens_output), 0),
                     COALESCE(SUM(tokens_reasoning), 0)
              FROM usage_events
-             WHERE julianday(timestamp) >= julianday(?1)
-               AND julianday(timestamp) < julianday(?2)
-               AND {filter}",
+             WHERE {time} AND {filter}",
+            time = time_filter_sql(),
             filter = provider_filter_matches_sql(),
         );
         let (
@@ -372,13 +379,12 @@ impl QueryDashboard {
                         COALESCE(SUM(tokens_output), 0),
                         COALESCE(SUM(tokens_reasoning), 0)
                  FROM usage_events
-                 WHERE julianday(timestamp) >= julianday(?1)
-                   AND julianday(timestamp) < julianday(?2)
-                   AND {filter}
+                 WHERE {time} AND {filter}
                  GROUP BY CASE WHEN provider_id = '{legacy}' THEN 'opencode' ELSE provider_id END
                  ORDER BY SUM(tokens_input + tokens_cached + tokens_cache_write + tokens_output) DESC,
                           provider_id",
                 legacy = LEGACY_OPENCODE_PROVIDER_ID,
+                time = time_filter_sql(),
                 filter = provider_filter_matches_sql(),
             ))
             .map_err(|error| format!("dashboard providers: {error}"))?;
@@ -417,10 +423,9 @@ impl QueryDashboard {
                         COALESCE(SUM(tokens_output), 0),
                         COALESCE(SUM(tokens_reasoning), 0)
                  FROM usage_events
-                 WHERE julianday(timestamp) >= julianday(?1)
-                   AND julianday(timestamp) < julianday(?2)
-                   AND {filter}
+                 WHERE {time} AND {filter}
                  GROUP BY bucket ORDER BY bucket",
+                time = time_filter_sql(),
                 filter = provider_filter_matches_sql(),
             ))
             .map_err(|error| format!("dashboard trend: {error}"))?;
@@ -468,12 +473,11 @@ impl QueryDashboard {
                         COALESCE(SUM(tokens_reasoning), 0),
                         MIN(timestamp), MAX(timestamp)
                  FROM usage_events
-                 WHERE julianday(timestamp) >= julianday(?1)
-                   AND julianday(timestamp) < julianday(?2)
-                   AND {filter}
+                 WHERE {time} AND {filter}
                  GROUP BY session_hash,
                           CASE WHEN provider_id = '{legacy}' THEN 'opencode' ELSE provider_id END",
                 legacy = LEGACY_OPENCODE_PROVIDER_ID,
+                time = time_filter_sql(),
                 filter = provider_filter_matches_sql(),
             ))
             .map_err(|error| format!("dashboard sessions: {error}"))?;
