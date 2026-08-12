@@ -27,7 +27,7 @@ use lnwdeck_storage::repositories::{
     AppSettingsRepository, CollectorRunRow, DiagnosticsRepository, PipelineTotals, ProviderStateRow,
 };
 use serde::Serialize;
-use tauri::{Emitter, Manager, State};
+use tauri::{Emitter, Manager};
 
 #[derive(Debug, Serialize)]
 pub struct PipelineDiagnostics {
@@ -469,8 +469,13 @@ pub async fn refresh_provider(
     Ok(cycle)
 }
 
+/// Async on purpose: a blocking SQLite read on the main thread would freeze
+/// the window during the reload burst after a refresh cycle.
 #[tauri::command]
-pub fn get_pipeline_diagnostics(state: State<'_, AppState>) -> Result<PipelineDiagnostics, String> {
+pub async fn get_pipeline_diagnostics(
+    app: tauri::AppHandle,
+) -> Result<PipelineDiagnostics, String> {
+    let state = app.state::<AppState>();
     let storage_guard = state.ensure_storage()?;
     let storage = storage_guard.as_ref().ok_or("storage not initialized")?;
     let diag = DiagnosticsRepository::new(&storage.conn);
@@ -526,8 +531,8 @@ fn downloads_dir() -> Result<std::path::PathBuf, String> {
 /// Writes a sanitized diagnostics snapshot as JSON to the user's Downloads
 /// folder and returns the file path.
 #[tauri::command]
-pub fn export_diagnostics(state: State<'_, AppState>) -> Result<String, String> {
-    let diagnostics = get_pipeline_diagnostics(state)?;
+pub async fn export_diagnostics(app: tauri::AppHandle) -> Result<String, String> {
+    let diagnostics = get_pipeline_diagnostics(app).await?;
     let json = serde_json::to_string_pretty(&diagnostics).map_err(|e| e.to_string())?;
     let downloads = downloads_dir()?;
     let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");

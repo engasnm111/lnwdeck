@@ -1,7 +1,7 @@
 use crate::state::AppState;
 use lnwdeck_application::overview::QueryOverview;
 use serde::Serialize;
-use tauri::State;
+use tauri::Manager;
 
 #[derive(Debug, Serialize)]
 pub struct OverviewResponse {
@@ -18,8 +18,11 @@ pub struct OverviewResponse {
     pub oldest_event_at: Option<String>,
 }
 
+/// Async on purpose: a blocking SQLite read on the main thread would freeze
+/// the window during the reload burst after a refresh cycle.
 #[tauri::command]
-pub fn get_overview(state: State<'_, AppState>) -> Result<OverviewResponse, String> {
+pub async fn get_overview(app: tauri::AppHandle) -> Result<OverviewResponse, String> {
+    let state = app.state::<AppState>();
     let storage_guard = state.ensure_storage()?;
     let storage = storage_guard.as_ref().ok_or("storage not initialized")?;
 

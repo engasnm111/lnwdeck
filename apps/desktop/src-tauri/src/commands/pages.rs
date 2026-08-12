@@ -21,7 +21,7 @@ use lnwdeck_storage::repositories::{
 };
 use lnwdeck_windows_integration::{CredentialState, CredentialStore, StartupRegistration};
 use serde::{Deserialize, Serialize};
-use tauri::{Emitter, State};
+use tauri::{Emitter, Manager};
 
 /// Parses a window name, reporting the accepted values on a typo instead of
 /// silently falling back to a different window.
@@ -45,12 +45,15 @@ fn price_resolver(conn: &rusqlite::Connection) -> PriceResolver {
     PriceResolver::new_with_overrides(&overrides)
 }
 
+/// Async on purpose: a blocking SQLite read on the main thread would freeze
+/// the window during the reload burst after a refresh cycle.
 #[tauri::command]
-pub fn get_usage_history(
+pub async fn get_usage_history(
+    app: tauri::AppHandle,
     window: Option<String>,
     provider_id: Option<String>,
-    state: State<'_, AppState>,
 ) -> Result<UsageHistory, String> {
+    let state = app.state::<AppState>();
     let window = parse_window(window)?;
     let guard = state.ensure_storage()?;
     let storage = guard.as_ref().ok_or("storage not initialized")?;
@@ -59,11 +62,12 @@ pub fn get_usage_history(
 }
 
 #[tauri::command]
-pub fn get_costs(
+pub async fn get_costs(
+    app: tauri::AppHandle,
     window: Option<String>,
     provider_id: Option<String>,
-    state: State<'_, AppState>,
 ) -> Result<CostBreakdown, String> {
+    let state = app.state::<AppState>();
     let window = parse_window(window)?;
     let guard = state.ensure_storage()?;
     let storage = guard.as_ref().ok_or("storage not initialized")?;
@@ -73,7 +77,8 @@ pub fn get_costs(
 }
 
 #[tauri::command]
-pub fn get_budgets(state: State<'_, AppState>) -> Result<BudgetOverview, String> {
+pub async fn get_budgets(app: tauri::AppHandle) -> Result<BudgetOverview, String> {
+    let state = app.state::<AppState>();
     let guard = state.ensure_storage()?;
     let storage = guard.as_ref().ok_or("storage not initialized")?;
     let resolver = price_resolver(&storage.conn);
@@ -96,7 +101,8 @@ pub struct BudgetInput {
 }
 
 #[tauri::command]
-pub fn save_budget(budget: BudgetInput, state: State<'_, AppState>) -> Result<i64, String> {
+pub async fn save_budget(budget: BudgetInput, app: tauri::AppHandle) -> Result<i64, String> {
+    let state = app.state::<AppState>();
     let scope = match budget.scope.as_str() {
         "global" => BudgetScope::Global,
         "provider" => BudgetScope::Provider(
@@ -128,7 +134,8 @@ pub fn save_budget(budget: BudgetInput, state: State<'_, AppState>) -> Result<i6
 }
 
 #[tauri::command]
-pub fn delete_budget(id: i64, state: State<'_, AppState>) -> Result<(), String> {
+pub async fn delete_budget(id: i64, app: tauri::AppHandle) -> Result<(), String> {
+    let state = app.state::<AppState>();
     let guard = state.ensure_storage()?;
     let storage = guard.as_ref().ok_or("storage not initialized")?;
     let removed = BudgetRepository::new(&storage.conn)
@@ -141,8 +148,11 @@ pub fn delete_budget(id: i64, state: State<'_, AppState>) -> Result<(), String> 
     }
 }
 
+/// Async on purpose: a blocking SQLite read on the main thread would freeze
+/// the window during the reload burst after a refresh cycle.
 #[tauri::command]
-pub fn get_alerts(state: State<'_, AppState>) -> Result<AlertsView, String> {
+pub async fn get_alerts(app: tauri::AppHandle) -> Result<AlertsView, String> {
+    let state = app.state::<AppState>();
     let guard = state.ensure_storage()?;
     let storage = guard.as_ref().ok_or("storage not initialized")?;
     let hash_key = load_or_create_hash_key(&storage.conn)?;
@@ -154,7 +164,8 @@ pub fn get_alerts(state: State<'_, AppState>) -> Result<AlertsView, String> {
 }
 
 #[tauri::command]
-pub fn acknowledge_alert(id: i64, state: State<'_, AppState>) -> Result<(), String> {
+pub async fn acknowledge_alert(id: i64, app: tauri::AppHandle) -> Result<(), String> {
+    let state = app.state::<AppState>();
     let guard = state.ensure_storage()?;
     let storage = guard.as_ref().ok_or("storage not initialized")?;
     let updated = AlertRepository::new(&storage.conn)
@@ -169,7 +180,8 @@ pub fn acknowledge_alert(id: i64, state: State<'_, AppState>) -> Result<(), Stri
 
 /// Marks all open alerts as read in one storage transaction.
 #[tauri::command]
-pub fn acknowledge_all_alerts(state: State<'_, AppState>) -> Result<usize, String> {
+pub async fn acknowledge_all_alerts(app: tauri::AppHandle) -> Result<usize, String> {
+    let state = app.state::<AppState>();
     let guard = state.ensure_storage()?;
     let storage = guard.as_ref().ok_or("storage not initialized")?;
     AlertRepository::new(&storage.conn)
@@ -219,12 +231,11 @@ fn credential_label(state: CredentialState) -> &'static str {
     }
 }
 
-#[tauri::command]
-pub fn get_settings(state: State<'_, AppState>) -> Result<SettingsView, String> {
+fn get_settings_view(state: &AppState) -> Result<SettingsView, String> {
     let guard = state.ensure_storage()?;
     let storage = guard.as_ref().ok_or("storage not initialized")?;
     let hash_key = load_or_create_hash_key(&storage.conn)?;
-    let registry = ensure_registry(state.inner(), &hash_key)?;
+    let registry = ensure_registry(state, &hash_key)?;
 
     let settings = SettingsService::load(&storage.conn).map_err(|e| e.to_string())?;
     let startup_supported = StartupRegistration::is_supported();
@@ -266,11 +277,17 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<SettingsView, String> 
 }
 
 #[tauri::command]
-pub fn save_settings(
+pub async fn get_settings(app: tauri::AppHandle) -> Result<SettingsView, String> {
+    let state = app.state::<AppState>();
+    get_settings_view(&state)
+}
+
+#[tauri::command]
+pub async fn save_settings(
     settings: AppSettings,
     app: tauri::AppHandle,
-    state: State<'_, AppState>,
 ) -> Result<SettingsView, String> {
+    let state = app.state::<AppState>();
     {
         let guard = state.ensure_storage()?;
         let storage = guard.as_ref().ok_or("storage not initialized")?;
@@ -290,18 +307,19 @@ pub fn save_settings(
     // only takes effect when the window is resized — do that here so saving
     // the form changes the widget immediately.
     crate::windows::apply_widget_size(&app);
-    let view = get_settings(state)?;
+    let view = get_settings_view(&state)?;
     let _ = app.emit("settings-changed", view.settings.theme.clone());
     Ok(view)
 }
 
 /// Stores an API key for a provider in the Windows Credential Manager.
 #[tauri::command]
-pub fn set_provider_key(
+pub async fn set_provider_key(
+    app: tauri::AppHandle,
     provider_id: String,
     api_key: String,
-    state: State<'_, AppState>,
 ) -> Result<SettingsView, String> {
+    let state = app.state::<AppState>();
     {
         let guard = state.ensure_storage()?;
         let storage = guard.as_ref().ok_or("storage not initialized")?;
@@ -323,14 +341,15 @@ pub fn set_provider_key(
         }
         CredentialStore::set(&provider_id, api_key.trim()).map_err(|e| e.to_string())?;
     }
-    get_settings(state)
+    get_settings_view(&state)
 }
 
 #[tauri::command]
-pub fn delete_provider_key(
+pub async fn delete_provider_key(
+    app: tauri::AppHandle,
     provider_id: String,
-    state: State<'_, AppState>,
 ) -> Result<SettingsView, String> {
+    let state = app.state::<AppState>();
     if provider_id == "opencode" {
         return Err(
             "OpenCode Go uses the workspace and auth cookie configuration instead of an API key"
@@ -338,7 +357,7 @@ pub fn delete_provider_key(
         );
     }
     CredentialStore::delete(&provider_id).map_err(|e| e.to_string())?;
-    get_settings(state)
+    get_settings_view(&state)
 }
 
 /// Values submitted by the dedicated OpenCode Go settings form.
@@ -364,34 +383,37 @@ fn clear_opencode_go_quota_report(state: &AppState) -> Result<(), String> {
 /// Stores OpenCode Go's workspace id and auth cookie in Windows Credential
 /// Manager. The values are never returned in the response.
 #[tauri::command]
-pub fn set_opencode_go_config(
+pub async fn set_opencode_go_config(
+    app: tauri::AppHandle,
     config: OpenCodeGoConfigInput,
-    state: State<'_, AppState>,
 ) -> Result<SettingsView, String> {
+    let state = app.state::<AppState>();
     let serialized = encode_go_config(&config.workspace_id, &config.auth_cookie)?;
     CredentialStore::set(OPENCODE_GO_CREDENTIAL_ID, &serialized).map_err(|e| e.to_string())?;
     clear_opencode_go_quota_report(state.inner())?;
-    get_settings(state)
+    get_settings_view(&state)
 }
 
 /// Removes the OpenCode Go credential pair and clears any previously stored
 /// quota windows so an old estimate cannot remain visible as a fake bar.
 #[tauri::command]
-pub fn delete_opencode_go_config(state: State<'_, AppState>) -> Result<SettingsView, String> {
+pub async fn delete_opencode_go_config(app: tauri::AppHandle) -> Result<SettingsView, String> {
+    let state = app.state::<AppState>();
     match CredentialStore::delete(OPENCODE_GO_CREDENTIAL_ID) {
         Ok(()) | Err(lnwdeck_windows_integration::CredentialError::NotFound) => {}
         Err(error) => return Err(error.to_string()),
     }
     clear_opencode_go_quota_report(state.inner())?;
-    get_settings(state)
+    get_settings_view(&state)
 }
 
 /// Background events (refresh loop, updater, migrations) for the System page.
 #[tauri::command]
-pub fn get_app_events(
+pub async fn get_app_events(
+    app: tauri::AppHandle,
     limit: Option<usize>,
-    state: State<'_, AppState>,
 ) -> Result<Vec<lnwdeck_storage::repositories::AppEventRow>, String> {
+    let state = app.state::<AppState>();
     let guard = state.ensure_storage()?;
     let storage = guard.as_ref().ok_or("storage not initialized")?;
     AppEventRepository::new(&storage.conn)
