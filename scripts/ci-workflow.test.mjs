@@ -126,6 +126,26 @@ test("release builds use the release cache, sccache, and only the shipped bundle
   assert.doesNotMatch(releaseWorkflow, /tauri-apps\/tauri-action/);
 });
 
+test("draft release upload globs match Tauri NSIS and portable asset names", () => {
+  // Tauri names NSIS installers `lnwdeck_<ver>_<arch>-setup.exe` (hyphen before
+  // setup). A literal `*_setup.exe` glob never matches and aborts publish.
+  assert.match(
+    releaseWorkflow,
+    /release-assets\/lnwdeck_\*-setup\.exe/,
+    "NSIS installer glob must use -setup.exe",
+  );
+  assert.doesNotMatch(
+    releaseWorkflow,
+    /release-assets\/lnwdeck_\*_setup\.exe/,
+    "underscore-before-setup installer glob is wrong",
+  );
+  assert.match(
+    releaseWorkflow,
+    /release-assets\/lnwdeck_\*_portable\.zip/,
+    "portable zip glob must use _portable.zip",
+  );
+});
+
 test("Cargo release profile and Windows targets are tuned for fast release links", () => {
   assert.match(cargoManifest, /^\[profile\.release\]/m);
   assert.match(cargoManifest, /^lto\s*=\s*false$/m);
