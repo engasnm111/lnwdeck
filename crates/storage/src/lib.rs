@@ -15,7 +15,13 @@ impl Storage {
             path,
             rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE | rusqlite::OpenFlags::SQLITE_OPEN_CREATE,
         )?;
-        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
+        // A 64 MB page cache keeps dashboard range scans (which touch most of
+        // the table) off the disk even right after a refresh cycle flushes a
+        // large WAL; the default 2 MB cache made read models take hundreds of
+        // milliseconds on big databases.
+        conn.execute_batch(
+            "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA cache_size=-65536;",
+        )?;
         Ok(Self { conn })
     }
 
