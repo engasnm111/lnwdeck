@@ -1,7 +1,7 @@
 use lnwdeck_storage::Storage;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
-use std::sync::Mutex;
+use std::sync::{Mutex, RwLock};
 
 use lnwdeck_provider_runtime::AdapterRegistry;
 
@@ -9,8 +9,11 @@ pub struct AppState {
     pub storage: Mutex<Option<Storage>>,
     pub db_path: PathBuf,
     /// Provider registry, built once on first use. It is the single source of
-    /// provider identity for every read model.
-    pub registry: Mutex<AdapterRegistry>,
+    /// provider identity for every read model. A read-write lock: the refresh
+    /// cycle holds a read guard for its whole duration (collection is slow),
+    /// and dashboard commands take read guards too, so a running cycle never
+    /// blocks the main thread's UI commands.
+    pub registry: RwLock<AdapterRegistry>,
     /// Screen rectangle (logical px: x, y, width, height) the pet sprite and
     /// its tooltip currently occupy. Outside it the pet window is click-through
     /// so it never blocks the desktop underneath.
@@ -30,7 +33,7 @@ impl AppState {
         Self {
             storage: Mutex::new(None),
             db_path,
-            registry: Mutex::new(AdapterRegistry::new()),
+            registry: RwLock::new(AdapterRegistry::new()),
             pet_hit_rect: Mutex::new(None),
             pet_click_through: AtomicBool::new(true),
             refresh_running: AtomicBool::new(false),

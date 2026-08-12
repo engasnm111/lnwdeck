@@ -127,15 +127,22 @@ fn build_registry(hash_key: &[u8]) -> Result<AdapterRegistry, String> {
 }
 
 /// Returns the registry, building it on first use.
+///
+/// The registry is built once under a brief write lock; every consumer
+/// afterwards only reads. Because a refresh cycle holds its read guard for the
+/// whole collection phase, a read-write lock (not a plain mutex) is what keeps
+/// dashboard commands on the main thread from blocking while a cycle runs.
 pub fn ensure_registry<'a>(
     state: &'a AppState,
     hash_key: &[u8],
-) -> Result<std::sync::MutexGuard<'a, AdapterRegistry>, String> {
-    let mut guard = state.registry.lock().map_err(|e| e.to_string())?;
-    if guard.is_empty() {
-        *guard = build_registry(hash_key)?;
+) -> Result<std::sync::RwLockReadGuard<'a, AdapterRegistry>, String> {
+    {
+        let mut write = state.registry.write().map_err(|e| e.to_string())?;
+        if write.is_empty() {
+            *write = build_registry(hash_key)?;
+        }
     }
-    Ok(guard)
+    state.registry.read().map_err(|e| e.to_string())
 }
 
 /// Runs detection and collection for every registered adapter, then
@@ -640,7 +647,7 @@ mod tests {
         let db_path = dir.path().join("test.db");
         let state = AppState::new(db_path);
         {
-            let mut registry = state.registry.lock().expect("lock");
+            let mut registry = state.registry.write().expect("lock");
             registry
                 .register(Box::new(FakeAdapter))
                 .expect("register fixture adapter");
