@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Badge, Button, Card, DataState, MetricCard } from "@lnwdeck/ui";
 import {
   acknowledgeAlert,
@@ -7,6 +7,7 @@ import {
   type AlertRowData,
   type AlertsViewData,
 } from "../../lib/native";
+import { usePageLoad } from "../../lib/use-page-load";
 import { formatTimestamp } from "../../lib/freshness";
 import { dataStateLabels, useI18n } from "../../lib/i18n";
 import { emitAlertsUpdated } from "../../lib/ui-events";
@@ -31,29 +32,22 @@ function severityTone(severity: AlertRowData["severity"]) {
  */
 export function AlertsPage() {
   const { t, language } = useI18n();
-  const [data, setData] = useState<AlertsViewData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setData(await fetchAlerts());
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error ? loadError : new Error(String(loadError)),
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const {
+    data,
+    loading,
+    error: loadError,
+    reload,
+    setData,
+  } = usePageLoad<AlertsViewData>({
+    load: () => fetchAlerts(),
+    deps: [],
+    refreshEvents: ["usage-updated", "quota-updated"],
+  });
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const error = loadError;
 
   const handleAcknowledge = useCallback(
     async (id: number) => {
@@ -61,14 +55,14 @@ export function AlertsPage() {
       try {
         await acknowledgeAlert(id);
         emitAlertsUpdated();
-        await load();
+        await reload();
       } catch (ackError) {
         setActionError(
           ackError instanceof Error ? ackError.message : String(ackError),
         );
       }
     },
-    [load],
+    [reload],
   );
 
   const handleMarkAll = useCallback(async () => {
@@ -123,7 +117,7 @@ export function AlertsPage() {
           >
             {markingAll ? t("alerts.markAllBusy") : t("alerts.markAll")}
           </Button>
-          <Button onClick={() => void load()}>{t("alerts.reevaluate")}</Button>
+          <Button onClick={() => void reload()}>{t("alerts.reevaluate")}</Button>
         </div>
       </div>
 
@@ -138,7 +132,7 @@ export function AlertsPage() {
         loading={loading}
         error={error}
         isEmpty={false}
-        onRetry={() => void load()}
+        onRetry={() => void reload()}
       >
         {data && (
           <div className="stack">

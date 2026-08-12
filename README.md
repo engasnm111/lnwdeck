@@ -1,4 +1,4 @@
-# lnwdeck v12.0.1
+# lnwdeck v13.0.0
 
 Universal AI usage and quota tracker for Windows. lnwdeck reads the local
 artifacts already written by AI tools, records token counts and costs, and
@@ -21,23 +21,38 @@ sync is required.
 - Includes a floating quota widget and a transparent desktop pet, both using
   the same live provider data as the dashboard.
 
-## v12.0.1 Gemini quota: the Antigravity IDE is the only source
+## v13.0.0 stable refresh: the window never freezes
 
-This release fixes the Gemini quota channel. Gemini quota is now read only
-from the running Antigravity IDE Language Server; the fallback that produced
-fabricated "100% remaining" readings is removed.
+This release makes the refresh pipeline stable and the desktop window
+responsive. Refresh no longer freezes the UI, database commands no longer run
+on the main thread, and provider collection runs concurrently instead of one
+provider at a time.
 
-- **TokenTracker-style caching.** When the Antigravity IDE is closed the last
-  successful reading stays visible as old data: the card flips from "Live" to
-  "stale" immediately and shows how long ago the data was fetched ("updated
-  Xm ago"), in the widget, pet tooltip, Overview summary and Providers cards.
-- **Guidance instead of silence.** Cards tell you to open the Antigravity IDE
-  to refresh Gemini quota instead of hiding the provider or keeping old
-  numbers looking live.
-- **Account separation.** The Antigravity IDE session (Windows Credential
-  Manager) and the Gemini CLI login are tracked as separate accounts.
+- **The window never freezes during refresh.** Every database-touching Tauri
+  command (overview, usage history, costs, budgets, alerts, settings,
+  providers, sessions, analytics) moved off the main thread onto the async
+  runtime pool, and the refresh cycle no longer holds the provider registry
+  lock for its whole duration.
+- **Providers refresh concurrently.** Collection (detect + usage + quota)
+  runs on a bounded 4-worker pool with persistence serialized on the single
+  SQLite connection; a cycle is bounded by the slowest provider instead of
+  the sum of all providers.
+- **Codex transcripts are parsed once, not every cycle.** Parsed records are
+  cached per file keyed by size+mtime (previously ~1.1 GB / 95 files were
+  re-read on every refresh, ~20 seconds of disk and CPU saturation).
+- **Dashboard queries use the timestamp index** instead of wrapping the
+  timestamp in `julianday()`, which forced a full table scan on every load.
+- **Overview costs aggregate in SQL** per (provider, model) instead of
+  streaming every usage row into Rust.
+- **Per-provider updates stream in with debounced reloads** and a shared
+  latest-request guard so overlapping cycles never let stale results win.
+- **A 64 MB SQLite page cache** turns cold dashboard queries that took up to
+  ~4 seconds into hundreds of milliseconds.
+- **Lightweight shell status.** The topbar uses lightweight commands that
+  read only sync time, theme and the unacknowledged alert count, avoiding
+  full diagnostics scans after every refresh.
 
-See [the release notes](docs/releases/v12.0.1.md), the
+See [the release notes](docs/releases/v13.0.0.md), the
 [end-user guide](docs/END_USER_GUIDE.md) (nine languages) and the
 [provider setup guide](docs/PROVIDER_QUOTA_SETUP.md).
 
@@ -291,7 +306,7 @@ pnpm test:e2e
 pnpm tauri:dev
 ```
 
-## Building and verifying v12.0.1
+## Building and verifying v13.0.0
 
 Signed installers and updater artifacts require the Tauri signing key:
 
@@ -304,10 +319,10 @@ pnpm tauri:build
 pwsh ./scripts/package-portable.ps1 -Arch x64
 
 # Build the updater manifest from signed installers
-node scripts/generate-updater-json.mjs v12.0.1 <assets-dir> <assets-dir>/latest.json
+node scripts/generate-updater-json.mjs v13.0.0 <assets-dir> <assets-dir>/latest.json
 
 # Verify versions, release fixtures, signatures/manifest contract and metadata
-node scripts/check-release-version.mjs v12.0.1
+node scripts/check-release-version.mjs v13.0.0
 pnpm release:test
 ```
 
@@ -315,7 +330,7 @@ The release workflow builds x64, ARM64 and x86 installers and portable ZIPs.
 Each installer and portable ZIP has a `.sig`; the published assets also include
 `latest.json`, `SHA256SUMS`, a CycloneDX SBOM and GitHub build provenance. The
 complete release checklist and rollback procedure are in
-[docs/releases/v12.0.1.md](docs/releases/v12.0.1.md).
+[docs/releases/v13.0.0.md](docs/releases/v13.0.0.md).
 
 ## Privacy
 

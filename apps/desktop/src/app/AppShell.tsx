@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, type NavLinkRenderProps } from "react-router";
 import { listen } from "@tauri-apps/api/event";
 import { Badge, Button } from "@lnwdeck/ui";
@@ -18,11 +18,11 @@ import {
 } from "../components/Icons";
 import { UpdateNotification } from "../components/UpdateNotification";
 import {
-  fetchAlerts,
-  fetchSettings,
+  fetchAppShellStatus,
   startRefresh,
   type RefreshProgressEvent,
 } from "../lib/native";
+import { useDebouncedCallback } from "../lib/use-debounced-reload";
 import { formatRelativeTime, freshnessOf } from "../lib/freshness";
 import { useI18n } from "../lib/i18n";
 import { ALERTS_UPDATED_EVENT } from "../lib/ui-events";
@@ -63,36 +63,26 @@ export function AppShell() {
   const currentNav =
     navItems.find((item) => item.to === location.pathname) ?? navItems[0];
 
-  const loadStatus = useCallback(async () => {
-    // Both calls are independent: a failure in one must not hide the other.
+  const loadShellStatus = useCallback(async () => {
     try {
-      const alerts = await fetchAlerts();
-      setUnacknowledgedAlerts(alerts.unacknowledged_count);
+      const status = await fetchAppShellStatus();
+      setUnacknowledgedAlerts(status.unacknowledged_alert_count);
+      setTheme(status.theme);
+      setLastSync(status.last_successful_sync);
+      setAppVersion(status.app_version);
     } catch {
-      setUnacknowledgedAlerts(null);
-    }
-    try {
-      const view = await fetchSettings();
-      setTheme(view.settings.theme);
-    } catch {
-      setTheme("system");
+      // Preserve the last-good shell metadata on transient read failures. The
+      // initial state already represents the truthful unknown/system fallback.
     }
   }, []);
 
-  const loadFreshness = useCallback(async () => {
-    try {
-      const { fetchPipelineDiagnostics } = await import("../lib/native");
-      const diagnostics = await fetchPipelineDiagnostics();
-      setLastSync(diagnostics.totals.last_successful_sync);
-      setAppVersion(diagnostics.app_version);
-    } catch {
-      setLastSync(null);
-    }
-  }, []);
+  const schedulePostRefreshUpdate = useDebouncedCallback(() => {
+    void loadShellStatus();
+    setNow(Date.now());
+  }, 1200);
 
   useEffect(() => {
-    void loadStatus();
-    void loadFreshness();
+    void loadShellStatus();
     const unlisten = listen<string>("settings-changed", (event) => {
       setTheme(event.payload);
     });
@@ -116,13 +106,11 @@ export function AppShell() {
         } else {
           setRefreshError(null);
         }
-        void loadFreshness();
-        void loadStatus();
-        setNow(Date.now());
+        schedulePostRefreshUpdate();
       },
     );
     const onAlertsUpdated = () => {
-      void loadStatus();
+      void loadShellStatus();
     };
     window.addEventListener(ALERTS_UPDATED_EVENT, onAlertsUpdated);
     const tick = setInterval(() => setNow(Date.now()), 30_000);
@@ -132,7 +120,7 @@ export function AppShell() {
       void unlistenRefresh.then((fn) => fn());
       window.removeEventListener(ALERTS_UPDATED_EVENT, onAlertsUpdated);
     };
-  }, [loadStatus, loadFreshness, t]);
+  }, [loadShellStatus, schedulePostRefreshUpdate, t]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;

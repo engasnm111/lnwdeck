@@ -19,6 +19,8 @@ import {
   type WidgetSettingsData,
   type WidgetView,
 } from "../../lib/native";
+import { useDebouncedCallback } from "../../lib/use-debounced-reload";
+import { useLatestRequestGuard } from "../../lib/use-latest-request-guard";
 import {
   formatCompact,
   formatRefreshedAgo,
@@ -693,7 +695,8 @@ export function FloatingWidget() {
   const pickerButtonRef = useRef<HTMLButtonElement | null>(null);
   const [reaction, setReaction] = useState<PetReaction>(null);
   const reactionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const quotaReloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const quotaLoadInFlight = useRef<Promise<void> | null>(null);
+  const beginQuotaRequest = useLatestRequestGuard([]);
   const [activePet, setActivePet] = useState<ImportedPet | null>(null);
   const unlistenRef = useRef<UnlistenFn[]>([]);
 
@@ -729,30 +732,39 @@ export function FloatingWidget() {
   }, [pickerOpen]);
 
   const load = useCallback(async () => {
-    try {
-      const result = await fetchQuotaDashboard();
-      setDashboard(result);
-      setError(null);
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error ? loadError.message : t("widget.error.quota"),
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
+    if (quotaLoadInFlight.current) return quotaLoadInFlight.current;
+    const isCurrent = beginQuotaRequest();
+    const pending = (async () => {
+      try {
+        const result = await fetchQuotaDashboard();
+        if (isCurrent()) {
+          setDashboard(result);
+          setError(null);
+        }
+      } catch (loadError) {
+        if (isCurrent()) {
+          setError(
+            loadError instanceof Error ? loadError.message : t("widget.error.quota"),
+          );
+        }
+      } finally {
+        if (isCurrent()) {
+          setLoading(false);
+        }
+      }
+    })();
+    const tracked = pending.finally(() => {
+      if (quotaLoadInFlight.current === tracked) {
+        quotaLoadInFlight.current = null;
+      }
+    });
+    quotaLoadInFlight.current = tracked;
+    return tracked;
+  }, [beginQuotaRequest, t]);
 
-  // Per-provider persistence emits a burst of quota-updated events during a
-  // cycle; a trailing debounce collapses them into one reload once it settles.
-  const scheduleQuotaReload = useCallback(() => {
-    if (quotaReloadTimer.current !== null) {
-      clearTimeout(quotaReloadTimer.current);
-    }
-    quotaReloadTimer.current = setTimeout(() => {
-      quotaReloadTimer.current = null;
-      void load();
-    }, 800);
-  }, [load]);
+  const scheduleQuotaReload = useDebouncedCallback(() => {
+    void load();
+  }, 800);
 
   const applySettings = useCallback((payload: WidgetSettingsData) => {
     setSettings({
@@ -787,7 +799,7 @@ export function FloatingWidget() {
 
     const poll = setInterval(() => {
       setNow(Date.now());
-      void load();
+      scheduleQuotaReload();
     }, POLL_INTERVAL_MS);
     const tick = setInterval(() => setNow(Date.now()), TICK_INTERVAL_MS);
 
@@ -815,10 +827,6 @@ export function FloatingWidget() {
         unlisten();
       }
       unlistenRef.current = [];
-      if (quotaReloadTimer.current !== null) {
-        clearTimeout(quotaReloadTimer.current);
-        quotaReloadTimer.current = null;
-      }
     };
   }, [load, loadSettings, applySettings, scheduleQuotaReload]);
 

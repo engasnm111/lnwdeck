@@ -2,6 +2,55 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [13.0.0] - 2026-08-12
+
+### Stable refresh: the window never freezes
+
+- Every database-touching Tauri command (overview, usage history, costs,
+  budgets, alerts, settings, providers, sessions, analytics and the
+  settings/session writes) moved off the main thread onto the async runtime
+  pool. Refresh no longer blocks the window, and the window no longer shows
+  "Not Responding" during or after a refresh cycle.
+- The refresh cycle no longer holds the provider registry lock for its whole
+  duration; reload bursts triggered by per-provider update events cannot
+  block the main thread.
+- Provider collection (detect + usage + quota) now runs concurrently on a
+  bounded 4-worker pool, with persistence serialized on the single SQLite
+  connection in registry order. Cycle time is bounded by the slowest provider
+  batch instead of the sum of all providers.
+- The Codex adapter caches parsed session records per file keyed by
+  size+mtime: unchanged append-only sessions are reused and only new or
+  changed files are read (previously ~1.1 GB / 95 files were re-parsed on
+  every cycle). The usage persist path prepares its INSERT once per batch
+  instead of once per event.
+- Dashboard time-filtered queries compare canonical UTC RFC3339 text directly
+  so SQLite uses `idx_usage_timestamp` instead of forcing a full table scan
+  with `julianday()`.
+- The overview cost pass aggregates recorded costs and unpriced tokens per
+  (provider, model) in SQL and estimates once per group instead of streaming
+  every usage row into Rust.
+- Per-provider refresh updates stream in with debounced reloads, so a
+  completed cycle triggers one reload instead of one per provider.
+- The background refresh cadence was reduced so idle machines are not
+  constantly scanned.
+- SQLite uses a 64 MB page cache: cold dashboard queries that took up to ~4
+  seconds now complete in hundreds of milliseconds.
+- The topbar and persistent application shell use lightweight commands
+  (`get_app_freshness` / `get_app_shell_status`) that read only last
+  successful sync time, theme and the unacknowledged alert count, avoiding
+  integrity checks, full diagnostics scans and alert re-evaluation after
+  every refresh.
+- Pages use a shared latest-request guard so only the latest refresh result
+  wins when multiple cycles overlap, preventing stale results from
+  overwriting newer ones after a slow cycle.
+
+### Verification
+
+- New unit tests cover the unacknowledged alert count and the shared page
+  load / debounced reload / latest-request guard hooks.
+- Release workflow rebuilds installer and portable artifacts for x64, ARM64
+  and x86.
+
 ## [12.0.1] - 2026-08-11
 
 ### Gemini quota: the Antigravity IDE is the only source

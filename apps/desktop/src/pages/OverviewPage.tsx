@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Badge, Button, Card, DataState, MetricCard } from "@lnwdeck/ui";
 import {
   fetchQuotaDashboard,
@@ -10,6 +9,7 @@ import {
   type QuotaDashboardData,
   type UsageDashboardData,
 } from "../lib/native";
+import { useAsyncLoad } from "../lib/use-page-load";
 import { formatNumber, formatTimestamp } from "../lib/freshness";
 import { TokenValue } from "../components/TokenValue";
 import { ProviderLogo, providerDisplayName } from "../components/ProviderLogo";
@@ -138,10 +138,6 @@ export function OverviewPage() {
   const [available, setAvailable] = useState<UsageDashboardData | null>(null);
   const [quota, setQuota] = useState<QuotaDashboardData | null>(null);
   const [quotaError, setQuotaError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const requestVersion = useRef(0);
-  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const customStartRef = useRef<HTMLInputElement | null>(null);
   const customEndRef = useRef<HTMLInputElement | null>(null);
 
@@ -178,15 +174,12 @@ export function OverviewPage() {
     [customEnd, customStart, range],
   );
 
-  const load = useCallback(async (background = false) => {
-    if (range === "custom" && (!customStart || !customEnd)) return;
-    const version = ++requestVersion.current;
-    const isCurrent = () => requestVersion.current === version;
-    // Background reloads (refresh events, debounced) keep the previous data
-    // on screen instead of blanking the page behind the loading state.
-    if (!background) setLoading(true);
-    setError(null);
-    try {
+  const customRangeReady =
+    range !== "custom" || (customStart.length > 0 && customEnd.length > 0);
+
+  const { loading, error, reload } = useAsyncLoad(
+    async (_background, isCurrent) => {
+      if (range === "custom" && (!customStart || !customEnd)) return;
       const [allResult, selectedResult] = await Promise.all([
         fetchUsageDashboard(baseQuery),
         providerId ? fetchUsageDashboard(query) : null,
@@ -195,69 +188,26 @@ export function OverviewPage() {
         setAvailable(allResult);
         setDashboard(selectedResult ?? allResult);
       }
-    } catch (loadError) {
-      if (isCurrent()) {
-        setError(
-          loadError instanceof Error ? loadError : new Error(String(loadError)),
-        );
-      }
-    } finally {
-      if (isCurrent()) setLoading(false);
-    }
-    try {
-      const nextQuota = await fetchQuotaDashboard();
-      if (isCurrent()) {
-        setQuota(nextQuota);
-        setQuotaError(null);
-      }
-    } catch (loadError) {
-      if (isCurrent()) {
-        setQuotaError(
-          loadError instanceof Error ? loadError.message : String(loadError),
-        );
-      }
-    }
-  }, [baseQuery, customEnd, customStart, providerId, query, range]);
-
-  // Providers persist one at a time during a refresh cycle, so update events
-  // arrive in a burst. Reloading per event would flash the page; a trailing
-  // debounce collapses the burst into one reload once the cycle settles.
-  const scheduleReload = useCallback(() => {
-    if (reloadTimer.current !== null) {
-      clearTimeout(reloadTimer.current);
-    }
-    reloadTimer.current = setTimeout(() => {
-      reloadTimer.current = null;
-      void load(true);
-    }, 1_200);
-  }, [load]);
-
-  useEffect(() => {
-    void load();
-    let cancelled = false;
-    let unlisten: UnlistenFn | null = null;
-    void listen("usage-updated", () => {
-      scheduleReload();
-    })
-      .then((cleanup) => {
-        if (cancelled) {
-          cleanup();
-        } else {
-          unlisten = cleanup;
+      try {
+        const nextQuota = await fetchQuotaDashboard();
+        if (isCurrent()) {
+          setQuota(nextQuota);
+          setQuotaError(null);
         }
-      })
-      .catch(() => {
-        // The web test shell has no native event bus; polling/manual retry still works.
-      });
-    return () => {
-      cancelled = true;
-      unlisten?.();
-      if (reloadTimer.current !== null) {
-        clearTimeout(reloadTimer.current);
-        reloadTimer.current = null;
+      } catch (loadError) {
+        if (isCurrent()) {
+          setQuotaError(
+            loadError instanceof Error ? loadError.message : String(loadError),
+          );
+        }
       }
-    };
-  }, [load, scheduleReload]);
+    },
+    [baseQuery, customEnd, customStart, providerId, query, range],
+    {
+      enabled: customRangeReady,
+      refreshEvents: ["usage-updated"],
+    },
+  );
 
   const maxTrend = Math.max(...(dashboard?.trend.map((point) => point.total_tokens) ?? [0]), 1);
   const maxHeat = Math.max(...(dashboard?.heatmap.map((cell) => cell.total_tokens) ?? [0]), 1);
@@ -377,7 +327,7 @@ export function OverviewPage() {
         loading={loading}
         error={error}
         isEmpty={dashboard !== null && dashboard.request_count === 0}
-        onRetry={() => void load()}
+        onRetry={() => void reload()}
         emptyFallback={
           <Card title={t("dashboard.emptyTitle")}>
             <p className="ui-inline-note">{t("dashboard.emptyBody")}</p>

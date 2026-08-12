@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Card,
   DataState,
@@ -16,6 +16,7 @@ import {
   type SessionsOverview,
   type SessionUsageRow,
 } from "../../lib/native";
+import { usePageLoad } from "../../lib/use-page-load";
 import { formatCompact, formatNumber, formatTimestamp } from "../../lib/freshness";
 import { dataStateLabels, useI18n } from "../../lib/i18n";
 import { providerDisplayName } from "../../components/ProviderLogo";
@@ -39,31 +40,23 @@ export function SessionsPage() {
   const { t, language } = useI18n();
   const [window, setWindow] = useState<HistoryWindow>("last_7d");
   const [provider, setProvider] = useState<string>("");
-  const [data, setData] = useState<SessionsOverview | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setData(await fetchSessions(window, provider || undefined));
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error ? loadError : new Error(String(loadError)),
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [window, provider]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const [actionError, setActionError] = useState<Error | null>(null);
+  const {
+    data,
+    loading,
+    error: loadError,
+    reload,
+  } = usePageLoad<SessionsOverview>({
+    load: () => fetchSessions(window, provider || undefined),
+    deps: [window, provider],
+    refreshEvents: ["usage-updated"],
+  });
 
   const sessionCount = data
     ? data.projects.reduce((sum, project) => sum + project.sessions.length, 0)
     : 0;
+
+  const error = actionError ?? loadError;
 
   const handleRenameProject = useCallback(
     async (project: ProjectUsage, nextName: string) => {
@@ -72,14 +65,14 @@ export function SessionsPage() {
       }
       try {
         await renameProject(project.project_hash, nextName);
-        await load();
+        await reload();
       } catch (renameError) {
-        setError(
+        setActionError(
           renameError instanceof Error ? renameError : new Error(String(renameError)),
         );
       }
     },
-    [load],
+    [reload],
   );
 
   const handleRenameSession = useCallback(
@@ -89,14 +82,14 @@ export function SessionsPage() {
       }
       try {
         await renameSession(session.session_hash, nextName);
-        await load();
+        await reload();
       } catch (renameError) {
-        setError(
+        setActionError(
           renameError instanceof Error ? renameError : new Error(String(renameError)),
         );
       }
     },
-    [load],
+    [reload],
   );
 
   return (
@@ -138,7 +131,7 @@ export function SessionsPage() {
         loading={loading}
         error={error}
         isEmpty={data !== null && data.projects.length === 0}
-        onRetry={() => void load()}
+        onRetry={() => void reload()}
         emptyFallback={
           <Card title={t("sessions.empty.title")}>
             <p className="ui-inline-note">{t("sessions.empty.body")}</p>

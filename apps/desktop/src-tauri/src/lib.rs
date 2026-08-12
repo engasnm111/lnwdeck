@@ -299,6 +299,8 @@ pub fn run() {
             commands::pipeline::start_refresh,
             commands::pipeline::cancel_refresh,
             commands::pipeline::refresh_provider,
+            commands::pipeline::get_app_freshness,
+            commands::pipeline::get_app_shell_status,
             commands::pipeline::get_pipeline_diagnostics,
             commands::quota::get_quota_dashboard,
             commands::pages::get_usage_history,

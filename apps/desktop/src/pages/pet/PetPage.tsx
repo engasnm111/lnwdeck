@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from "react";
+﻿import { useCallback, useState } from "react";
 import { Badge, Button, Card, DataState, Field, Toggle } from "@lnwdeck/ui";
 import {
   fetchPetSpritesheetUrl,
@@ -20,6 +20,7 @@ import {
   type PetSizePreset,
   type PetWindowSettingsData,
 } from "../../lib/native";
+import { useAsyncLoad } from "../../lib/use-page-load";
 import { dataStateLabels, useI18n } from "../../lib/i18n";
 
 /** Ambient poses the user can toggle, in UI order. */
@@ -45,22 +46,19 @@ export function PetPage() {
   const [settings, setSettings] = useState<PetWindowSettingsData | null>(null);
   const [pets, setPets] = useState<PetManifest[]>([]);
   const [previews, setPreviews] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+  const [actionError, setActionError] = useState<Error | null>(null);
   const [petImport, setPetImport] = useState("");
   const [petImporting, setPetImporting] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  const { loading, error: loadError, reload } = useAsyncLoad(
+    async (_background, isCurrent) => {
       const [s, installed] = await Promise.all([
         fetchPetWindowSettings(),
         listWidgetPets(),
       ]);
+      if (!isCurrent()) return;
       setSettings(s);
       setPets(installed);
-      // Load a preview (one idle frame) for every installed pet.
       const urls: Record<string, string> = {};
       await Promise.all(
         installed.map(async (pet) => {
@@ -71,25 +69,20 @@ export function PetPage() {
           }
         }),
       );
-      setPreviews(urls);
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error ? loadError : new Error(String(loadError)),
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      if (isCurrent()) {
+        setPreviews(urls);
+      }
+    },
+    [],
+  );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const error = actionError ?? loadError;
 
   const reloadSettings = useCallback(async () => {
     try {
       setSettings(await fetchPetWindowSettings());
     } catch (error_) {
-      setError(error_ instanceof Error ? error_ : new Error(String(error_)));
+      setActionError(error_ instanceof Error ? error_ : new Error(String(error_)));
     }
   }, []);
 
@@ -103,7 +96,7 @@ export function PetPage() {
       }
       await reloadSettings();
     } catch (error_) {
-      setError(error_ instanceof Error ? error_ : new Error(String(error_)));
+      setActionError(error_ instanceof Error ? error_ : new Error(String(error_)));
     }
   }, [settings, reloadSettings]);
 
@@ -113,7 +106,7 @@ export function PetPage() {
         await setPetCharacter(id);
         await reloadSettings();
       } catch (error_) {
-        setError(error_ instanceof Error ? error_ : new Error(String(error_)));
+        setActionError(error_ instanceof Error ? error_ : new Error(String(error_)));
       }
     },
     [reloadSettings],
@@ -125,7 +118,7 @@ export function PetPage() {
         await setPetSpeed(speed);
         await reloadSettings();
       } catch (error_) {
-        setError(error_ instanceof Error ? error_ : new Error(String(error_)));
+        setActionError(error_ instanceof Error ? error_ : new Error(String(error_)));
       }
     },
     [reloadSettings],
@@ -137,7 +130,7 @@ export function PetPage() {
         await setPetOpacity(opacity);
         await reloadSettings();
       } catch (error_) {
-        setError(error_ instanceof Error ? error_ : new Error(String(error_)));
+        setActionError(error_ instanceof Error ? error_ : new Error(String(error_)));
       }
     },
     [reloadSettings],
@@ -149,7 +142,7 @@ export function PetPage() {
         await setPetAutoSleep(autoSleep);
         await reloadSettings();
       } catch (error_) {
-        setError(error_ instanceof Error ? error_ : new Error(String(error_)));
+        setActionError(error_ instanceof Error ? error_ : new Error(String(error_)));
       }
     },
     [reloadSettings],
@@ -161,7 +154,7 @@ export function PetPage() {
         await setPetSizePreset(preset);
         await reloadSettings();
       } catch (error_) {
-        setError(error_ instanceof Error ? error_ : new Error(String(error_)));
+        setActionError(error_ instanceof Error ? error_ : new Error(String(error_)));
       }
     },
     [reloadSettings],
@@ -173,7 +166,7 @@ export function PetPage() {
         await setPetStayInPlace(stayInPlace);
         await reloadSettings();
       } catch (error_) {
-        setError(error_ instanceof Error ? error_ : new Error(String(error_)));
+        setActionError(error_ instanceof Error ? error_ : new Error(String(error_)));
       }
     },
     [reloadSettings],
@@ -185,7 +178,7 @@ export function PetPage() {
         await setPetPose(key, enabled);
         await reloadSettings();
       } catch (error_) {
-        setError(error_ instanceof Error ? error_ : new Error(String(error_)));
+        setActionError(error_ instanceof Error ? error_ : new Error(String(error_)));
       }
     },
     [reloadSettings],
@@ -197,24 +190,24 @@ export function PetPage() {
     try {
       await importWidgetPet(petImport.trim());
       setPetImport("");
-      await load();
+      await reload();
     } catch (error_) {
-      setError(error_ instanceof Error ? error_ : new Error(String(error_)));
+      setActionError(error_ instanceof Error ? error_ : new Error(String(error_)));
     } finally {
       setPetImporting(false);
     }
-  }, [petImport, load]);
+  }, [petImport, reload]);
 
   const handleRemove = useCallback(
     async (id: string) => {
       try {
         await removeWidgetPet(id);
-        await load();
+        await reload();
       } catch (error_) {
-        setError(error_ instanceof Error ? error_ : new Error(String(error_)));
+        setActionError(error_ instanceof Error ? error_ : new Error(String(error_)));
       }
     },
-    [load],
+    [reload],
   );
 
   return (
@@ -231,7 +224,7 @@ export function PetPage() {
         loading={loading}
         error={error}
         isEmpty={false}
-        onRetry={() => void load()}
+        onRetry={() => void reload()}
       >
         {settings && (
           <div className="stack">

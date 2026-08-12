@@ -203,6 +203,17 @@ impl<'a> AlertRepository<'a> {
         self.query("WHERE resolved_at IS NULL ORDER BY last_seen_at DESC, id DESC")
     }
 
+    /// Counts currently open alerts that have not been acknowledged.
+    /// The application shell needs only this badge count; using COUNT(*) avoids
+    /// materializing the full alert list or re-running alert evaluation.
+    pub fn unacknowledged_open_count(&self) -> Result<i64, rusqlite::Error> {
+        self.conn.query_row(
+            "SELECT COUNT(*) FROM alerts WHERE resolved_at IS NULL AND acknowledged_at IS NULL",
+            [],
+            |row| row.get(0),
+        )
+    }
+
     /// Every alert including resolved ones, newest first, capped.
     pub fn history(&self, limit: usize) -> Result<Vec<AlertRow>, rusqlite::Error> {
         self.query(&format!(
@@ -328,6 +339,25 @@ mod tests {
         assert_eq!(open[0].occurrences, 2);
         assert_eq!(open[0].error_code, "SOURCE_UNAVAILABLE");
         assert!(open[0].resolved_at.is_none());
+    }
+
+    #[test]
+    fn counts_only_unacknowledged_open_alerts() {
+        let storage = open_db();
+        let repo = AlertRepository::new(&storage.conn);
+        let first = repo
+            .observe(&observation("collector:opencode"))
+            .expect("first");
+        repo.observe(&observation("collector:codex"))
+            .expect("second");
+
+        assert_eq!(repo.unacknowledged_open_count().expect("count"), 2);
+
+        assert!(repo.acknowledge(first).expect("acknowledge"));
+        assert_eq!(repo.unacknowledged_open_count().expect("count"), 1);
+
+        repo.resolve_missing(&[]).expect("resolve");
+        assert_eq!(repo.unacknowledged_open_count().expect("count"), 0);
     }
 
     #[test]

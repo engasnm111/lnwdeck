@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Badge,
   Card,
@@ -9,6 +9,7 @@ import {
   Toolbar,
 } from "@lnwdeck/ui";
 import { fetchCosts, type CostBreakdownData, type HistoryWindow } from "../../lib/native";
+import { usePageLoad } from "../../lib/use-page-load";
 import { formatCompact, formatNumber } from "../../lib/freshness";
 import { dataStateLabels, useI18n } from "../../lib/i18n";
 import { modelDisplayName, providerDisplayName } from "../../components/ProviderLogo";
@@ -42,27 +43,16 @@ export function CostsPage() {
   const { t } = useI18n();
   const [window, setWindow] = useState<HistoryWindow>("last_30d");
   const [providerId, setProviderId] = useState("");
-  const [data, setData] = useState<CostBreakdownData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setData(await fetchCosts(window, providerId || undefined));
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error ? loadError : new Error(String(loadError)),
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [window, providerId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const {
+    data,
+    loading,
+    error,
+    reload,
+  } = usePageLoad<CostBreakdownData>({
+    load: () => fetchCosts(window, providerId || undefined),
+    deps: [window, providerId],
+    refreshEvents: ["usage-updated"],
+  });
 
   return (
     <div>
@@ -103,7 +93,7 @@ export function CostsPage() {
         loading={loading}
         error={error}
         isEmpty={data !== null && data.rows.length === 0}
-        onRetry={() => void load()}
+        onRetry={() => void reload()}
         emptyFallback={
           <Card title={t("costs.empty.title")}>
             <p className="ui-inline-note">

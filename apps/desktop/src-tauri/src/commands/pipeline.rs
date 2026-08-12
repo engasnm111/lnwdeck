@@ -24,7 +24,8 @@ use lnwdeck_provider_workbuddy::WorkbuddyAdapter;
 use lnwdeck_provider_zai::ZaiAdapter;
 use lnwdeck_provider_zcode::ZCodeAdapter;
 use lnwdeck_storage::repositories::{
-    AppSettingsRepository, CollectorRunRow, DiagnosticsRepository, PipelineTotals, ProviderStateRow,
+    AlertRepository, AppSettingsRepository, CollectorRunRow, DiagnosticsRepository, PipelineTotals,
+    ProviderStateRow,
 };
 use serde::Serialize;
 use tauri::{Emitter, Manager};
@@ -480,6 +481,73 @@ pub async fn refresh_provider(
     };
     let _ = app.emit("quota-updated", ());
     Ok(cycle)
+}
+
+/// Lightweight freshness read for the topbar. Avoids integrity checks and full
+/// diagnostics scans that stall the WebView when a refresh cycle completes.
+#[derive(Debug, Serialize)]
+pub struct AppFreshness {
+    pub app_version: String,
+    pub last_successful_sync: Option<String>,
+}
+
+/// The blocking body runs inside `spawn_blocking` so the future stays `Send`
+/// and Tauri executes it off the main thread.
+#[tauri::command]
+pub async fn get_app_freshness(app: tauri::AppHandle) -> Result<AppFreshness, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let storage_guard = state.ensure_storage()?;
+        let storage = storage_guard.as_ref().ok_or("storage not initialized")?;
+        let totals = DiagnosticsRepository::new(&storage.conn)
+            .pipeline_totals()
+            .map_err(|e| e.to_string())?;
+        Ok(AppFreshness {
+            app_version: env!("CARGO_PKG_VERSION").to_string(),
+            last_successful_sync: totals.last_successful_sync,
+        })
+    })
+    .await
+    .map_err(|error| format!("freshness task failed: {error}"))?
+}
+
+/// Minimal metadata rendered by the persistent application shell. This avoids
+/// re-running alert evaluation or loading provider credentials/settings detail
+/// whenever a refresh completes.
+#[derive(Debug, Serialize)]
+pub struct AppShellStatus {
+    pub app_version: String,
+    pub last_successful_sync: Option<String>,
+    pub theme: String,
+    pub unacknowledged_alert_count: i64,
+}
+
+#[tauri::command]
+pub async fn get_app_shell_status(app: tauri::AppHandle) -> Result<AppShellStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let storage_guard = state.ensure_storage()?;
+        let storage = storage_guard.as_ref().ok_or("storage not initialized")?;
+        let totals = DiagnosticsRepository::new(&storage.conn)
+            .pipeline_totals()
+            .map_err(|e| e.to_string())?;
+        let theme = AppSettingsRepository::new(&storage.conn)
+            .get("theme")
+            .map_err(|e| e.to_string())?
+            .unwrap_or_else(|| "system".to_string());
+        let unacknowledged_alert_count = AlertRepository::new(&storage.conn)
+            .unacknowledged_open_count()
+            .map_err(|e| e.to_string())?;
+
+        Ok(AppShellStatus {
+            app_version: env!("CARGO_PKG_VERSION").to_string(),
+            last_successful_sync: totals.last_successful_sync,
+            theme,
+            unacknowledged_alert_count,
+        })
+    })
+    .await
+    .map_err(|error| format!("shell status task failed: {error}"))?
 }
 
 /// The blocking body runs inside `spawn_blocking` so the future stays `Send`

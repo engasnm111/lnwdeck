@@ -248,6 +248,26 @@ export interface PipelineDiagnostics {
   runs: CollectorRunRow[];
 }
 
+export interface AppFreshness {
+  app_version: string;
+  last_successful_sync: string | null;
+}
+
+export async function fetchAppFreshness(): Promise<AppFreshness> {
+  return invoke<AppFreshness>("get_app_freshness");
+}
+
+export interface AppShellStatus {
+  app_version: string;
+  last_successful_sync: string | null;
+  theme: string;
+  unacknowledged_alert_count: number;
+}
+
+export async function fetchAppShellStatus(): Promise<AppShellStatus> {
+  return invoke<AppShellStatus>("get_app_shell_status");
+}
+
 export async function fetchPipelineDiagnostics(): Promise<PipelineDiagnostics> {
   return invoke<PipelineDiagnostics>("get_pipeline_diagnostics");
 }

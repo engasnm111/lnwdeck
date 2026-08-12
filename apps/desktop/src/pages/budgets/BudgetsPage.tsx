@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   Badge,
   Button,
@@ -18,6 +18,7 @@ import {
   type BudgetProgressData,
   type DetailedProviderInfo,
 } from "../../lib/native";
+import { useAsyncLoad } from "../../lib/use-page-load";
 import { formatCompact, formatTimestamp } from "../../lib/freshness";
 import { dataStateLabels, useI18n } from "../../lib/i18n";
 import { providerDisplayName } from "../../components/ProviderLogo";
@@ -72,47 +73,36 @@ export function BudgetsPage() {
   const { t, language } = useI18n();
   const [data, setData] = useState<BudgetOverviewData | null>(null);
   const [providers, setProviders] = useState<DetailedProviderInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const providerIdRef = useRef("");
 
   const [scope, setScope] = useState<"global" | "provider">("global");
   const [providerId, setProviderId] = useState("");
+  providerIdRef.current = providerId;
   const [period, setPeriod] = useState<BudgetPeriod>("monthly");
   const [costLimit, setCostLimit] = useState("");
   const [tokenLimit, setTokenLimit] = useState("");
   const [warnPercent, setWarnPercent] = useState("80");
   const [enabled, setEnabled] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  const { loading, error, reload } = useAsyncLoad(
+    async (_background, isCurrent) => {
       const [overview, providerList] = await Promise.all([
         fetchBudgets(),
         fetchProviders(),
       ]);
-      setData(overview);
-      setProviders(providerList);
-      if (!providerId && providerList.length > 0) {
-        setProviderId(providerList[0].provider_id);
+      if (isCurrent()) {
+        setData(overview);
+        setProviders(providerList);
+        if (!providerIdRef.current && providerList.length > 0) {
+          setProviderId(providerList[0].provider_id);
+        }
       }
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error ? loadError : new Error(String(loadError)),
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [providerId]);
-
-  useEffect(() => {
-    void load();
-    // The provider default is set once; re-running on every id change would
-    // fight the user selection.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    },
+    [],
+    { refreshEvents: ["usage-updated"] },
+  );
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -129,7 +119,7 @@ export function BudgetsPage() {
       });
       setCostLimit("");
       setTokenLimit("");
-      await load();
+      await reload();
     } catch (saveError) {
       setFormError(
         saveError instanceof Error ? saveError.message : String(saveError),
@@ -137,14 +127,14 @@ export function BudgetsPage() {
     } finally {
       setSaving(false);
     }
-  }, [scope, providerId, period, costLimit, tokenLimit, warnPercent, enabled, load]);
+  }, [scope, providerId, period, costLimit, tokenLimit, warnPercent, enabled, reload]);
 
   const handleDelete = useCallback(
     async (id: number) => {
       setFormError(null);
       try {
         await deleteBudget(id);
-        await load();
+        await reload();
       } catch (deleteError) {
         setFormError(
           deleteError instanceof Error
@@ -153,7 +143,7 @@ export function BudgetsPage() {
         );
       }
     },
-    [load],
+    [reload],
   );
 
   return (
@@ -285,7 +275,7 @@ export function BudgetsPage() {
           loading={loading}
           error={error}
           isEmpty={data !== null && data.budgets.length === 0}
-          onRetry={() => void load()}
+          onRetry={() => void reload()}
           emptyFallback={
             <Card title={t("budgets.empty.title")}>
               <p className="ui-inline-note">

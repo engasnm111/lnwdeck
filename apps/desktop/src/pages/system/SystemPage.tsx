@@ -9,6 +9,7 @@ import {
   type PipelineDiagnostics,
   type ProviderStateRow,
 } from "../../lib/native";
+import { useAsyncLoad } from "../../lib/use-page-load";
 import { dataStateLabels, useI18n } from "../../lib/i18n";
 import { providerDisplayName } from "../../components/ProviderLogo";
 import { providerSourceLabel } from "../../lib/providerText";
@@ -57,44 +58,38 @@ function healthLabel(row: ProviderRow, t: (key: string) => string): { label: str
 export function SystemPage() {
   const { t, language } = useI18n();
   const [diagnostics, setDiagnostics] = useState<PipelineDiagnostics | null>(null);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportPath, setExportPath] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  const { loading, error } = useAsyncLoad(
+    async (_background, isCurrent) => {
       const result = await fetchPipelineDiagnostics();
-      setDiagnostics(result);
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      if (isCurrent()) {
+        setDiagnostics(result);
+      }
+    },
+    [],
+    { listenRefreshProgress: true },
+  );
 
   useEffect(() => {
-    load();
-  }, [load]);
-
-  useEffect(() => {
-    const unlisten = listen<RefreshProgressEvent>("refresh-progress", (event) => {
+    let unlisten: (() => void) | null = null;
+    void listen<RefreshProgressEvent>("refresh-progress", (event) => {
       const progress = event.payload;
       if (progress.phase === "started" || progress.phase === "progress") {
         setRefreshing(true);
         return;
       }
       setRefreshing(false);
-      void load();
+    }).then((cleanup) => {
+      unlisten = cleanup;
     });
     return () => {
-      void unlisten.then((cleanup) => cleanup());
+      unlisten?.();
     };
-  }, [load]);
+  }, []);
 
   const handleExport = useCallback(async () => {
     setExporting(true);
@@ -121,15 +116,18 @@ export function SystemPage() {
     }
   }, [exportPath]);
 
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
+    setRefreshError(null);
     try {
       const result = await startRefresh();
       if (!result.started && !result.already_running) {
         setRefreshing(false);
       }
     } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
+      setRefreshError(e instanceof Error ? e.message : String(e));
       setRefreshing(false);
     }
   }, []);
@@ -176,6 +174,12 @@ export function SystemPage() {
           </Button>
         </div>
       </div>
+
+      {refreshError && (
+        <p className="ui-field-error" role="alert" style={{ marginBottom: "1rem" }}>
+          {t("system.error.body", { error: refreshError })}
+        </p>
+      )}
 
       {exportPath && (
         <div

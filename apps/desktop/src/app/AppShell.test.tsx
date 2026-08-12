@@ -1,4 +1,4 @@
-﻿import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
@@ -11,78 +11,21 @@ vi.mock("../lib/native", async (importOriginal) => {
     ...actual,
     fetchAlerts: vi.fn(),
     fetchSettings: vi.fn(),
-    fetchPipelineDiagnostics: vi.fn(),
+    fetchAppFreshness: vi.fn(),
+    fetchAppShellStatus: vi.fn(),
     startRefresh: vi.fn(),
   };
 });
 
-const diagnostics = (
+const shellStatus = (
   lastSuccessfulSync: string | null,
-): native.PipelineDiagnostics => ({
+  theme: "dark" | "light" | "system" = "dark",
+  unacknowledgedAlertCount = 0,
+) => ({
   app_version: "0.2.0",
-  db_ok: true,
-  integrity_ok: true,
-  migration_version: 6,
-  total_events: 0,
-  totals: {
-    events_seen: 0,
-    events_parsed: 0,
-    events_normalized: 0,
-    events_rejected: 0,
-    duplicates_skipped: 0,
-    events_inserted: 0,
-    quota_snapshots_inserted: 0,
-    privacy_rejections: 0,
-    last_successful_sync: lastSuccessfulSync,
-    next_retry_at: null,
-  },
-  providers: [],
-  runs: [],
-});
-
-const settingsView = (theme: "dark" | "light" | "system"): native.SettingsViewData => ({
-  settings: {
-    launch_at_startup: false,
-    theme,
-    refresh_interval_seconds: 300,
-    auto_update_check: true,
-    widget_opacity: 1,
-    widget_locked: false,
-    widget_visible: false,
-    widget_size: "medium",
-    retention_days: 90,
-    pet_visible: false,
-    pet_character: "robot",
-    pet_speed: "normal",
-    pet_opacity: 1,
-    pet_auto_sleep: true,
-    pet_size: "medium",
-    pet_stay_in_place: false,
-    pet_pose_wave: true,
-    pet_pose_jump: true,
-    pet_pose_look_left: true,
-    pet_pose_look_right: true,
-    pet_pose_waiting: true,
-    pet_pose_review: true,
-    language: "en",
-  },
-  startup_supported: true,
-  startup_registered: false,
-  credential_store_supported: true,
-  provider_credentials: [],
-  opencode_go: { state: "missing" },
-  allowed_refresh_intervals: [0, 300],
-  allowed_themes: ["dark", "light", "system"],
-  allowed_retention_days: [90],
-});
-
-const alerts = (openCount: number): native.AlertsViewData => ({
-  generated_at: "2026-08-04T00:00:00Z",
-  open: [],
-  history: [],
-  open_count: openCount,
-  critical_count: 0,
-  unacknowledged_count: openCount,
+  last_successful_sync: lastSuccessfulSync,
+  theme,
+  unacknowledged_alert_count: unacknowledgedAlertCount,
 });
 
 function renderShell() {
@@ -95,12 +38,23 @@ function renderShell() {
 
 describe("AppShell", () => {
   beforeEach(() => {
-    vi.mocked(native.fetchAlerts).mockResolvedValue(alerts(0));
-    vi.mocked(native.fetchSettings).mockResolvedValue(settingsView("dark"));
-    vi.mocked(native.fetchPipelineDiagnostics).mockResolvedValue(
-      diagnostics(null),
-    );
+    vi.mocked(native.fetchAlerts).mockReset();
+    vi.mocked(native.fetchSettings).mockReset();
+    vi.mocked(native.fetchAppFreshness).mockReset();
+    vi.mocked(native.fetchAppShellStatus).mockReset();
+    vi.mocked(native.fetchAppShellStatus).mockResolvedValue(shellStatus(null));
     vi.mocked(native.startRefresh).mockReset();
+  });
+
+  it("loads topbar, theme and alert metadata through one lightweight shell request", async () => {
+    renderShell();
+
+    await waitFor(() =>
+      expect(native.fetchAppShellStatus).toHaveBeenCalledTimes(1),
+    );
+    expect(native.fetchAlerts).not.toHaveBeenCalled();
+    expect(native.fetchSettings).not.toHaveBeenCalled();
+    expect(native.fetchAppFreshness).not.toHaveBeenCalled();
   });
 
   it("states that nothing has been collected instead of showing a fresh badge", async () => {
@@ -115,8 +69,8 @@ describe("AppShell", () => {
   });
 
   it("reports freshness from the last successful collection", async () => {
-    vi.mocked(native.fetchPipelineDiagnostics).mockResolvedValue(
-      diagnostics(new Date(Date.now() - 60_000).toISOString()),
+    vi.mocked(native.fetchAppShellStatus).mockResolvedValue(
+      shellStatus(new Date(Date.now() - 60_000).toISOString()),
     );
     renderShell();
     await waitFor(() => expect(screen.getByText("Fresh")).toBeInTheDocument());
@@ -124,8 +78,8 @@ describe("AppShell", () => {
   });
 
   it("marks old data as stale rather than fresh", async () => {
-    vi.mocked(native.fetchPipelineDiagnostics).mockResolvedValue(
-      diagnostics(new Date(Date.now() - 60 * 60_000).toISOString()),
+    vi.mocked(native.fetchAppShellStatus).mockResolvedValue(
+      shellStatus(new Date(Date.now() - 60 * 60_000).toISOString()),
     );
     renderShell();
     await waitFor(() => expect(screen.getByText("Stale")).toBeInTheDocument());
@@ -171,7 +125,9 @@ describe("AppShell", () => {
   });
 
   it("applies the stored theme to the document", async () => {
-    vi.mocked(native.fetchSettings).mockResolvedValue(settingsView("light"));
+    vi.mocked(native.fetchAppShellStatus).mockResolvedValue(
+      shellStatus(null, "light"),
+    );
     renderShell();
     await waitFor(() =>
       expect(document.documentElement.dataset.theme).toBe("light"),
@@ -179,7 +135,9 @@ describe("AppShell", () => {
   });
 
   it("shows the open alert count in the navigation", async () => {
-    vi.mocked(native.fetchAlerts).mockResolvedValue(alerts(3));
+    vi.mocked(native.fetchAppShellStatus).mockResolvedValue(
+      shellStatus(null, "dark", 3),
+    );
     renderShell();
     await waitFor(() =>
       expect(
@@ -189,9 +147,9 @@ describe("AppShell", () => {
   });
 
   it("removes the alert badge when another page acknowledges an alert", async () => {
-    vi.mocked(native.fetchAlerts)
-      .mockResolvedValueOnce(alerts(3))
-      .mockResolvedValueOnce(alerts(0));
+    vi.mocked(native.fetchAppShellStatus)
+      .mockResolvedValueOnce(shellStatus(null, "dark", 3))
+      .mockResolvedValueOnce(shellStatus(null, "dark", 0));
     renderShell();
 
     await waitFor(() =>
@@ -207,5 +165,6 @@ describe("AppShell", () => {
         screen.queryByLabelText("3 unacknowledged alerts"),
       ).not.toBeInTheDocument(),
     );
+    expect(native.fetchAppShellStatus).toHaveBeenCalledTimes(2);
   });
 });

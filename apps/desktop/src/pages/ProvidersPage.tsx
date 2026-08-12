@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Badge, Button, Card, DataState, ProgressBar } from "@lnwdeck/ui";
 import {
   fetchProviders,
@@ -8,6 +8,7 @@ import {
   type ProviderQuotaCard,
   type QuotaDashboardData,
 } from "../lib/native";
+import { usePageLoad } from "../lib/use-page-load";
 import { formatCompact, formatTimestamp } from "../lib/freshness";
 import { ProviderLogo, providerDisplayName } from "../components/ProviderLogo";
 import { dataStateLabels, useI18n } from "../lib/i18n";
@@ -52,38 +53,38 @@ function supportTone(support: string) {
  * A provider that collects nothing is labelled "Not supported" rather than
  * healthy.
  */
+interface ProvidersPageData {
+  providers: DetailedProviderInfo[];
+  quota: QuotaDashboardData | null;
+}
+
 export function ProvidersPage() {
   const { t, language } = useI18n();
-  const [providers, setProviders] = useState<DetailedProviderInfo[]>([]);
-  const [quota, setQuota] = useState<QuotaDashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setProviders(await fetchProviders());
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error ? loadError : new Error(String(loadError)),
-      );
-    } finally {
-      setLoading(false);
-    }
-    try {
-      setQuota(await fetchQuotaDashboard());
-    } catch {
-      // The quota channel is independent; the provider table still renders.
-      setQuota(null);
-    }
-  }, []);
+  const {
+    data,
+    loading,
+    error,
+    reload,
+  } = usePageLoad<ProvidersPageData>({
+    load: async () => {
+      const providers = await fetchProviders();
+      let quota: QuotaDashboardData | null = null;
+      try {
+        quota = await fetchQuotaDashboard();
+      } catch {
+        // The quota channel is independent; the provider table still renders.
+      }
+      return { providers, quota };
+    },
+    deps: [],
+    refreshEvents: ["quota-updated"],
+  });
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const providers = data?.providers ?? [];
+  const quota = data?.quota ?? null;
 
   const handleRefreshProvider = useCallback(
     async (providerId: string) => {
@@ -91,7 +92,7 @@ export function ProvidersPage() {
       setActionError(null);
       try {
         await refreshProvider(providerId);
-        await load();
+        await reload();
       } catch (refreshError) {
         setActionError(
           refreshError instanceof Error
@@ -102,7 +103,7 @@ export function ProvidersPage() {
         setRefreshingId(null);
       }
     },
-    [load],
+    [reload],
   );
 
   const quotaFor = (providerId: string): ProviderQuotaCard[] =>
@@ -128,7 +129,7 @@ export function ProvidersPage() {
         loading={loading}
         error={error}
         isEmpty={providers.length === 0}
-        onRetry={() => void load()}
+        onRetry={() => void reload()}
       >
         <div className="grid-cards">
           {providers.map((provider) => {

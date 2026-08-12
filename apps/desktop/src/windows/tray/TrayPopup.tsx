@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { fetchOverview, OverviewData } from "../../lib/native";
+import { useDebouncedCallback } from "../../lib/use-debounced-reload";
+import { useLatestRequestGuard } from "../../lib/use-latest-request-guard";
 import { TokenValue } from "../../components/TokenValue";
 import { formatFullTokenCount } from "../../lib/token-format";
 import { useI18n } from "../../lib/i18n";
@@ -15,19 +17,60 @@ export function TrayPopup() {
   const { t } = useI18n();
   const [data, setData] = useState<OverviewData | null>(null);
   const [notice, setNotice] = useState<UpdateNotice | null>(null);
+  const loadInFlight = useRef<Promise<void> | null>(null);
+  const beginRequest = useLatestRequestGuard([]);
 
   const load = useCallback(async () => {
-    try {
-      const result = await fetchOverview();
-      setData(result);
-    } catch {
-      // Silently handle fallback in tray popup
-    }
-  }, []);
+    if (loadInFlight.current) return loadInFlight.current;
+    const isCurrent = beginRequest();
+    const pending = (async () => {
+      try {
+        const result = await fetchOverview();
+        if (isCurrent()) {
+          setData(result);
+        }
+      } catch {
+        // Silently handle fallback in tray popup
+      }
+    })();
+    const tracked = pending.finally(() => {
+      if (loadInFlight.current === tracked) {
+        loadInFlight.current = null;
+      }
+    });
+    loadInFlight.current = tracked;
+    return tracked;
+  }, [beginRequest]);
+
+  const scheduleReload = useDebouncedCallback(() => {
+    void load();
+  }, 1200);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+    void listen("usage-updated", () => {
+      scheduleReload();
+    })
+      .then((cleanup) => {
+        if (cancelled) {
+          cleanup();
+        } else {
+          unlisten = cleanup;
+        }
+      })
+      .catch(() => {
+        // Outside a Tauri runtime there is no event bus.
+      });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [scheduleReload]);
 
   // The tray's "Check for updates" menu item reports through these events.
   // An up-to-date check is a normal result, not a failure: the banner

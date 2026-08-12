@@ -18,6 +18,7 @@ import {
   type WidgetSizePreset,
   type WidgetView,
 } from "../../lib/native";
+import { useAsyncLoad } from "../../lib/use-page-load";
 import { dataStateLabels, LANGUAGES, useI18n } from "../../lib/i18n";
 
 function intervalLabel(
@@ -60,8 +61,6 @@ export function SettingsPage() {
   const draftRef = useRef<AppSettingsData | null>(null);
   draftRef.current = draft;
   const saveSeq = useRef(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
   const [keyError, setKeyError] = useState<string | null>(null);
@@ -128,26 +127,17 @@ export function SettingsPage() {
     }
   }, []);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  const { loading, error, reload } = useAsyncLoad(
+    async (_background, isCurrent) => {
       const result = await fetchSettings();
-      setView(result);
-      setDraft(result.settings);
-      setOpenCodeGoDraft({ workspaceId: "", authCookie: "" });
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error ? loadError : new Error(String(loadError)),
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+      if (isCurrent()) {
+        setView(result);
+        setDraft(result.settings);
+        setOpenCodeGoDraft({ workspaceId: "", authCookie: "" });
+      }
+    },
+    [],
+  );
 
   // Every control saves immediately through the backend command; there is no
   // save button. The echoed value replaces the draft so a rejected value can
@@ -286,7 +276,7 @@ export function SettingsPage() {
         loading={loading}
         error={error}
         isEmpty={false}
-        onRetry={() => void load()}
+        onRetry={() => void reload()}
       >
         {view && draft && (
           <div className="stack">

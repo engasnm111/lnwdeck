@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Card,
   DataState,
@@ -13,6 +13,7 @@ import {
   type HistoryWindow,
   type UsageHistoryData,
 } from "../../lib/native";
+import { usePageLoad } from "../../lib/use-page-load";
 import { formatCompact, formatNumber, formatTimestamp } from "../../lib/freshness";
 import { dataStateLabels, useI18n } from "../../lib/i18n";
 import { modelDisplayName, providerDisplayName } from "../../components/ProviderLogo";
@@ -35,27 +36,16 @@ export function ModelsPage() {
   const { t, language } = useI18n();
   const [window, setWindow] = useState<HistoryWindow>("last_7d");
   const [provider, setProvider] = useState<string>("");
-  const [data, setData] = useState<UsageHistoryData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setData(await fetchUsageHistory(window, provider || undefined));
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error ? loadError : new Error(String(loadError)),
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [window, provider]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const {
+    data,
+    loading,
+    error,
+    reload,
+  } = usePageLoad<UsageHistoryData>({
+    load: () => fetchUsageHistory(window, provider || undefined),
+    deps: [window, provider],
+    refreshEvents: ["usage-updated"],
+  });
 
   const maxDaily = data
     ? Math.max(
@@ -103,7 +93,7 @@ export function ModelsPage() {
         loading={loading}
         error={error}
         isEmpty={data !== null && data.models.length === 0}
-        onRetry={() => void load()}
+        onRetry={() => void reload()}
         emptyFallback={
           <Card title={t("models.empty.title")}>
             <p className="ui-inline-note">

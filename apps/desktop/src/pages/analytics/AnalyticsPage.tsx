@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { fetchAnalytics, type AnalyticsRow } from "../../lib/native";
+import { usePageLoad } from "../../lib/use-page-load";
 import { DataState, Card, Badge, Button } from "@lnwdeck/ui";
 import { dataStateLabels, useI18n } from "../../lib/i18n";
 import { formatFullTokenCount } from "../../lib/token-format";
@@ -43,40 +44,43 @@ function numericCost(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+interface AnalyticsPageData {
+  rows: AnalyticsRow[];
+  available_providers: string[];
+  available_models: string[];
+}
+
 export function AnalyticsPage() {
   const { t } = useI18n();
-  const [rows, setRows] = useState<AnalyticsRow[]>([]);
-  const [availableProviders, setAvailableProviders] = useState<string[]>([]);
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
   const [providerFilter, setProviderFilter] = useState("");
   const [modelFilter, setModelFilter] = useState("");
   const [confidenceFilter, setConfidenceFilter] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  const {
+    data,
+    loading,
+    error,
+    reload,
+  } = usePageLoad<AnalyticsPageData>({
+    load: async () => {
       const res = await fetchAnalytics({
         provider_id: providerFilter || undefined,
         model: modelFilter || undefined,
         confidence: confidenceFilter || undefined,
       });
-      setRows(res.rows);
-      setAvailableProviders(res.available_providers);
-      setAvailableModels(res.available_models);
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-    } finally {
-      setLoading(false);
-    }
-  }, [providerFilter, modelFilter, confidenceFilter]);
+      return {
+        rows: res.rows,
+        available_providers: res.available_providers,
+        available_models: res.available_models,
+      };
+    },
+    deps: [providerFilter, modelFilter, confidenceFilter],
+    refreshEvents: ["usage-updated"],
+  });
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const rows = data?.rows ?? [];
+  const availableProviders = data?.available_providers ?? [];
+  const availableModels = data?.available_models ?? [];
 
   const totalTokens = rows.reduce(
     (s, r) =>
@@ -106,7 +110,7 @@ export function AnalyticsPage() {
             {t("analytics.subtitle")}
           </p>
         </div>
-        <Button variant="secondary" onClick={load} aria-label={t("analytics.refreshAria")}>
+        <Button variant="secondary" onClick={() => void reload()} aria-label={t("analytics.refreshAria")}>
           {t("analytics.applyRefresh")}
         </Button>
       </div>

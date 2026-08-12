@@ -118,6 +118,50 @@ test("sidebar navigation reaches every page", async () => {
   }
 });
 
+test("refresh stays responsive during rapid sidebar navigation", async () => {
+  test.setTimeout(120_000);
+  await page.waitForLoadState("domcontentloaded");
+
+  const refreshButton = page.locator("header.app-topbar .app-topbar-actions button");
+  await expect(refreshButton).toBeVisible();
+  await expect(refreshButton).toBeEnabled({ timeout: 15_000 });
+  await refreshButton.click({ timeout: 3_000 });
+
+  const routes: Array<[string, string]> = [
+    ["Overview", "ภาพรวม"],
+    ["Providers", "ผู้ให้บริการ"],
+    ["Analytics", "การวิเคราะห์"],
+    ["Costs", "ค่าใช้จ่าย"],
+    ["Budgets", "งบประมาณ"],
+    ["Models", "โมเดล"],
+    ["Sessions", "เซสชัน"],
+    ["Alerts", "การแจ้งเตือน"],
+    ["Pet", "สัตว์เลี้ยง"],
+    ["Settings", "ตั้งค่า"],
+    ["System", "ระบบ"],
+  ];
+
+  for (let round = 0; round < 6; round += 1) {
+    for (const [en, th] of routes) {
+      const name = new RegExp(`${en}|${th}`);
+      await page.getByRole("link", { name, exact: true }).click({ timeout: 3_000 });
+      await expect(
+        page.getByRole("heading", { name }).first(),
+      ).toBeVisible({ timeout: 3_000 });
+    }
+  }
+
+  // The shell must still accept input after the burst; return to Overview and
+  // ensure the shared refresh job eventually leaves its refreshing state.
+  await page
+    .getByRole("link", { name: /Overview|ภาพรวม/, exact: true })
+    .click({ timeout: 3_000 });
+  await expect(
+    page.getByRole("heading", { name: /Overview|ภาพรวม/ }).first(),
+  ).toBeVisible({ timeout: 3_000 });
+  await expect(refreshButton).toBeEnabled({ timeout: 70_000 });
+});
+
 test("switching the UI language to Thai applies immediately", async () => {
   await page.getByRole("link", { name: /Settings|ตั้งค่า/, exact: true }).click();
   await page.getByLabel(/Language|ภาษา/).selectOption("th");
