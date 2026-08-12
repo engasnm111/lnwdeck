@@ -34,7 +34,7 @@ function assertFile(root, name) {
   return file;
 }
 
-export function verifyReleaseAssets(root, tag) {
+export function verifyReleaseAssets(root, tag, assetIds = null) {
   const version = versionFromTag(tag);
   if (!version) throw new Error(`invalid release tag: ${tag}`);
 
@@ -67,7 +67,12 @@ export function verifyReleaseAssets(root, tag) {
     if (platforms[platform]?.signature !== signature) {
       throw new Error(`latest.json signature does not match ${installer}.sig`);
     }
-    if (platforms[platform]?.url?.endsWith(`/${installer}`) !== true) {
+    const url = platforms[platform]?.url ?? "";
+    const expectedId = assetIds?.[installer];
+    const pointsAtInstaller =
+      url.endsWith(`/${installer}`) ||
+      (expectedId && url === `https://api.github.com/repos/engasnm111/lnwdeck/releases/assets/${expectedId}`);
+    if (!pointsAtInstaller) {
       throw new Error(`latest.json URL does not point to ${installer}`);
     }
   }
@@ -92,8 +97,19 @@ function main() {
     );
     process.exit(1);
   }
+  let assetIds = null;
+  if (process.env.LNWDECK_ASSET_IDS) {
+    try {
+      assetIds = JSON.parse(process.env.LNWDECK_ASSET_IDS);
+    } catch {
+      process.stderr.write(
+        "::error::LNWDECK_ASSET_IDS must be a JSON object mapping file names to asset ids\n",
+      );
+      process.exit(1);
+    }
+  }
   try {
-    const result = verifyReleaseAssets(assetsDir, tag);
+    const result = verifyReleaseAssets(assetsDir, tag, assetIds);
     process.stdout.write(
       `verified ${result.version}: ${result.files.length} release files\n`,
     );

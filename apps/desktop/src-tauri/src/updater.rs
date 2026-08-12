@@ -85,6 +85,15 @@ fn error_code(error: &tauri_plugin_updater::Error) -> &'static str {
 /// endpoint before it is published; the signature requirement is unchanged.
 fn updater(app: &tauri::AppHandle) -> Result<tauri_plugin_updater::Updater, String> {
     let mut builder = app.updater_builder();
+    // Release assets are served through the GitHub API (api.github.com), which
+    // only redirects to the binary blob when the client accepts
+    // application/octet-stream; without it the API returns JSON metadata and
+    // the download fails. The updater plugin reuses these headers for both the
+    // check and the download, and every endpoint listed in tauri.conf.json
+    // serves the manifest as a plain file, so a fixed Accept header is safe.
+    builder = builder
+        .header("Accept", "application/octet-stream")
+        .map_err(|error| format!("update header rejected: {}", error_code(&error)))?;
     if let Ok(endpoint) = std::env::var("LNWDECK_UPDATE_ENDPOINT") {
         let parsed = endpoint
             .parse()

@@ -199,11 +199,6 @@ jobs:
 
       # Fails when an installer has no signature, so a release cannot be
       # published without a verifiable updater manifest.
-      - name: Generate updater latest.json
-        run: |
-          node scripts/generate-updater-json.mjs "${{ github.ref_name }}" release-assets release-assets/latest.json
-          cat release-assets/latest.json
-
       - name: Generate release SBOM
         uses: anchore/sbom-action@v0.17.0
         with:
@@ -212,19 +207,6 @@ jobs:
           output-file: release-assets/lnwdeck-sbom.cdx.json
           upload-artifact: false
           upload-release-assets: false
-
-      - name: Verify every architecture, signature and manifest entry
-        run: node scripts/verify-release-assets.mjs release-assets "${{ github.ref_name }}"
-
-      - name: Generate SHA256SUMS and verify it immediately
-        run: |
-          node scripts/generate-release-metadata.mjs release-assets
-          (cd release-assets && sha256sum -c SHA256SUMS)
-
-      - name: Attest release provenance
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: release-assets/*
 
       - name: Resolve release notes file
         id: notes
@@ -237,13 +219,92 @@ jobs:
           fi
           echo "path=$FILE" >> "$GITHUB_OUTPUT"
 
-      - name: Create GitHub Release
+      # The updater manifest must know each installer's GitHub asset id so it
+      # can point at api.github.com (reachable where github.com is blocked or
+      # degraded) instead of the release download page. Asset ids only exist
+      # after the release is created, so a draft release is published first and
+      # finalized only after the manifest and checksums are attached.
+      - name: Create draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ github.ref_name }}" release-assets/* \
+          gh release create "${{ github.ref_name }}" \
+            release-assets/lnwdeck_*_setup.exe \
+            release-assets/lnwdeck_*_portable.zip \
+            release-assets/*.sig \
+            release-assets/lnwdeck-sbom.cdx.json \
             --repo "${{ github.repository }}" \
             --title "lnwdeck ${{ github.ref_name }}" \
-            --notes-file "${{ steps.notes.outputs.path }}" \
-            --draft=false \
+            --draft \
             --prerelease=${{ contains(github.ref_name, '-') }}
+
+      - name: Resolve installer asset ids
+        id: asset-ids
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          IDS=$(gh api "repos/${{ github.repository }}/releases/tags/${{ github.ref_name }}" \
+            --jq '[.assets[] | {key: .name, value: .id}] | from_entries')
+          echo "LNWDECK_ASSET_IDS=$IDS" >> "$GITHUB_ENV"
+          echo "resolved asset ids: $IDS"
+
+      - name: Generate updater latest.json
+        run: |
+          node scripts/generate-updater-json.mjs "${{ github.ref_name }}" release-assets release-assets/latest.json
+          cat release-assets/latest.json
+
+      - name: Attach updater manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.ref_name }}" release-assets/latest.json \
+            --repo "${{ github.repository }}" --clobber
+
+      - name: Verify every architecture, signature and manifest entry
+        run: node scripts/verify-release-assets.mjs release-assets "${{ github.ref_name }}"
+
+      - name: Generate SHA256SUMS and verify it immediately
+        run: |
+          node scripts/generate-release-metadata.mjs release-assets
+          (cd release-assets && sha256sum -c SHA256SUMS)
+
+      - name: Attach checksums
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.ref_name }}" release-assets/SHA256SUMS \
+            --repo "${{ github.repository }}" --clobber
+
+      # The repository-root manifest feeds the raw.githubusercontent.com and
+      # jsDelivr updater endpoints so users whose network cannot reach
+      # github.com still get update checks. [skip ci] prevents this commit
+      # from re-triggering the main-branch CI.
+      - name: Publish manifest to main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+          cp release-assets/latest.json latest.json
+          git add latest.json
+          git diff --cached --quiet || {
+            git commit -m "chore: publish updater manifest for ${{ github.ref_name }} [skip ci]"
+            git push origin main
+          }
+
+      - name: Attest release provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: release-assets/*
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "${{ github.ref_name }}" \
+            --repo "${{ github.repository }}" \
+            --draft=false \
+            --prerelease=${{ contains(github.ref_name, '-') }} \
+            --notes-file "${{ steps.notes.outputs.path }}"

@@ -56,6 +56,31 @@ test("buildUpdaterJson maps signed installers to platform entries", () => {
   );
 });
 
+test("buildUpdaterJson prefers api.github.com asset URLs when asset ids are given", () => {
+  const dir = fixtureDir();
+  signedInstaller(dir, "lnwdeck_0.2.0_x64-setup.exe", "sig-x64");
+  signedInstaller(dir, "lnwdeck_0.2.0_arm64-setup.exe", "sig-arm64");
+
+  const json = buildUpdaterJson({
+    tag: "v0.2.0",
+    repo: "engasnm111/lnwdeck",
+    assetsDir: dir,
+    assetIds: {
+      "lnwdeck_0.2.0_x64-setup.exe": 12345,
+      "lnwdeck_0.2.0_arm64-setup.exe": 67890,
+    },
+  });
+
+  assert.equal(
+    json.platforms["windows-x86_64"].url,
+    "https://api.github.com/repos/engasnm111/lnwdeck/releases/assets/12345",
+  );
+  assert.equal(
+    json.platforms["windows-aarch64"].url,
+    "https://api.github.com/repos/engasnm111/lnwdeck/releases/assets/67890",
+  );
+});
+
 test("buildUpdaterJson rejects installers without signatures", () => {
   const dir = fixtureDir();
   writeFileSync(join(dir, "lnwdeck_0.2.0_x64-setup.exe"), "binary");

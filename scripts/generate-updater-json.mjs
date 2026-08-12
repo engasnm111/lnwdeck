@@ -53,7 +53,7 @@ export function collectFiles(root) {
   return found;
 }
 
-export function buildUpdaterJson({ tag, repo, assetsDir }) {
+export function buildUpdaterJson({ tag, repo, assetsDir, assetIds = null }) {
   const version = parseTag(tag);
   if (!version) {
     throw new Error(`invalid tag: ${tag}`);
@@ -73,10 +73,16 @@ export function buildUpdaterJson({ tag, repo, assetsDir }) {
     if (!signature) {
       throw new Error(`signature file ${sigName} is empty`);
     }
-    platforms[platform] = {
-      signature,
-      url: `https://github.com/${repo}/releases/download/${tag}/${file.name}`,
-    };
+    // The GitHub release download endpoint lives on github.com, which is
+    // blocked or degraded in some regions. The API asset endpoint
+    // (api.github.com) redirects to the same binary blob and is reachable
+    // worldwide, so release builds pin the asset id when one is known and
+    // fall back to the release URL otherwise.
+    const assetId = assetIds?.[file.name];
+    const url = assetId
+      ? `https://api.github.com/repos/${repo}/releases/assets/${assetId}`
+      : `https://github.com/${repo}/releases/download/${tag}/${file.name}`;
+    platforms[platform] = { signature, url };
   }
   if (Object.keys(platforms).length === 0) {
     throw new Error(`no signed NSIS installers found in ${assetsDir}`);
@@ -89,6 +95,21 @@ export function buildUpdaterJson({ tag, repo, assetsDir }) {
   };
 }
 
+function parseAssetIds(envValue) {
+  if (!envValue) return null;
+  try {
+    const parsed = JSON.parse(envValue);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed;
+    }
+  } catch {
+    // fall through to the error below
+  }
+  throw new Error(
+    `LNWDECK_ASSET_IDS must be a JSON object mapping file names to asset ids`,
+  );
+}
+
 function main() {
   const [tag, assetsDir, outputFile] = process.argv.slice(2);
   const repo = process.env.GITHUB_REPOSITORY ?? "engasnm111/lnwdeck";
@@ -98,8 +119,15 @@ function main() {
     );
     process.exit(1);
   }
+  let assetIds;
   try {
-    const json = buildUpdaterJson({ tag, repo, assetsDir });
+    assetIds = parseAssetIds(process.env.LNWDECK_ASSET_IDS);
+  } catch (err) {
+    process.stderr.write(`::error::${err.message}\n`);
+    process.exit(1);
+  }
+  try {
+    const json = buildUpdaterJson({ tag, repo, assetsDir, assetIds });
     const out = outputFile ?? "latest.json";
     writeFileSync(out, `${JSON.stringify(json, null, 2)}\n`);
     process.stdout.write(

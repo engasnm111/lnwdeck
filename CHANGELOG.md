@@ -2,6 +2,28 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [13.0.1] - 2026-08-13
+
+### Update checks work where github.com is blocked
+
+- The updater tries three manifest endpoints in order: the GitHub release
+  page, `raw.githubusercontent.com`, and jsDelivr. The release workflow
+  commits `latest.json` to the repository root so the CDN endpoints always
+  serve the current manifest, and a blocked endpoint no longer fails the
+  check outright.
+- Installer download URLs in `latest.json` use the GitHub API asset endpoint
+  (`api.github.com/.../releases/assets/<id>`) which redirects to the same
+  signed binary and works in regions where `github.com` is unreachable.
+- The updater sends `Accept: application/octet-stream` so the GitHub API
+  redirects to the binary instead of returning JSON metadata.
+- Signature verification is unchanged: installers are verified against the
+  embedded public key before installation; only the transport changed.
+
+### Verification
+
+- Release-script tests cover the API asset URL generation and verification
+  paths alongside the existing release-URL paths.
+
 ## [13.0.0] - 2026-08-12
 
 ### Stable refresh: the window never freezes
