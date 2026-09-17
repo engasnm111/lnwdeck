@@ -239,12 +239,20 @@ pub fn windows_from_usage_api(payload: &serde_json::Value, now: DateTime<Utc>) -
     .collect()
 }
 
+fn dashboard_indicates_no_go_subscription(html: &str) -> bool {
+    ["monthlyLimit", "monthlyUsage", "subscription"]
+        .iter()
+        .all(|field| string_field(html, field).is_some_and(|value| value == "null"))
+        && (html.contains("data-slot=\"subscribe-button\"") || html.contains("Subscribe to Go"))
+}
+
 /// Parses the authoritative OpenCode Go workspace dashboard response.
 ///
 /// OpenCode reports utilization and reset seconds for each rolling window but
 /// does not expose an absolute dollar limit in this response. The returned
 /// windows therefore carry the real percentage and reset timestamp while
-/// leaving absolute usage and limits unknown.
+/// leaving absolute usage and limits unknown. A configured workspace without
+/// an active Go subscription is valid and returns no quota windows.
 pub fn windows_from_dashboard_html(
     html: &str,
     now: DateTime<Utc>,
@@ -334,6 +342,9 @@ pub fn windows_from_dashboard_html(
     }
 
     if windows.is_empty() {
+        if dashboard_indicates_no_go_subscription(html) {
+            return Ok(windows);
+        }
         return Err("SOURCE_SCHEMA_MISMATCH".to_string());
     }
     Ok(windows)
@@ -910,7 +921,7 @@ impl OpenCodeAdapter {
         Ok(report)
     }
 
-    fn fetch_dashboard(&self, config: &OpenCodeGoConfig) -> Result<QuotaReport, String> {
+    fn fetch_dashboard(&self, config: &OpenCodeGoConfig) -> Result<Option<QuotaReport>, String> {
         let endpoint = format!(
             "{OPENCODE_GO_DASHBOARD_ORIGIN}/workspace/{}/go",
             config.workspace_id
@@ -934,9 +945,12 @@ impl OpenCodeAdapter {
         }
 
         let windows = windows_from_dashboard_html(&html, Utc::now())?;
+        if windows.is_empty() {
+            return Ok(None);
+        }
         let mut report = QuotaReport::new("opencode", "provider_api", windows, DEFAULT_FRESHNESS);
         report.plan = Some("OpenCode Go".to_string());
-        Ok(report)
+        Ok(Some(report))
     }
 }
 
@@ -945,10 +959,10 @@ fn quota_report_from_go_config<F>(
     fetch: F,
 ) -> Result<Option<QuotaReport>, String>
 where
-    F: FnOnce(&OpenCodeGoConfig) -> Result<QuotaReport, String>,
+    F: FnOnce(&OpenCodeGoConfig) -> Result<Option<QuotaReport>, String>,
 {
     match config {
-        Some(config) => fetch(config).map(Some),
+        Some(config) => fetch(config),
         None => Err("NOT_CONFIGURED".to_string()),
     }
 }

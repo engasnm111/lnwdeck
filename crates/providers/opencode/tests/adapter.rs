@@ -527,6 +527,24 @@ fn dashboard_parser_recovers_monthly_from_data_slot_when_ssr_omits_it() {
 }
 
 #[test]
+fn dashboard_without_go_subscription_is_not_a_schema_error() {
+    let now = chrono::DateTime::parse_from_rfc3339("2026-09-17T00:00:00Z")
+        .expect("fixed timestamp")
+        .with_timezone(&chrono::Utc);
+    let html = r#"
+        <script>
+          ({reloadTriggerMin:5,monthlyLimit:null,monthlyUsage:null,
+            timeMonthlyUsageUpdated:null,subscription:null,subscriptionID:null})
+        </script>
+        <button data-slot="subscribe-button">Subscribe to Go</button>
+    "#;
+
+    let windows = windows_from_dashboard_html(html, now)
+        .expect("a configured workspace without Go is valid provider data");
+    assert!(windows.is_empty(), "no subscription means no quota windows");
+}
+
+#[test]
 fn malformed_dashboard_quota_cannot_turn_into_a_full_percentage() {
     let html = r#"<script>{"rollingUsage":{"usagePercent":"100"}}</script>"#;
     let error = windows_from_dashboard_html(
