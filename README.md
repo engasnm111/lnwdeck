@@ -31,6 +31,10 @@ sync is required.
   separate provider.
 - The app top bar now uses the active page icon, clearer freshness status and a
   rounded glass surface that follows the existing desktop theme.
+- The main dashboard now uses custom frameless window chrome that is drawn by
+  lnwdeck itself, so the titlebar blends into the app instead of sitting in a
+  separate native Windows layer. Dragging, minimize, maximize/restore and
+  close-to-tray behavior are preserved.
 
 See [CHANGELOG.md](CHANGELOG.md) and the
 [provider setup guide](docs/PROVIDER_QUOTA_SETUP.md) for source-specific details.

@@ -31,6 +31,9 @@ All notable changes to lnwdeck will be documented in this file.
 
 - Refreshed the top bar with the active page icon, clearer freshness state and
   glass surface treatment while keeping the existing global refresh workflow.
+- Replaced the main dashboard's native Windows title bar with custom frameless
+  chrome that follows the lnwdeck theme while preserving drag, minimize,
+  maximize/restore and close-to-tray behavior.
 
 ### Security and privacy
 
