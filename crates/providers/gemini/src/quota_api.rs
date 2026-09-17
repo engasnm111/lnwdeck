@@ -20,9 +20,9 @@ use lnwdeck_domain::{
 };
 use lnwdeck_provider_http::{post_form, post_json, JsonRequest};
 use lnwdeck_provider_runtime::command::resolve_binary;
-use lnwdeck_windows_integration::antigravity_ls::{
-    discover as discover_ls, LanguageServer, LsDiscoveryError,
-};
+use lnwdeck_windows_integration::antigravity_ls::{discover as discover_ls, LsDiscoveryError};
+#[cfg(test)]
+use lnwdeck_windows_integration::antigravity_ls::LanguageServer;
 use std::path::Path;
 use std::time::Duration;
 
