@@ -488,6 +488,7 @@ pub fn fetch_antigravity_windows(timeout: Duration) -> Result<QuotaReport, Strin
 
 /// `fetch_windows` with the two environment probes injected, so tests can
 /// exercise every state without a real IDE.
+#[cfg(test)]
 fn fetch_windows_with(
     timeout: Duration,
     ide_installed: bool,
