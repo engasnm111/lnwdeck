@@ -210,14 +210,21 @@ Repeated crash policy:
 | Claude | Local session JSONL | Anthropic OAuth usage API | Use the provider's local `claude` login; no key is copied into lnwdeck |
 | OpenAI Codex | Local session JSONL | ChatGPT `/wham/usage` plus reset-credit data; local published rate snapshot is fallback | Use the provider's local `codex` login |
 | Cursor | Local state plus account API | Cursor account usage summary API | Log in to Cursor on that machine |
-| Gemini | Local session/log | Gemini Code Assist quota API | Log in to Gemini CLI on that machine |
-| OpenCode Go | OpenCode SQLite | Authenticated OpenCode workspace dashboard | User supplies the workspace/cookie pair; see `docs/PROVIDER_QUOTA_SETUP.md` |
+| Gemini | Local session/log | Gemini CLI Cloud Code quota API | Log in to Gemini CLI on that machine |
+| Antigravity | No separate usage channel | Running IDE Language Server on loopback | Install and open Antigravity IDE |
+| OpenCode Go | OpenCode SQLite | Official Go usage API; authenticated workspace dashboard compatibility path | API key or workspace/cookie pair; see `docs/PROVIDER_QUOTA_SETUP.md` |
 | ZCode | ZCode SQLite | Z.AI/BigModel monitor API or provider-written `billing/balance` log | No local-token fallback; no source means no quota |
 | Kimi Code | `wire.jsonl` | Kimi usages API with OAuth refresh | Reuses the Kimi CLI credential file; no local-token fallback |
-| Grok | No usage channel in this adapter | xAI rate-limit API/headers | Key is entered in Settings |
+| Grok | No usage channel in this adapter | Grok Build billing API; xAI rate-limit API/headers fallback | Grok Build login or xAI key in Settings |
+| GitHub Copilot | Local artifacts | Copilot authenticated account quota endpoint | Reuses Copilot's local OAuth session |
+| Kiro | Local artifacts | `kiro-cli` `/usage` | Windows CLI 2.13+ requires a PTY and is reported unavailable rather than invoked unsafely |
+| Command Code | No usage channel | Command Code billing APIs | Reuses `~/.commandcode/auth.json` or explicit API key |
+| Devin | No usage channel | Devin seat-management plan status | Reuses Devin CLI login |
+| Ark Coding Plan / Agent Plan | No usage channel | `arkcli usage plan --format json` | Reuses `arkcli` login |
+| Qoder / Qoder CN | No usage channel | Provider renderer log; account usage API compatibility fallback | Reuses local install; optional user-managed cookie fallback |
 | OpenRouter | No usage channel in this adapter | OpenRouter credit/limit API | Key is entered in Settings |
 | Ollama | No usage channel in this adapter | Local API probe; unlimited only when reachable | Ollama must be running locally |
-| Copilot, Kiro, Z.AI, Kilo, Mimo, Roo, CodeBuddy, WorkBuddy, pi, oh-my-pi, Hermes | Local artifacts | Not supported until a provider-published limit source is verified | Usage remains available; quota is explicitly not supported |
+| Z.AI, Kilo, Mimo, Roo, CodeBuddy, WorkBuddy, pi, oh-my-pi, Hermes | Local artifacts | Not supported until a provider-published limit source is verified | Usage remains available; quota is explicitly not supported |
 
 \* oh-my-pi's notify extension is not installed by lnwdeck; the passive session
 reader is the only source.
@@ -227,12 +234,15 @@ Final capability must be verified against current provider behavior during imple
 ### OpenCode Go quota integration
 
 The OpenCode (Go) adapter has two separate channels: local SQLite session
-metadata remains the source for usage history, while quota is read from
-`https://opencode.ai/workspace/{workspace_id}/go`. The user must provide
-both `OPENCODE_GO_WORKSPACE_ID` and `OPENCODE_GO_AUTH_COOKIE` on each machine,
-either through Settings or as environment variables. Environment values take
-precedence over Credential Manager and must never be committed or placed in a
-`.env` file. The Settings form stores the pair as one credential in Windows
+metadata remains the source for usage history, while quota prefers the official
+`https://opencode.ai/zen/go/v1/usage` endpoint when `OPENCODE_GO_API_KEY` is
+explicitly configured. Existing workspace/cookie installations retain
+`https://opencode.ai/workspace/{workspace_id}/go` as the compatibility path.
+For that path the user supplies both `OPENCODE_GO_WORKSPACE_ID` and
+`OPENCODE_GO_AUTH_COOKIE` on each machine, either through Settings or as
+environment variables. Environment values take precedence over Credential
+Manager and must never be committed or placed in a `.env` file. The Settings
+form stores the workspace/cookie pair as one credential in Windows
 Credential Manager; the UI only receives `missing`, `configured` or `expired`
 state. See `docs/PROVIDER_QUOTA_SETUP.md` for the PowerShell procedure.
 

@@ -1,18 +1,13 @@
-//! Gemini subscription quota, read from the running Antigravity IDE
-//! Language Server.
+//! Gemini and Antigravity subscription quota collectors.
 //!
-//! The Antigravity IDE keeps a local gRPC server (its Language Server) that
-//! holds the user's Google session and answers the same per-model quota
-//! windows the IDE shows in Settings → Models. lnwdeck discovers that process
-//! and fetches the windows over loopback; nothing is sent outside the machine.
+//! Gemini CLI quota comes from Google's Cloud Code endpoints using the OAuth
+//! session already stored by Gemini CLI. Antigravity remains a separate
+//! quota-only provider whose live limits are read from its loopback Language
+//! Server. The two credential/session sources are never mixed.
 //!
-//! The IDE is deliberately the *only* quota source. Google's public
-//! `retrieveUserQuota` endpoint returns placeholder fractions for accounts it
-//! does not track in detail (observed as a flat "100% remaining" on real
-//! machines), so a fallback would fabricate percentages instead of telling the
-//! truth. When the IDE is closed the fetch fails with
-//! `SOURCE_REQUIRES_IDE`, which the UI presents as "open Antigravity IDE to
-//! update quota" instead of stale numbers.
+//! OAuth refresh uses the public installed-app client metadata extracted from
+//! the locally installed Gemini CLI bundle. No OAuth client secret is embedded
+//! in lnwdeck source code or persisted by lnwdeck.
 //!
 //! The Gemini CLI stores a legacy OAuth payload in `~/.gemini/oauth_creds.json`,
 //! while the current Antigravity CLI keeps its token in the OS credential
@@ -20,7 +15,11 @@
 //! account identity for fingerprinting; the raw values never leave the
 //! machine and are never logged or serialized.
 
-use lnwdeck_domain::{QuotaReport, DEFAULT_FRESHNESS};
+use lnwdeck_domain::{
+    Confidence, QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope, DEFAULT_FRESHNESS,
+};
+use lnwdeck_provider_http::{post_form, post_json, JsonRequest};
+use lnwdeck_provider_runtime::command::resolve_binary;
 use lnwdeck_windows_integration::antigravity_ls::{
     discover as discover_ls, LanguageServer, LsDiscoveryError,
 };
@@ -28,6 +27,11 @@ use std::path::Path;
 use std::time::Duration;
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
+const GEMINI_LOAD_CODE_ASSIST_URL: &str =
+    "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist";
+const GEMINI_RETRIEVE_QUOTA_URL: &str =
+    "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota";
+const GOOGLE_OAUTH_TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 
 /// Windows Credential Manager target the Antigravity CLI writes its OAuth
 /// payload to.
@@ -177,7 +181,267 @@ fn antigravity_main_js_path() -> Option<std::path::PathBuf> {
     None
 }
 
-/// Fetches the Gemini quota windows from the running Antigravity IDE
+fn oauth_expired(expires_at_ms: Option<f64>) -> bool {
+    expires_at_ms.is_some_and(|expiry| {
+        expiry.is_finite()
+            && expiry > 0.0
+            && expiry <= chrono::Utc::now().timestamp_millis() as f64 + 30_000.0
+    })
+}
+
+fn assignment_value(source: &str, name: &str) -> Option<String> {
+    let marker = source.find(name)?;
+    let after_name = &source[marker + name.len()..];
+    let equals = after_name.find('=')?;
+    let value = after_name[equals + 1..].trim_start();
+    let quote = value.chars().next()?;
+    if quote != '\'' && quote != '"' {
+        return None;
+    }
+    let tail = &value[quote.len_utf8()..];
+    let end = tail.find(quote)?;
+    let value = tail[..end].trim();
+    (!value.is_empty()).then(|| value.to_string())
+}
+
+fn gemini_oauth_client() -> Option<(String, String)> {
+    let binary = resolve_binary("gemini")?;
+    let resolved = std::fs::read_link(&binary)
+        .ok()
+        .map(|target| {
+            if target.is_absolute() {
+                target
+            } else {
+                binary
+                    .parent()
+                    .unwrap_or_else(|| Path::new(""))
+                    .join(target)
+            }
+        })
+        .unwrap_or(binary);
+    let bin_dir = resolved.parent()?;
+    let base_dir = bin_dir.parent().unwrap_or(bin_dir);
+    let relative = Path::new("node_modules")
+        .join("@google")
+        .join("gemini-cli")
+        .join("node_modules")
+        .join("@google")
+        .join("gemini-cli-core")
+        .join("dist")
+        .join("src")
+        .join("code_assist")
+        .join("oauth2.js");
+    let candidates = [
+        bin_dir.join(&relative),
+        base_dir.join("lib").join(&relative),
+        base_dir.join("libexec").join("lib").join(&relative),
+        base_dir
+            .join("share")
+            .join("gemini-cli")
+            .join("node_modules")
+            .join("@google")
+            .join("gemini-cli-core")
+            .join("dist")
+            .join("src")
+            .join("code_assist")
+            .join("oauth2.js"),
+    ];
+    for candidate in candidates {
+        let Ok(source) = std::fs::read_to_string(candidate) else {
+            continue;
+        };
+        let (Some(client_id), Some(client_secret)) = (
+            assignment_value(&source, "OAUTH_CLIENT_ID"),
+            assignment_value(&source, "OAUTH_CLIENT_SECRET"),
+        ) else {
+            continue;
+        };
+        return Some((client_id, client_secret));
+    }
+    None
+}
+
+fn refresh_access_token(refresh_token: &str, timeout: Duration) -> Result<String, String> {
+    let (client_id, client_secret) =
+        gemini_oauth_client().ok_or_else(|| "AUTH_EXPIRED".to_string())?;
+    let form = [
+        ("client_id", client_id.as_str()),
+        ("client_secret", client_secret.as_str()),
+        ("refresh_token", refresh_token),
+        ("grant_type", "refresh_token"),
+    ];
+    let response = post_form(
+        JsonRequest {
+            timeout,
+            ..JsonRequest::new(GOOGLE_OAUTH_TOKEN_URL)
+        },
+        &form,
+    )?;
+    response
+        .body
+        .get("access_token")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|token| !token.is_empty())
+        .map(str::to_string)
+        .ok_or_else(|| "SOURCE_SCHEMA_MISMATCH".to_string())
+}
+
+fn quota_number(value: Option<&serde_json::Value>) -> Option<f64> {
+    match value? {
+        serde_json::Value::Number(number) => number.as_f64(),
+        serde_json::Value::String(text) => text.trim().parse().ok(),
+        _ => None,
+    }
+    .filter(|number| number.is_finite())
+}
+
+fn quota_reset(value: Option<&serde_json::Value>) -> Option<chrono::DateTime<chrono::Utc>> {
+    let text = value?.as_str()?.trim();
+    chrono::DateTime::parse_from_rfc3339(text)
+        .ok()
+        .map(|parsed| parsed.with_timezone(&chrono::Utc))
+}
+
+fn model_window(
+    buckets: &[serde_json::Value],
+    predicate: impl Fn(&str) -> bool,
+    key: &str,
+    label: &str,
+) -> Option<QuotaWindow> {
+    let bucket = buckets
+        .iter()
+        .filter_map(|bucket| {
+            let model = bucket.get("modelId")?.as_str()?;
+            let remaining = quota_number(bucket.get("remainingFraction"))?;
+            if predicate(model) && (0.0..=1.0).contains(&remaining) {
+                Some((bucket, remaining))
+            } else {
+                None
+            }
+        })
+        .min_by(|(_, left), (_, right)| left.total_cmp(right))?;
+    Some(QuotaWindow::from_percent(
+        key,
+        label,
+        QuotaWindowScope::Other,
+        QuotaKind::Requests,
+        (100.0 - bucket.1 * 100.0).clamp(0.0, 100.0),
+        quota_reset(bucket.0.get("resetTime")),
+        Confidence::High,
+    ))
+}
+
+/// Normalizes the current Gemini `retrieveUserQuota` response. Each model can
+/// appear more than once, so the most restrictive bucket is retained for each
+/// family, matching the provider's own effective quota.
+pub fn windows_from_cloudcode(payload: &serde_json::Value) -> Result<Vec<QuotaWindow>, String> {
+    let buckets = payload
+        .get("buckets")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| "SOURCE_SCHEMA_MISMATCH".to_string())?;
+    let lower = |model: &str| model.to_ascii_lowercase();
+    let mut windows = Vec::new();
+    if let Some(window) = model_window(
+        buckets,
+        |model| lower(model).contains("pro"),
+        "gemini_pro",
+        "Gemini Pro",
+    ) {
+        windows.push(window);
+    }
+    if let Some(window) = model_window(
+        buckets,
+        |model| {
+            let model = lower(model);
+            model.contains("flash") && !model.contains("flash-lite")
+        },
+        "gemini_flash",
+        "Gemini Flash",
+    ) {
+        windows.push(window);
+    }
+    if let Some(window) = model_window(
+        buckets,
+        |model| lower(model).contains("flash-lite"),
+        "gemini_flash_lite",
+        "Gemini Flash Lite",
+    ) {
+        windows.push(window);
+    }
+    if windows.is_empty() {
+        return Err("SOURCE_SCHEMA_MISMATCH".to_string());
+    }
+    Ok(windows)
+}
+
+fn fetch_cloudcode(auth_path: &Path, timeout: Duration) -> Result<Option<QuotaReport>, String> {
+    let Some(oauth) = read_oauth(auth_path) else {
+        return Ok(None);
+    };
+    let mut access_token = oauth.access_token;
+    if oauth_expired(oauth.expires_at_ms) {
+        let refresh_token = oauth
+            .refresh_token
+            .as_deref()
+            .ok_or_else(|| "AUTH_EXPIRED".to_string())?;
+        access_token = refresh_access_token(refresh_token, timeout)?;
+    }
+
+    let metadata = serde_json::json!({
+        "metadata": {"ideType": "GEMINI_CLI", "pluginType": "GEMINI"}
+    });
+    let status = post_json(
+        JsonRequest {
+            timeout,
+            ..JsonRequest::new(GEMINI_LOAD_CODE_ASSIST_URL)
+        }
+        .bearer(&access_token),
+        &metadata,
+    )?;
+    let project = status
+        .body
+        .get("cloudaicompanionProject")
+        .and_then(|value| match value {
+            serde_json::Value::String(text) => Some(text.as_str()),
+            serde_json::Value::Object(map) => map
+                .get("id")
+                .or_else(|| map.get("projectId"))
+                .and_then(serde_json::Value::as_str),
+            _ => None,
+        })
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let request = project
+        .map(|project| serde_json::json!({"project": project}))
+        .unwrap_or_else(|| serde_json::json!({}));
+    let response = post_json(
+        JsonRequest {
+            timeout,
+            ..JsonRequest::new(GEMINI_RETRIEVE_QUOTA_URL)
+        }
+        .bearer(&access_token),
+        &request,
+    )?;
+    let windows = windows_from_cloudcode(&response.body)?;
+    let mut report = QuotaReport::new("google_gemini", "provider_api", windows, DEFAULT_FRESHNESS);
+    report.plan = status
+        .body
+        .pointer("/currentTier/id")
+        .and_then(serde_json::Value::as_str)
+        .map(|tier| match tier {
+            "standard-tier" => "Paid".to_string(),
+            "legacy-tier" => "Legacy".to_string(),
+            "free-tier" => "Free".to_string(),
+            other => other.to_string(),
+        });
+    Ok(Some(report))
+}
+
+/// Fetches Gemini quota. The current Cloud Code API is preferred when Gemini
+/// CLI OAuth credentials are present; the local Antigravity Language Server is
+/// retained as a credential-free fallback for Antigravity users.
+///
 /// Language Server.
 ///
 /// `Err("NOT_INSTALLED")` means the IDE is not installed on this machine;
@@ -186,8 +450,40 @@ fn antigravity_main_js_path() -> Option<std::path::PathBuf> {
 /// surface as `SOURCE_UNAVAILABLE`. No token, credential or request is needed
 /// for the Language Server call itself, so nothing is fetched when the IDE is
 /// closed.
-pub fn fetch_windows(timeout: Duration) -> Result<QuotaReport, String> {
-    fetch_windows_with(timeout, antigravity_main_js_path().is_some(), discover_ls)
+pub fn fetch_windows(timeout: Duration, auth_path: &Path) -> Result<QuotaReport, String> {
+    fetch_cloudcode(auth_path, timeout)?.ok_or_else(|| "NOT_CONFIGURED".to_string())
+}
+
+pub fn antigravity_installed() -> bool {
+    antigravity_main_js_path().is_some()
+}
+
+/// Reads the real Antigravity quota from the running IDE Language Server.
+/// Installation and runtime state stay separate so uninstalling Antigravity
+/// makes detection false instead of producing a collector error.
+pub fn fetch_antigravity_windows(timeout: Duration) -> Result<QuotaReport, String> {
+    if !antigravity_installed() {
+        return Err("NOT_INSTALLED".to_string());
+    }
+    let ls = match discover_ls() {
+        Ok(ls) => ls,
+        Err(LsDiscoveryError::NotRunning) => return Err("SOURCE_REQUIRES_IDE".to_string()),
+        Err(_) => return Err("SOURCE_UNAVAILABLE".to_string()),
+    };
+    let windows = super::ls_quota::fetch_ls_windows(
+        &ls.ports,
+        &ls.csrf_token,
+        timeout.min(Duration::from_secs(3)),
+    )?;
+    if windows.is_empty() {
+        return Err("SOURCE_SCHEMA_MISMATCH".to_string());
+    }
+    Ok(QuotaReport::new(
+        "antigravity",
+        "local_language_server",
+        windows,
+        DEFAULT_FRESHNESS,
+    ))
 }
 
 /// `fetch_windows` with the two environment probes injected, so tests can
@@ -252,6 +548,24 @@ mod tests {
         let blank = dir.path().join("blank.json");
         std::fs::write(&blank, r#"{"access_token":""}"#).expect("write");
         assert_eq!(read_oauth(&blank), None);
+    }
+
+    #[test]
+    fn cloudcode_quota_uses_the_most_restrictive_model_bucket() {
+        let payload = serde_json::json!({
+            "buckets": [
+                {"modelId":"gemini-2.5-pro", "remainingFraction":0.75, "resetTime":"2026-09-18T00:00:00Z"},
+                {"modelId":"gemini-2.5-pro-preview", "remainingFraction":0.25, "resetTime":"2026-09-18T01:00:00Z"},
+                {"modelId":"gemini-2.5-flash", "remainingFraction":0.5, "resetTime":"2026-09-18T02:00:00Z"},
+                {"modelId":"gemini-2.5-flash-lite", "remainingFraction":0.9, "resetTime":"2026-09-18T03:00:00Z"}
+            ]
+        });
+        let windows = windows_from_cloudcode(&payload).expect("quota windows");
+        assert_eq!(windows.len(), 3);
+        assert_eq!(windows[0].window_key, "gemini_pro");
+        assert_eq!(windows[0].used_percent, Some(75.0));
+        assert_eq!(windows[1].used_percent, Some(50.0));
+        assert_eq!(windows[2].used_percent, Some(10.0));
     }
 
     #[test]
@@ -393,7 +707,15 @@ mod tests {
     #[test]
     #[ignore]
     fn live_ls_quota_fetch() {
-        let report = fetch_windows(Duration::from_secs(20)).expect("quota fetch must not error");
+        let home = std::env::var_os("USERPROFILE")
+            .or_else(|| std::env::var_os("HOME"))
+            .map(std::path::PathBuf::from)
+            .unwrap_or_default();
+        let report = fetch_windows(
+            Duration::from_secs(20),
+            &home.join(".gemini").join("oauth_creds.json"),
+        )
+        .expect("quota fetch must not error");
         println!("plan={:?}", report.plan);
         for window in &report.windows {
             println!(

@@ -1,4 +1,6 @@
-use lnwdeck_provider_opencode::{windows_from_dashboard_html, OpenCodeAdapter};
+use lnwdeck_provider_opencode::{
+    windows_from_dashboard_html, windows_from_usage_api, OpenCodeAdapter,
+};
 use lnwdeck_provider_runtime::{AdapterHealthStatus, ProviderAdapter};
 use lnwdeck_security::PrivacyGuard;
 use rusqlite::Connection;
@@ -85,20 +87,14 @@ fn detection_negative_when_database_missing() {
     let adapter = adapter_for(&missing);
 
     let result = adapter.detect().expect("detect");
-    if result.detected {
-        assert_eq!(result.permission_state, "credential_stored");
-        assert_eq!(result.detection_method, "credential");
-        assert_eq!(result.source_type, "remote_api");
-        assert!(result.source_exists);
-    } else {
-        assert!(!result.source_exists);
-        assert_eq!(result.permission_state, "credential_required");
-        assert_eq!(result.detection_error_code, "NOT_CONFIGURED");
-        assert_eq!(
-            adapter.health_check().status,
-            AdapterHealthStatus::NotConfigured
-        );
-    }
+    assert!(!result.detected);
+    assert!(!result.source_exists);
+    assert!(matches!(
+        result.permission_state.as_str(),
+        "credential_required" | "credential_stored"
+    ));
+    assert!(result.detection_error_code.is_empty());
+    assert_eq!(adapter.health_check().status, AdapterHealthStatus::Degraded);
 }
 
 #[test]
@@ -342,6 +338,34 @@ fn health_reflects_detection() {
             | AdapterHealthStatus::Degraded
             | AdapterHealthStatus::NotConfigured
     ));
+}
+
+#[test]
+fn official_usage_api_accepts_current_and_legacy_window_shapes() {
+    let now = chrono::DateTime::parse_from_rfc3339("2026-09-17T00:00:00Z")
+        .expect("fixed timestamp")
+        .with_timezone(&chrono::Utc);
+    let current = serde_json::json!({
+        "usage": {
+            "rolling": {"percent": 0.42, "resetsAt": "2026-09-17T05:00:00Z"},
+            "weekly": {"percent": 18, "resets_at": "2026-09-21T00:00:00Z"},
+            "monthly": {"usagePercent": 33, "resetInSec": 3600}
+        }
+    });
+    let windows = windows_from_usage_api(&current, now);
+    assert_eq!(windows.len(), 3);
+    assert_eq!(windows[0].used_percent, Some(42.0));
+    assert_eq!(windows[1].used_percent, Some(18.0));
+    assert_eq!(windows[2].used_percent, Some(33.0));
+    assert!(windows.iter().all(|window| window.reset_at.is_some()));
+
+    let legacy = serde_json::json!({
+        "rollingUsage": {"usagePercent": 7, "resetInSec": 120},
+        "weeklyUsage": {"usagePercent": 8, "resetInSec": 240}
+    });
+    let legacy_windows = windows_from_usage_api(&legacy, now);
+    assert_eq!(legacy_windows.len(), 2);
+    assert_eq!(legacy_windows[0].used_percent, Some(7.0));
 }
 
 #[test]

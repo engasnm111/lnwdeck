@@ -107,15 +107,22 @@ lnwdeck จึงไม่ใช้ local token total เป็น quota โด�
 | Claude | session JSONL | Anthropic OAuth usage API | รัน `claude` login บนเครื่องนั้น |
 | OpenAI Codex | session JSONL | ChatGPT `/wham/usage` และ reset-credit endpoint; local rate snapshot เป็น fallback ที่ provider ประกาศ | รัน `codex login` |
 | Cursor | account API/local state | Cursor account usage summary API | ล็อกอิน Cursor บนเครื่องนั้น |
-| Gemini | session/log | Antigravity IDE Language Server เท่านั้น (ต้องเปิด IDE อยู่); ปิด IDE = ไม่มีโควต้า แสดงข้อความให้เปิด IDE | ล็อกอิน Antigravity IDE บนเครื่องนั้น |
-| OpenCode Go | OpenCode SQLite | `https://opencode.ai/workspace/{workspace}/go` | คู่ env หรือ Settings ตามขั้นตอนด้านบน |
+| Gemini | session/log | Gemini CLI Cloud Code quota API | ล็อกอิน Gemini CLI; OAuth token อยู่ใน `~/.gemini/oauth_creds.json` |
+| Antigravity | ไม่มี usage channel แยก | Antigravity IDE Language Server บน loopback | ติดตั้งและเปิด Antigravity IDE |
+| OpenCode Go | OpenCode SQLite | official Go usage API เมื่อมี `OPENCODE_GO_API_KEY`; workspace dashboard เป็น compatibility fallback | API key หรือคู่ workspace id + auth cookie |
 | ZCode | ZCode SQLite | Z.AI/BigModel monitor API หรือ `billing/balance` log ที่ ZCode เขียนเอง | coding-plan credential ของ ZCode ถ้ามี |
 | Kimi Code | `wire.jsonl` | `https://api.kimi.com/coding/v1/usages` และ OAuth refresh | ล็อกอิน Kimi; รองรับ `KIMI_HOME`/`KIMI_CODE_HOME` |
-| Grok | ไม่มี usage channel ในตัว | xAI rate-limit headers/API | ใส่ key ใน Settings |
+| Grok | ไม่มี usage channel ในตัว | Grok Build billing API จาก session ใน `~/.grok/auth.json`; xAI rate-limit headers เป็น fallback สำหรับ API key | ล็อกอิน Grok Build หรือใส่ xAI key ใน Settings |
+| Command Code | ไม่มี usage channel ในตัว | Command Code `whoami`, credits และ subscriptions API | `COMMAND_CODE_API_KEY` หรือ `~/.commandcode/auth.json` |
+| Devin | ไม่มี usage channel ในตัว | Devin seat-management `GetPlanStatus` | ล็อกอิน Devin CLI (`devin auth login`) |
+| Ark Coding Plan | ไม่มี usage channel แยก | `arkcli usage plan --format json` | ติดตั้งและล็อกอิน `arkcli` |
+| Ark Agent Plan | ไม่มี usage channel แยก | `arkcli usage plan --format json` | ติดตั้งและล็อกอิน `arkcli` |
+| Qoder | ไม่มี usage channel แยก | local `renderer.log`; Qoder usage API เมื่อกำหนด `QODER_COOKIE` | ล็อกอิน Qoder; cookie เป็น fallback แบบ user-managed |
+| Qoder CN | ไม่มี usage channel แยก | local `renderer.log`; Qoder CN usage API เมื่อกำหนด `QODER_CN_COOKIE` | ล็อกอิน Qoder CN; cookie เป็น fallback แบบ user-managed |
 | OpenRouter | ไม่มี usage channel ในตัว | OpenRouter credits/limits API | ใส่ key ใน Settings |
 | Ollama | ไม่มี usage channel ในตัว | local API probe; แสดง unlimited เฉพาะเมื่อ API ตอบ | เปิด Ollama ที่เครื่องนั้น |
-| GitHub Copilot | local artifact | ยังไม่มีแหล่ง quota ที่รับรองใน adapter นี้ | usage ได้; quota แสดง not supported |
-| Kiro AI | local artifact/sidecar | ยังไม่มีแหล่ง quota ที่รับรองใน adapter นี้ | usage ได้; quota แสดง not supported |
+| GitHub Copilot | local artifact | `https://api.github.com/copilot_internal/user` | ล็อกอิน Copilot CLI/extension; รองรับ plaintext auth และ auth.db schema 0 |
+| Kiro AI | local artifact/sidecar | `kiro-cli` `/usage`; Windows Kiro CLI 2.13+ ต้องใช้ PTY จึงรายงาน unavailable แทนการส่ง `/usage` เป็น model prompt | ติดตั้ง/ล็อกอิน `kiro-cli` |
 | Z.AI (GLM) | local log | ยังไม่มี limit API ที่ผูกกับ adapter นี้ | usage ได้; quota แสดง not supported |
 | Kilo CLI | local artifact | ไม่มี limit ที่ provider ประกาศให้ adapter ใช้ | usage ได้; quota แสดง not supported |
 | Kilo Code | local artifact | ไม่มี limit ที่ provider ประกาศให้ adapter ใช้ | usage ได้; quota แสดง not supported |
@@ -162,23 +169,21 @@ process ของ lnwdeck ที่รันบน Windows และ Credential 
 การอ่านข้อมูลเป็น passive read-only: lnwdeck ไม่สั่ง login แทนผู้ใช้ ไม่เขียนทับ
 ไฟล์ credential และไม่ส่งข้อมูลจาก WSL หรือ Windows ไป cloud ของ lnwdeck
 
-## Gemini: ต้องเปิด Antigravity IDE ถึงจะอ่านโควต้าได้
+## Gemini และ Antigravity แยกแหล่งโควต้าแล้ว
 
-โควต้าของ Gemini อ่านจาก **Antigravity IDE Language Server** เท่านั้น เพราะ
-Google ออกข้อมูลราย window (รายสัปดาห์ / 5 ชั่วโมง) ให้กับ language server
-ของ IDE เท่านั้น:
+Gemini CLI กับ Antigravity ใช้คนละ session จึงแยกเป็นคนละ provider card:
 
-- **เปิด Antigravity IDE อยู่** → lnwdeck แสดงเปอร์เซ็นต์จริงเหมือนในหน้า
-  IDE → Settings → Models
-- **ปิด Antigravity IDE** → lnwdeck **ไม่แสดงโควต้า** และแจ้งให้ผู้ใช้เปิด IDE
-  (card/widget/pet tooltip แสดง "ต้องเปิด Antigravity IDE")
-- ข้อมูลเก่าที่ยังเก็บอยู่จะแสดงเป็น **stale (เก่า)** พร้อมเวลาที่อ่านครั้ง
-  ล่าสุด ไม่ถูกนำเสนอเป็นข้อมูลสด และ lnwdeck จะไม่สร้างเปอร์เซ็นต์แทนจาก
-  endpoint อื่นอีกต่อไป (การ fallback ไป `retrieveUserQuota` ถูกยกเลิก เพราะ
-  คืนค่า placeholder ที่ทำให้แสดง 100% ผิดๆ)
+- **Gemini** อ่าน quota จาก Cloud Code API ด้วย OAuth ที่ Gemini CLI เก็บไว้ใน
+  `~/.gemini/oauth_creds.json` ไม่ต้องเปิด Antigravity IDE
+- **Antigravity** อ่าน quota จาก Language Server บน loopback ของ IDE ดังนั้น
+  ต้องติดตั้งและเปิด Antigravity IDE จึงจะ refresh quota สดได้
+- ถ้า Antigravity ถูกถอนการติดตั้ง ระบบจะตรวจว่า source หายและไม่เรียก collector
+  ต่อเหมือนเป็น provider ที่ยังติดตั้งอยู่
+- ถ้า IDE ติดตั้งแต่ปิดอยู่ จะได้สถานะ `SOURCE_REQUIRES_IDE`; ข้อมูลเก่าที่ยัง
+  มีอยู่สามารถแสดงเป็น stale ได้ แต่จะไม่ถูกนำเสนอเป็นข้อมูลสด
 
-ถ้าเครื่องไม่มี Antigravity IDE ติดตั้ง จะแสดง "ไม่มีการเชื่อมต่อ" (ไม่ใช่
-error ของ refresh ทั้งรอบ)
+Gemini OAuth refresh จะอ่าน OAuth client metadata จาก Gemini CLI ที่ติดตั้งอยู่
+ในเครื่อง ไม่มี client secret ฝังอยู่ใน source code ของ lnwdeck
 
 ## การแก้ปัญหาโดยดูสถานะ
 
@@ -188,11 +193,13 @@ error ของ refresh ทั้งรอบ)
 เปิด provider หรือ profile อยู่คนละตำแหน่ง ให้ติดตั้ง/ล็อกอิน provider นั้นแล้ว
 กด refresh ใหม่
 
-### Gemini ไม่แสดงโควต้า / ขึ้น "ต้องเปิด Antigravity IDE"
+### Gemini หรือ Antigravity ไม่แสดงโควต้า
 
-Antigravity IDE ไม่ได้เปิดอยู่ โควต้า Gemini อ่านได้จาก IDE ที่เปิดเท่านั้น ให้
-เปิด Antigravity IDE แล้วกด refresh ใหม่ ข้อมูลจะกลับมาแสดงพร้อมเวลาอัปเดต
-ล่าสุด
+- Gemini: ตรวจว่า Gemini CLI ล็อกอินอยู่และมี `~/.gemini/oauth_creds.json` ถ้า
+  access token หมดอายุแต่หา OAuth client metadata จาก Gemini CLI ที่ติดตั้งอยู่
+  ไม่ได้ ระบบจะขอให้ล็อกอินใหม่แทนการเดา credential
+- Antigravity: ถ้า IDE ติดตั้งแต่ปิดอยู่ ให้เปิด Antigravity IDE แล้ว refresh;
+  ถ้าถอนการติดตั้งแล้ว provider จะเปลี่ยนเป็นไม่มี source และไม่ถูก poll ต่อ
 
 ### `ต้องตั้งค่า` หรือ `ยังไม่ได้ตั้งค่า`
 

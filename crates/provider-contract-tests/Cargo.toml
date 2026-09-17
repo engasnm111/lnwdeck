@@ -30,3 +30,7 @@ lnwdeck-provider-workbuddy = { path = "../providers/workbuddy" }
 lnwdeck-provider-pi-agent = { path = "../providers/pi-agent" }
 lnwdeck-provider-omp = { path = "../providers/omp" }
 lnwdeck-provider-hermes = { path = "../providers/hermes" }
+lnwdeck-provider-command-code = { path = "../providers/command-code" }
+lnwdeck-provider-devin = { path = "../providers/devin" }
+lnwdeck-provider-ark = { path = "../providers/ark" }
+lnwdeck-provider-qoder = { path = "../providers/qoder" }

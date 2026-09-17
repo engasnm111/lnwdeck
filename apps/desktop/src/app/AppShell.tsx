@@ -147,6 +147,7 @@ export function AppShell() {
   }, []);
 
   const freshness = freshnessOf(lastSync, now);
+  const CurrentNavIcon = currentNav.icon;
 
   return (
     <>
@@ -241,16 +242,22 @@ export function AppShell() {
           </div>
         )}
         <header className="app-topbar">
-          <h1 className="app-topbar-title">{t(currentNav.key)}</h1>
+          <div className="app-topbar-heading">
+            <span className="app-topbar-page-icon" aria-hidden="true">
+              <CurrentNavIcon />
+            </span>
+            <h1 className="app-topbar-title">{t(currentNav.key)}</h1>
+          </div>
           <div className="app-topbar-actions">
-            <span className="app-freshness">
-              <span>
+            <div className="app-freshness">
+              <span className="app-freshness-indicator" aria-hidden="true" />
+              <span className="app-freshness-copy">
                 {lastSync
                   ? t("topbar.collected", { time: formatRelativeTime(lastSync, now, language) })
                   : t("topbar.noCollection")}
               </span>
               <Badge tone={freshness.tone}>{freshness.label}</Badge>
-            </span>
+            </div>
             <Button
               variant="secondary"
               onClick={() => void handleGlobalRefresh()}

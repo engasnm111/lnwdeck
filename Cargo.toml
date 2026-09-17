@@ -35,6 +35,10 @@ members = [
     "crates/providers/pi-agent",
     "crates/providers/omp",
     "crates/providers/hermes",
+    "crates/providers/command-code",
+    "crates/providers/devin",
+    "crates/providers/ark",
+    "crates/providers/qoder",
     "crates/provider-contract-tests",
     "crates/windows-integration",
 ]

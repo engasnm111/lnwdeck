@@ -3,7 +3,7 @@ use lnwdeck_domain::{
     Confidence, QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope, UsageBatch, UsageEvent,
     DEFAULT_FRESHNESS,
 };
-use lnwdeck_provider_http::{code_for_status, get_text, JsonRequest};
+use lnwdeck_provider_http::{code_for_status, get_json, get_text, JsonRequest};
 use lnwdeck_provider_runtime::{
     AdapterDescriptor, AdapterHealth, AdapterHealthStatus, AuthKind, ChannelSupport,
     CollectionOutcome, CollectionResult, DetectionResult, Permission, ProviderAdapter, SourceKind,
@@ -30,7 +30,9 @@ const ADAPTER_VERSION: &str = "0.3.0";
 pub const OPENCODE_GO_CREDENTIAL_ID: &str = "opencode_go";
 const OPENCODE_GO_AUTH_COOKIE_ENV: &str = "OPENCODE_GO_AUTH_COOKIE";
 const OPENCODE_GO_WORKSPACE_ID_ENV: &str = "OPENCODE_GO_WORKSPACE_ID";
+const OPENCODE_GO_API_KEY_ENV: &str = "OPENCODE_GO_API_KEY";
 const OPENCODE_GO_DASHBOARD_ORIGIN: &str = "https://opencode.ai";
+const OPENCODE_GO_USAGE_API: &str = "https://opencode.ai/zen/go/v1/usage";
 const MAX_DASHBOARD_HTML_BYTES: usize = 8 * 1024 * 1024;
 
 /// Validated OpenCode Go configuration kept inside one OS credential.
@@ -146,6 +148,95 @@ fn read_go_config() -> Result<Option<OpenCodeGoConfig>, String> {
         Err(CredentialError::Corrupt) => Err("AUTH_EXPIRED".to_string()),
         Err(error) => Err(error.to_string()),
     }
+}
+
+fn read_go_api_key() -> Option<String> {
+    std::env::var(OPENCODE_GO_API_KEY_ENV)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn numeric_value(value: Option<&serde_json::Value>) -> Option<f64> {
+    match value? {
+        serde_json::Value::Number(number) => number.as_f64(),
+        serde_json::Value::String(text) => text.trim().parse().ok(),
+        _ => None,
+    }
+    .filter(|value| value.is_finite())
+}
+
+fn api_reset_at(value: &serde_json::Value, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
+    for key in ["resetsAt", "resets_at", "resetAt", "reset_at"] {
+        if let Some(text) = value.get(key).and_then(serde_json::Value::as_str) {
+            if let Ok(parsed) = DateTime::parse_from_rfc3339(text) {
+                return Some(parsed.with_timezone(&Utc));
+            }
+        }
+    }
+    for key in ["resetInSec", "reset_in_sec"] {
+        if let Some(seconds) = numeric_value(value.get(key)) {
+            return now.checked_add_signed(chrono::Duration::seconds(seconds.max(0.0) as i64));
+        }
+    }
+    None
+}
+
+fn api_window(
+    value: &serde_json::Value,
+    key: &str,
+    label: &str,
+    scope: QuotaWindowScope,
+    now: DateTime<Utc>,
+) -> Option<QuotaWindow> {
+    let mut percent = ["percent", "usagePercent", "usage_percent"]
+        .iter()
+        .find_map(|field| numeric_value(value.get(*field)))?;
+    if percent > 0.0 && percent < 1.0 {
+        percent *= 100.0;
+    }
+    if !(0.0..=100.0).contains(&percent) {
+        return None;
+    }
+    Some(QuotaWindow::from_percent(
+        key,
+        label,
+        scope,
+        QuotaKind::Credits,
+        percent,
+        api_reset_at(value, now),
+        Confidence::High,
+    ))
+}
+
+/// Parses both OpenCode Go usage API shapes seen in production: the original
+/// `rollingUsage`/`weeklyUsage`/`monthlyUsage` form and the current nested
+/// `usage.rolling`/`usage.weekly`/`usage.monthly` form.
+pub fn windows_from_usage_api(payload: &serde_json::Value, now: DateTime<Utc>) -> Vec<QuotaWindow> {
+    let usage = payload.get("usage").unwrap_or(payload);
+    [
+        (
+            usage.get("rolling").or_else(|| payload.get("rollingUsage")),
+            "5h",
+            "5-hour",
+            QuotaWindowScope::Rolling,
+        ),
+        (
+            usage.get("weekly").or_else(|| payload.get("weeklyUsage")),
+            "7d",
+            "7-day",
+            QuotaWindowScope::Weekly,
+        ),
+        (
+            usage.get("monthly").or_else(|| payload.get("monthlyUsage")),
+            "30d",
+            "30-day",
+            QuotaWindowScope::Monthly,
+        ),
+    ]
+    .into_iter()
+    .filter_map(|(value, key, label, scope)| api_window(value?, key, label, scope, now))
+    .collect()
 }
 
 /// Parses the authoritative OpenCode Go workspace dashboard response.
@@ -543,7 +634,9 @@ impl OpenCodeAdapter {
     }
 
     fn detection(&self) -> Result<DetectionResult, String> {
-        let source_exists = self.db_path.is_file();
+        let local_source_exists = self.db_path.is_file();
+        let api_configured = read_go_api_key().is_some();
+        let source_exists = local_source_exists || api_configured;
         let config_state = read_go_config();
         let configured = matches!(&config_state, Ok(Some(_)));
         let config_error = config_state.as_ref().err().cloned();
@@ -554,26 +647,32 @@ impl OpenCodeAdapter {
             detected: false,
             detection_method: "local_sqlite+credential".to_string(),
             source_type: "sqlite".to_string(),
-            source_exists: source_exists || configured,
-            permission_state: if configured {
+            source_exists,
+            permission_state: if api_configured {
+                "api_key_configured".to_string()
+            } else if configured {
                 "credential_stored".to_string()
             } else {
                 "credential_required".to_string()
             },
             adapter_version: ADAPTER_VERSION.to_string(),
             last_detection_at: Some(Utc::now().to_rfc3339()),
-            detection_error_code: config_error.unwrap_or_else(|| {
-                if configured {
-                    String::new()
-                } else {
-                    "NOT_CONFIGURED".to_string()
-                }
-            }),
+            detection_error_code: if api_configured || !source_exists {
+                String::new()
+            } else {
+                config_error.unwrap_or_else(|| {
+                    if configured {
+                        String::new()
+                    } else {
+                        "NOT_CONFIGURED".to_string()
+                    }
+                })
+            },
         };
-        if !source_exists {
-            if configured {
+        if !local_source_exists {
+            if api_configured {
                 result.detected = true;
-                result.detection_method = "credential".to_string();
+                result.detection_method = "usage_api".to_string();
                 result.source_type = "remote_api".to_string();
             }
             return Ok(result);
@@ -779,9 +878,36 @@ impl OpenCodeAdapter {
     }
 
     fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
+        if let Some(api_key) = read_go_api_key() {
+            match self.fetch_usage_api(&api_key) {
+                Ok(report) => return Ok(Some(report)),
+                Err(code) if code == "AUTH_EXPIRED" => return Err(code),
+                Err(_) => {
+                    // Keep the dashboard path as a compatibility fallback for
+                    // existing installations when the official API has a
+                    // transient failure or changes shape.
+                }
+            }
+        }
         let config = read_go_config()?;
-
         quota_report_from_go_config(config.as_ref(), |config| self.fetch_dashboard(config))
+    }
+
+    fn fetch_usage_api(&self, api_key: &str) -> Result<QuotaReport, String> {
+        let response = get_json(
+            JsonRequest {
+                timeout: std::time::Duration::from_secs(10),
+                ..JsonRequest::new(OPENCODE_GO_USAGE_API)
+            }
+            .bearer(api_key),
+        )?;
+        let windows = windows_from_usage_api(&response.body, Utc::now());
+        if windows.is_empty() {
+            return Err("SOURCE_SCHEMA_MISMATCH".to_string());
+        }
+        let mut report = QuotaReport::new("opencode", "provider_api", windows, DEFAULT_FRESHNESS);
+        report.plan = Some("OpenCode Go".to_string());
+        Ok(report)
     }
 
     fn fetch_dashboard(&self, config: &OpenCodeGoConfig) -> Result<QuotaReport, String> {

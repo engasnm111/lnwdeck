@@ -2,6 +2,47 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [13.1.0] - 2026-09-17
+
+### Provider quota coverage
+
+- Added native quota adapters for Command Code, Devin, Ark Coding Plan, Ark
+  Agent Plan, Qoder and Qoder CN.
+- GitHub Copilot now reads the provider-published premium-interaction/chat
+  quota from Copilot's authenticated account endpoint while retaining passive
+  local usage collection.
+- Gemini CLI quota now uses its Cloud Code OAuth session. Antigravity is a
+  separate quota-only provider backed by the running IDE Language Server, so
+  the two Google sessions are no longer conflated.
+- Grok prefers Grok Build's subscription billing pool from the existing CLI
+  OIDC session and keeps xAI API-key rate limits as a fallback.
+- OpenCode Go prefers the official Go usage API when an API key is explicitly
+  configured and keeps the workspace dashboard as the compatibility path.
+- Codex handles the current spend-control credit bucket and Spark-specific
+  rate-limit windows. ZCode honors the currently selected provider family
+  before stale config entries.
+- Kiro reads `/usage` through `kiro-cli` when it is safe to do so. Windows
+  Kiro CLI 2.13+ is reported as requiring a PTY instead of piping `/usage` as a
+  model prompt and potentially spending credits.
+- Providers whose source has been removed are detected before collection and
+  are no longer polled as if they were still installed.
+
+### Desktop polish
+
+- Refreshed the top bar with the active page icon, clearer freshness state and
+  glass surface treatment while keeping the existing global refresh workflow.
+
+### Security and privacy
+
+- Provider CLI calls are bounded by a timeout, reject unsafe Windows batch
+  metacharacters, and return only captured quota output.
+- Gemini OAuth refresh extracts the public installed-app client metadata from
+  the locally installed Gemini CLI bundle; no OAuth client secret is embedded
+  in lnwdeck source code.
+- New provider credentials remain in provider-owned files, process environment
+  or the existing OS credential store and are never written to lnwdeck SQLite,
+  UI read models or logs.
+
 ## [13.0.1] - 2026-08-13
 
 ### Update checks work where github.com is blocked

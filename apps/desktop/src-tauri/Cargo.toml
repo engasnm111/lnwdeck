@@ -1,6 +1,6 @@
 [package]
 name = "lnwdeck-desktop"
-version = "13.0.1"
+version = "13.1.0"
 description = "lnwdeck desktop application"
 authors = ["lnwdeck contributors"]
 edition = "2021"
@@ -49,6 +49,10 @@ lnwdeck-provider-workbuddy = { path = "../../../crates/providers/workbuddy" }
 lnwdeck-provider-pi-agent = { path = "../../../crates/providers/pi-agent" }
 lnwdeck-provider-omp = { path = "../../../crates/providers/omp" }
 lnwdeck-provider-hermes = { path = "../../../crates/providers/hermes" }
+lnwdeck-provider-command-code = { path = "../../../crates/providers/command-code" }
+lnwdeck-provider-devin = { path = "../../../crates/providers/devin" }
+lnwdeck-provider-ark = { path = "../../../crates/providers/ark" }
+lnwdeck-provider-qoder = { path = "../../../crates/providers/qoder" }
 rusqlite = { version = "0.31", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 getrandom = "0.3"

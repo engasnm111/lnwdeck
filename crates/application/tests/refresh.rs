@@ -207,6 +207,48 @@ impl ProviderAdapter for FailingAdapter {
             provider_id: "failing_provider".to_string(),
             display_name: "Failing Provider".to_string(),
             enabled: true,
+            detected: true,
+            detection_method: "fixture".to_string(),
+            source_type: "fixture".to_string(),
+            source_exists: true,
+            permission_state: "read_ok".to_string(),
+            adapter_version: "0.2.0".to_string(),
+            last_detection_at: Some("2026-08-03T00:00:00Z".to_string()),
+            detection_error_code: String::new(),
+        })
+    }
+}
+
+struct RemovedAdapter;
+
+impl ProviderAdapter for RemovedAdapter {
+    fn descriptor(&self) -> AdapterDescriptor {
+        fixture_descriptor(
+            "removed_provider",
+            "Removed Provider",
+            ChannelSupport::LocalEstimate,
+        )
+    }
+    fn collect_usage(&self) -> Result<UsageBatch, String> {
+        panic!("usage collection must not run for an absent provider")
+    }
+    fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
+        panic!("quota collection must not run for an absent provider")
+    }
+    fn health_check(&self) -> AdapterHealth {
+        AdapterHealth {
+            status: AdapterHealthStatus::Unhealthy,
+            message: "not installed".to_string(),
+        }
+    }
+    fn required_permissions(&self) -> Vec<Permission> {
+        vec![]
+    }
+    fn detect(&self) -> Result<DetectionResult, String> {
+        Ok(DetectionResult {
+            provider_id: "removed_provider".to_string(),
+            display_name: "Removed Provider".to_string(),
+            enabled: true,
             detected: false,
             detection_method: "fixture".to_string(),
             source_type: "fixture".to_string(),
@@ -377,6 +419,27 @@ fn failing_adapter_is_isolated_and_recorded() {
     let diag = DiagnosticsRepository::new(&storage.conn);
     let runs = diag.latest_runs().expect("runs");
     assert_eq!(runs.len(), 4, "usage + quota run per adapter recorded");
+}
+
+#[test]
+fn removed_provider_is_detected_but_not_collected() {
+    let storage = setup_db();
+    let adapters: Vec<&dyn ProviderAdapter> = vec![&RemovedAdapter];
+
+    let cycle = RefreshAll::execute(&storage.conn, &adapters);
+
+    assert_eq!(cycle.usage.len(), 1);
+    assert_eq!(cycle.usage[0].provider_id, "removed_provider");
+    assert_eq!(cycle.usage[0].error_code, "SOURCE_UNAVAILABLE");
+    assert_eq!(cycle.quota.len(), 1);
+    assert_eq!(cycle.quota[0].error_code, "SOURCE_UNAVAILABLE");
+
+    let states = DiagnosticsRepository::new(&storage.conn)
+        .provider_states()
+        .expect("provider states");
+    assert_eq!(states.len(), 1);
+    assert!(!states[0].detected);
+    assert!(!states[0].source_exists);
 }
 
 #[test]

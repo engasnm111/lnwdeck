@@ -103,18 +103,63 @@ impl ZCodeAdapter {
         self.home.join("v2").join("logs")
     }
 
+    fn selected_provider_keys(&self) -> Vec<String> {
+        let raw = match std::fs::read_to_string(self.home.join("v2").join("setting.json")) {
+            Ok(raw) => raw,
+            Err(_) => return Vec::new(),
+        };
+        let setting: serde_json::Value = match serde_json::from_str(&raw) {
+            Ok(setting) => setting,
+            Err(_) => return Vec::new(),
+        };
+        let Some(selected) = setting
+            .get("modelProviderFamilySelectedKeys")
+            .and_then(serde_json::Value::as_object)
+        else {
+            return Vec::new();
+        };
+        let active_domain = setting
+            .get("providerFamilyDomain")
+            .and_then(serde_json::Value::as_str);
+        let mut domains = Vec::new();
+        if let Some(domain) = active_domain {
+            domains.push(domain.to_string());
+        }
+        domains.extend(selected.keys().cloned());
+        let mut result = Vec::new();
+        for domain in domains {
+            let Some(raw) = selected.get(&domain).and_then(serde_json::Value::as_str) else {
+                continue;
+            };
+            if let Some(candidate) = CONFIG_CANDIDATES
+                .iter()
+                .find(|candidate| raw.contains(**candidate))
+            {
+                if !result.iter().any(|value| value.as_str() == *candidate) {
+                    result.push((*candidate).to_string());
+                }
+            }
+        }
+        result
+    }
+
     /// Reads the first usable coding-plan API key from ZCode's config.
-    ///
-    /// Encrypted keys (`enc:v1:`) are not supported and count as absent, so
-    /// the adapter falls back to the local log balance instead of attempting a
-    /// doomed request. The endpoint is selected from the config entry so a
-    /// BigModel credential is never sent to the Z.AI endpoint.
+    /// Selected plans are tried before stale but still-present provider entries,
+    /// matching current ZCode behavior. Encrypted keys still fall back to the
+    /// local billing log instead of being sent to the wrong account endpoint.
     fn api_key(&self) -> Option<MonitorCredential> {
         let raw = std::fs::read_to_string(self.config_path()).ok()?;
         let config: serde_json::Value = serde_json::from_str(&raw).ok()?;
         let providers = config.get("provider")?;
-        for candidate in CONFIG_CANDIDATES {
-            let Some(entry) = providers.get(*candidate) else {
+        let mut candidates = self.selected_provider_keys();
+        candidates.extend(
+            CONFIG_CANDIDATES
+                .iter()
+                .filter(|candidate| !candidates.iter().any(|value| value.as_str() == **candidate))
+                .map(|candidate| (*candidate).to_string()),
+        );
+        for candidate in candidates {
+            let Some(entry) = providers.get(&candidate) else {
                 continue;
             };
             let Some(key) = entry
@@ -759,6 +804,39 @@ mod tests {
         let credential = adapter.api_key().expect("key");
         assert_eq!(credential.endpoint, ZAI_MONITOR_QUOTA_URL);
         assert_eq!(credential.key, "sk-coding");
+    }
+
+    #[test]
+    fn selected_plan_wins_over_stale_provider_entries() {
+        let home = tempfile::tempdir().expect("temp");
+        let config_dir = home.path().join("v2");
+        std::fs::create_dir_all(&config_dir).expect("config dir");
+        std::fs::write(
+            config_dir.join("config.json"),
+            serde_json::json!({
+                "provider": {
+                    "builtin:zai-coding-plan": {"options": {"apiKey": "stale-zai"}},
+                    "builtin:bigmodel-coding-plan": {"options": {"apiKey": "selected-bigmodel"}}
+                }
+            })
+            .to_string(),
+        )
+        .expect("config");
+        std::fs::write(
+            config_dir.join("setting.json"),
+            serde_json::json!({
+                "providerFamilyDomain": "bigmodel",
+                "modelProviderFamilySelectedKeys": {
+                    "bigmodel": "builtin:bigmodel-coding-plan"
+                }
+            })
+            .to_string(),
+        )
+        .expect("setting");
+        let adapter = ZCodeAdapter::with_home(home.path().to_path_buf());
+        let credential = adapter.api_key().expect("selected key");
+        assert_eq!(credential.endpoint, BIGMODEL_MONITOR_QUOTA_URL);
+        assert_eq!(credential.key, "selected-bigmodel");
     }
 
     #[test]

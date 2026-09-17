@@ -5,9 +5,9 @@
 //! transcript carries cumulative `tokens` counters, so the usage of one
 //! message is the delta between two consecutive counters. This adapter
 //! streams those transcripts read-only and aggregates the deltas it finds; it
-//! never sends anything to Google and never reads prompt or response text.
-//! Because Gemini does not publish plan limits locally, quota windows are
-//! usage-only: real consumption with an unknown limit.
+//! never reads prompt or response text. Subscription quota is collected
+//! separately through Gemini CLI's authenticated Cloud Code quota API, while
+//! Antigravity quota remains isolated behind its local Language Server.
 
 use lnwdeck_domain::{Confidence, QuotaReport, UsageBatch};
 use lnwdeck_provider_runtime::token_scan::{usage_events, ScanReport};
@@ -112,7 +112,7 @@ impl GeminiAdapter {
         if !self.root.is_dir() {
             return Ok(None);
         }
-        quota_api::fetch_windows(quota_api::default_timeout()).map(Some)
+        quota_api::fetch_windows(quota_api::default_timeout(), &self.oauth_path()).map(Some)
     }
 }
 
@@ -150,14 +150,10 @@ impl ProviderAdapter for GeminiAdapter {
         self.quota_estimate()
     }
     fn account_identity(&self) -> Option<String> {
-        // The quota source is the Antigravity IDE Language Server, which
-        // serves the account whose session the IDE holds. The keyring blob is
-        // that session's credential, so it wins over the legacy CLI file when
-        // present; mixing the two would store one account's data under
-        // another account's fingerprint.
-        let use_keyring = self.root == GeminiAdapter::new().root;
-        quota_api::read_oauth_preferring_keyring(&self.oauth_path(), use_keyring)
-            .map(|oauth| oauth.access_token)
+        // Gemini quota now comes from the Gemini CLI Cloud Code session, so
+        // fingerprint the same credential source instead of Antigravity's
+        // separate IDE keyring account.
+        quota_api::read_oauth(&self.oauth_path()).map(|oauth| oauth.access_token)
     }
 
     fn health_check(&self) -> AdapterHealth {
@@ -182,11 +178,96 @@ impl ProviderAdapter for GeminiAdapter {
     }
 
     fn required_permissions(&self) -> Vec<Permission> {
-        vec![Permission::FileSystem]
+        vec![Permission::FileSystem, Permission::Network]
     }
 
     fn detect(&self) -> Result<DetectionResult, String> {
         Ok(self.detection())
+    }
+}
+
+/// Quota-only adapter for Google's Antigravity IDE. Token usage found in its
+/// local logs is still normalized by the Gemini scanner, but subscription
+/// limits belong to a distinct provider card and require the IDE Language
+/// Server to be running.
+pub struct AntigravityAdapter;
+
+impl AntigravityAdapter {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for AntigravityAdapter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ProviderAdapter for AntigravityAdapter {
+    fn descriptor(&self) -> AdapterDescriptor {
+        AdapterDescriptor {
+            id: "antigravity",
+            display_name: "Antigravity",
+            vendor: "Google",
+            source_kind: SourceKind::LocalApi,
+            usage_support: ChannelSupport::Unsupported,
+            quota_support: ChannelSupport::Native,
+            auth: AuthKind::None,
+            adapter_version: ADAPTER_VERSION,
+        }
+    }
+
+    fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
+        quota_api::fetch_antigravity_windows(quota_api::default_timeout()).map(Some)
+    }
+
+    fn health_check(&self) -> AdapterHealth {
+        if !quota_api::antigravity_installed() {
+            return AdapterHealth {
+                status: AdapterHealthStatus::Degraded,
+                message: "Antigravity is not installed".to_string(),
+            };
+        }
+        match quota_api::fetch_antigravity_windows(std::time::Duration::from_secs(3)) {
+            Ok(_) => AdapterHealth {
+                status: AdapterHealthStatus::Healthy,
+                message: "Antigravity quota available".to_string(),
+            },
+            Err(code) if code == "SOURCE_REQUIRES_IDE" => AdapterHealth {
+                status: AdapterHealthStatus::Degraded,
+                message: "Antigravity IDE is not running".to_string(),
+            },
+            Err(code) => AdapterHealth {
+                status: AdapterHealthStatus::Unhealthy,
+                message: format!("Antigravity quota unavailable ({code})"),
+            },
+        }
+    }
+
+    fn required_permissions(&self) -> Vec<Permission> {
+        vec![Permission::Network]
+    }
+
+    fn detect(&self) -> Result<DetectionResult, String> {
+        let installed = quota_api::antigravity_installed();
+        Ok(DetectionResult {
+            provider_id: "antigravity".to_string(),
+            display_name: "Antigravity".to_string(),
+            enabled: true,
+            detected: installed,
+            detection_method: "installed_ide".to_string(),
+            source_type: "local_language_server".to_string(),
+            source_exists: installed,
+            permission_state: if installed {
+                "local_service".to_string()
+            } else {
+                "not_found".to_string()
+            },
+            adapter_version: ADAPTER_VERSION.to_string(),
+            last_detection_at: Some(chrono::Utc::now().to_rfc3339()),
+            detection_error_code: String::new(),
+        })
     }
 }
 

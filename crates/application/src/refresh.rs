@@ -352,9 +352,29 @@ fn collect_one(
 ) -> ProviderCollection {
     let full_scan = matches!(adapter.id(), "openai_codex" | "opencode");
     let usage_cursor = if full_scan { None } else { cursor };
+    let detection = adapter.detect();
+    if matches!(&detection, Ok(result) if !result.detected && !result.source_exists) {
+        let started_at = chrono::Utc::now();
+        return ProviderCollection {
+            fingerprint,
+            detection,
+            usage: CollectionResult {
+                batch: None,
+                outcome: CollectionOutcome::failure(
+                    adapter.id(),
+                    "not_detected",
+                    started_at,
+                    "SOURCE_UNAVAILABLE",
+                ),
+                next_cursor: None,
+            },
+            quota: QuotaCollectionResult::source_unavailable(adapter.id(), chrono::Utc::now()),
+            full_scan,
+        };
+    }
     ProviderCollection {
         fingerprint,
-        detection: adapter.detect(),
+        detection,
         usage: adapter.collect_usage_with_cursor(usage_cursor),
         quota: adapter.collect_quota_report(),
         full_scan,

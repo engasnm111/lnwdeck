@@ -1,4 +1,4 @@
-# lnwdeck v13.0.1
+# lnwdeck v13.1.0
 
 Universal AI usage and quota tracker for Windows. lnwdeck reads the local
 artifacts already written by AI tools, records token counts and costs, and
@@ -20,6 +20,20 @@ sync is required.
 - Provides budgets, alerts, diagnostics and sanitized JSON export.
 - Includes a floating quota widget and a transparent desktop pet, both using
   the same live provider data as the dashboard.
+
+## v13.1.0 provider refresh and desktop shell
+
+- Removed providers are detected before collection, so stale local credentials
+  no longer make an uninstalled tool get polled as if it were still present.
+- Provider quota coverage now includes the current TokenTracker-compatible
+  sources for OpenCode Go, Gemini, Copilot, Grok, Kiro, Command Code, Devin,
+  Ark Coding/Agent Plan, Qoder and Qoder CN, while Antigravity is tracked as a
+  separate provider.
+- The app top bar now uses the active page icon, clearer freshness status and a
+  rounded glass surface that follows the existing desktop theme.
+
+See [CHANGELOG.md](CHANGELOG.md) and the
+[provider setup guide](docs/PROVIDER_QUOTA_SETUP.md) for source-specific details.
 
 ## v13.0.1 update checks work where github.com is blocked
 
@@ -219,12 +233,13 @@ optimistic UI with transactional rollback on failure.
 
 ## Provider support
 
-Built-in adapters currently cover Claude, Codex, OpenCode, Gemini, Cursor,
-Copilot, Kiro, ZCode, Z.AI (GLM), Kimi Code, Kilo CLI, Kilo Code, Mimo Code,
-Roo Code, CodeBuddy, WorkBuddy, pi, oh-my-pi, Hermes, Ollama, OpenRouter and
-Grok. Each adapter declares its supported usage/quota channels. Unsupported or
-missing sources are reported honestly rather than recorded as successful empty
-collections.
+Built-in adapters currently cover Claude, Codex, OpenCode Go, Gemini,
+Antigravity, Cursor, GitHub Copilot, Kiro, Grok, ZCode, Z.AI (GLM), Kimi Code,
+Kilo CLI, Kilo Code, Mimo Code, Roo Code, CodeBuddy, WorkBuddy, pi, oh-my-pi,
+Hermes, Ollama, OpenRouter, Command Code, Devin, Ark Coding Plan, Ark Agent
+Plan, Qoder and Qoder CN. Each adapter declares its supported usage/quota
+channels. Unsupported or missing sources are reported honestly rather than
+recorded as successful empty collections.
 
 The Providers page and Dashboard use each adapter's full display name and
 vendor (for example, **OpenAI Codex**) and keep internal ids such as
@@ -236,11 +251,11 @@ configures a provider that requires a key. OpenCode Go environment variables
 are a compatibility path for a user-managed machine setup; do not put them in
 `.env` files or commit them.
 
-OpenCode (Go) is the browser-cookie exception: its Settings form requires the
-workspace id and auth cookie because quota is published at the provider's
-workspace dashboard rather than in the local SQLite history. The dashboard
-request sends the cookie only to `https://opencode.ai`; the cookie never enters
-SQLite, UI read models, logs or exports.
+OpenCode Go quota prefers the provider's official usage API when
+`OPENCODE_GO_API_KEY` is explicitly configured. Existing workspace-id + auth
+cookie configurations remain supported through the OpenCode workspace dashboard
+as a compatibility fallback. Neither API keys nor browser cookies enter SQLite,
+UI read models, logs or exports.
 
 ## Screenshots
 

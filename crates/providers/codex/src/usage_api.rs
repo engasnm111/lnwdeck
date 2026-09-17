@@ -92,8 +92,17 @@ fn absolute_reset_at(value: &serde_json::Value) -> Option<chrono::DateTime<chron
         .find_map(|key| value.get(*key).and_then(timestamp_from_value))
 }
 
+fn value_number(value: Option<&serde_json::Value>) -> Option<f64> {
+    match value? {
+        serde_json::Value::Number(number) => number.as_f64(),
+        serde_json::Value::String(text) => text.trim().parse().ok(),
+        _ => None,
+    }
+    .filter(|number| number.is_finite())
+}
+
 fn window_from(value: &serde_json::Value) -> Option<QuotaWindow> {
-    let used_percent = value.get("used_percent").and_then(|value| value.as_f64())?;
+    let used_percent = value_number(value.get("used_percent"))?;
     let seconds = value
         .get("limit_window_seconds")
         .and_then(|value| value.as_i64());
@@ -116,7 +125,56 @@ fn window_from(value: &serde_json::Value) -> Option<QuotaWindow> {
     ))
 }
 
-/// Converts the `/wham/usage` payload into quota windows.
+fn credit_window(value: &serde_json::Value) -> Option<QuotaWindow> {
+    let limit = value_number(value.get("limit"));
+    let used = value_number(value.get("used"));
+    let mut percent = value_number(value.get("used_percent"));
+    if let (Some(limit), Some(used)) = (limit, used) {
+        if limit > 0.0 && (percent.is_none() || percent == Some(0.0) && used > 0.0) {
+            percent = Some(used / limit * 100.0);
+        }
+    }
+    let percent = percent?.clamp(0.0, 100.0);
+    let reset = value.get("reset_at").and_then(timestamp_from_value);
+    Some(QuotaWindow::from_percent(
+        "credits",
+        "Credits",
+        QuotaWindowScope::Other,
+        QuotaKind::Credits,
+        percent,
+        reset,
+        Confidence::High,
+    ))
+}
+
+fn is_spark_limit(value: &serde_json::Value) -> bool {
+    ["limit_name", "metered_feature"]
+        .iter()
+        .filter_map(|key| value.get(*key).and_then(serde_json::Value::as_str))
+        .any(|name| name.to_ascii_lowercase().contains("spark"))
+}
+
+fn spark_window(value: &serde_json::Value) -> Option<QuotaWindow> {
+    let mut window = window_from(value)?;
+    match window.window_key.as_str() {
+        "session" => {
+            window.window_key = "spark_session".to_string();
+            window.label = "Spark Session".to_string();
+        }
+        "weekly" => {
+            window.window_key = "spark_weekly".to_string();
+            window.label = "Spark Weekly".to_string();
+        }
+        _ => {
+            window.window_key = "spark".to_string();
+            window.label = "Spark".to_string();
+        }
+    }
+    Some(window)
+}
+
+/// Converts the `/wham/usage` payload into quota windows, including the
+/// current spend-control credit bucket and Spark-specific rate limits.
 pub fn windows_from_payload(body: &serde_json::Value) -> Vec<QuotaWindow> {
     let Some(rate_limit) = body.get("rate_limit") else {
         return Vec::new();
@@ -130,6 +188,33 @@ pub fn windows_from_payload(body: &serde_json::Value) -> Vec<QuotaWindow> {
                 .any(|existing: &QuotaWindow| existing.window_key == window.window_key)
             {
                 windows.push(window);
+            }
+        }
+    }
+    if let Some(window) = body
+        .pointer("/spend_control/individual_limit")
+        .and_then(credit_window)
+    {
+        windows.push(window);
+    }
+    if let Some(additional) = body
+        .get("additional_rate_limits")
+        .and_then(serde_json::Value::as_array)
+    {
+        for entry in additional.iter().filter(|entry| is_spark_limit(entry)) {
+            let Some(rate_limit) = entry.get("rate_limit") else {
+                continue;
+            };
+            for slot in ["primary_window", "secondary_window"] {
+                let Some(window) = rate_limit.get(slot).and_then(spark_window) else {
+                    continue;
+                };
+                if !windows
+                    .iter()
+                    .any(|existing| existing.window_key == window.window_key)
+                {
+                    windows.push(window);
+                }
             }
         }
     }
@@ -233,6 +318,38 @@ mod tests {
         for window in &windows {
             window.check_invariants().expect("consistent");
         }
+    }
+
+    #[test]
+    fn current_payload_includes_credit_and_spark_windows() {
+        let body = serde_json::json!({
+            "rate_limit": {
+                "primary_window": {"used_percent": 10, "limit_window_seconds": 18000}
+            },
+            "spend_control": {
+                "individual_limit": {"limit": 200, "used": 50, "used_percent": 0}
+            },
+            "additional_rate_limits": [{
+                "limit_name": "codex_spark",
+                "rate_limit": {
+                    "primary_window": {"used_percent": 30, "limit_window_seconds": 18000},
+                    "secondary_window": {"used_percent": 40, "limit_window_seconds": 604800}
+                }
+            }]
+        });
+        let windows = windows_from_payload(&body);
+        assert!(windows
+            .iter()
+            .any(|window| window.window_key == "credits" && window.used_percent == Some(25.0)));
+        assert!(windows.iter().any(
+            |window| window.window_key == "spark_session" && window.used_percent == Some(30.0)
+        ));
+        assert!(
+            windows
+                .iter()
+                .any(|window| window.window_key == "spark_weekly"
+                    && window.used_percent == Some(40.0))
+        );
     }
 
     #[test]

@@ -1,5 +1,6 @@
 pub mod adapter;
 pub mod collection;
+pub mod command;
 pub mod descriptor;
 pub mod detection;
 pub mod health;

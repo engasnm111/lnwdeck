@@ -1,11 +1,14 @@
 use crate::state::AppState;
 use lnwdeck_application::refresh::RefreshCycleOutcome;
+use lnwdeck_provider_ark::{ArkAgentPlanAdapter, ArkCodingPlanAdapter};
 use lnwdeck_provider_claude::ClaudeAdapter;
 use lnwdeck_provider_codebuddy::CodebuddyAdapter;
 use lnwdeck_provider_codex::CodexAdapter;
+use lnwdeck_provider_command_code::CommandCodeAdapter;
 use lnwdeck_provider_copilot::CopilotAdapter;
 use lnwdeck_provider_cursor::CursorAdapter;
-use lnwdeck_provider_gemini::GeminiAdapter;
+use lnwdeck_provider_devin::DevinAdapter;
+use lnwdeck_provider_gemini::{AntigravityAdapter, GeminiAdapter};
 use lnwdeck_provider_grok::GrokAdapter;
 use lnwdeck_provider_hermes::HermesAdapter;
 use lnwdeck_provider_kilo_cli::KiloCliAdapter;
@@ -18,6 +21,7 @@ use lnwdeck_provider_omp::OmpAdapter;
 use lnwdeck_provider_opencode::OpenCodeAdapter;
 use lnwdeck_provider_openrouter::OpenRouterAdapter;
 use lnwdeck_provider_pi_agent::PiAdapter;
+use lnwdeck_provider_qoder::{QoderAdapter, QoderCnAdapter};
 use lnwdeck_provider_roo::RooAdapter;
 use lnwdeck_provider_runtime::{AdapterRegistry, ProviderAdapter};
 use lnwdeck_provider_workbuddy::WorkbuddyAdapter;
@@ -98,8 +102,15 @@ fn build_registry(hash_key: &[u8]) -> Result<AdapterRegistry, String> {
         Box::new(CodexAdapter::new()),
         Box::new(ClaudeAdapter::new()),
         Box::new(GeminiAdapter::new()),
+        Box::new(AntigravityAdapter::new()),
         Box::new(CursorAdapter::new()),
         Box::new(CopilotAdapter::new()),
+        Box::new(CommandCodeAdapter::new()),
+        Box::new(DevinAdapter::new()),
+        Box::new(ArkCodingPlanAdapter::new()),
+        Box::new(ArkAgentPlanAdapter::new()),
+        Box::new(QoderAdapter::new()),
+        Box::new(QoderCnAdapter::new()),
         Box::new(KiroAdapter::new()),
         Box::new(KimiAdapter::new()),
         Box::new(KiloCliAdapter::new()),

@@ -5,12 +5,15 @@
 //! collection (never panics), and — whenever a quota report is produced —
 //! privacy-safe payloads with no fabricated percentages.
 
+use lnwdeck_provider_ark::{ArkAgentPlanAdapter, ArkCodingPlanAdapter};
 use lnwdeck_provider_claude::ClaudeAdapter;
 use lnwdeck_provider_codebuddy::CodebuddyAdapter;
 use lnwdeck_provider_codex::CodexAdapter;
+use lnwdeck_provider_command_code::CommandCodeAdapter;
 use lnwdeck_provider_copilot::CopilotAdapter;
 use lnwdeck_provider_cursor::CursorAdapter;
-use lnwdeck_provider_gemini::GeminiAdapter;
+use lnwdeck_provider_devin::DevinAdapter;
+use lnwdeck_provider_gemini::{AntigravityAdapter, GeminiAdapter};
 use lnwdeck_provider_grok::GrokAdapter;
 use lnwdeck_provider_hermes::HermesAdapter;
 use lnwdeck_provider_kilo_cli::KiloCliAdapter;
@@ -23,6 +26,7 @@ use lnwdeck_provider_omp::OmpAdapter;
 use lnwdeck_provider_opencode::OpenCodeAdapter;
 use lnwdeck_provider_openrouter::OpenRouterAdapter;
 use lnwdeck_provider_pi_agent::PiAdapter;
+use lnwdeck_provider_qoder::{QoderAdapter, QoderCnAdapter};
 use lnwdeck_provider_roo::RooAdapter;
 use lnwdeck_provider_runtime::{
     AdapterHealthStatus, AdapterRegistry, ChannelSupport, ProviderAdapter, NOT_SUPPORTED,
@@ -37,15 +41,22 @@ fn builtin_adapters() -> Vec<Box<dyn ProviderAdapter>> {
     vec![
         Box::new(ClaudeAdapter::new()),
         Box::new(CodexAdapter::new()),
+        Box::new(CommandCodeAdapter::new()),
         Box::new(CopilotAdapter::new()),
         Box::new(CursorAdapter::new()),
+        Box::new(DevinAdapter::new()),
         Box::new(GeminiAdapter::new()),
+        Box::new(AntigravityAdapter::new()),
+        Box::new(ArkCodingPlanAdapter::new()),
+        Box::new(ArkAgentPlanAdapter::new()),
         Box::new(GrokAdapter::new()),
         Box::new(KiroAdapter::new()),
         Box::new(KimiAdapter::new()),
         Box::new(KiloCliAdapter::new()),
         Box::new(KiloCodeAdapter::new()),
         Box::new(MimoAdapter::new()),
+        Box::new(QoderAdapter::new()),
+        Box::new(QoderCnAdapter::new()),
         Box::new(RooAdapter::new()),
         Box::new(CodebuddyAdapter::new()),
         Box::new(WorkbuddyAdapter::new()),
@@ -72,7 +83,7 @@ fn every_adapter_has_a_stable_unique_identifier() {
             "provider ids must be unique: duplicate {id}"
         );
     }
-    assert_eq!(adapters.len(), 22, "all built-in providers registered");
+    assert_eq!(adapters.len(), 29, "all built-in providers registered");
 }
 
 #[test]
@@ -262,7 +273,7 @@ fn all_adapters_register_in_one_registry_without_id_collisions() {
             .register(adapter)
             .unwrap_or_else(|err| panic!("registering {id} failed: {err}"));
     }
-    assert_eq!(registry.len(), 22, "all built-in providers registered");
+    assert_eq!(registry.len(), 29, "all built-in providers registered");
     for descriptor in registry.descriptors() {
         assert_eq!(
             registry.display_name(descriptor.id),
@@ -394,6 +405,18 @@ fn credential_adapters_stay_inert_until_configured() {
         }
         let detection = adapter.detect().expect("detect");
         if !detection.detected {
+            // OpenCode is a mixed local-store + credential adapter. A stale
+            // dashboard credential must not keep it detected after the local
+            // installation/store has been removed.
+            if adapter.id() == "opencode" && !detection.source_exists {
+                assert!(detection.detection_error_code.is_empty());
+                assert_eq!(
+                    adapter.health_check().status,
+                    AdapterHealthStatus::Degraded,
+                    "removed OpenCode must stay absent instead of being polled"
+                );
+                continue;
+            }
             assert_eq!(
                 detection.detection_error_code,
                 "NOT_CONFIGURED",
@@ -417,23 +440,29 @@ fn declared_support_covers_the_documented_provider_matrix() {
         by_id.insert(adapter.id(), adapter.descriptor());
     }
 
-    // Providers that publish per-window utilization to the credential their own
-    // CLI already stores locally.
-    for id in ["anthropic_claude", "openai_codex"] {
+    // Local-usage providers whose published quota is available through the
+    // provider's own local credential, config, or CLI state.
+    for id in [
+        "anthropic_claude",
+        "openai_codex",
+        "github_copilot",
+        "kiro_ai",
+        "zcode_ai",
+    ] {
         let descriptor = by_id.get(id).unwrap_or_else(|| panic!("{id} registered"));
         assert_eq!(
             descriptor.usage_support,
             ChannelSupport::LocalEstimate,
-            "{id} reads its usage history from local session files"
+            "{id} reads its usage history from local provider artifacts"
         );
         assert_eq!(
             descriptor.quota_support,
             ChannelSupport::Native,
-            "{id} reads published quota from the provider API"
+            "{id} reads provider-published quota"
         );
         assert!(
             !descriptor.needs_credentials(),
-            "{id} reuses the credential its own CLI stored, so the user enters nothing"
+            "{id} reuses provider-owned local authentication state"
         );
     }
 
@@ -463,8 +492,6 @@ fn declared_support_covers_the_documented_provider_matrix() {
     // usage history remains useful, but it must never become a percentage or
     // a pseudo-limit merely because a rolling bucket can be computed.
     for id in [
-        "github_copilot",
-        "kiro_ai",
         "kilo_cli",
         "kilo_code",
         "mimo_code",
@@ -499,6 +526,23 @@ fn declared_support_covers_the_documented_provider_matrix() {
     assert_eq!(gemini.usage_support, ChannelSupport::LocalEstimate);
     assert_eq!(gemini.quota_support, ChannelSupport::Native);
     assert!(!gemini.needs_credentials());
+
+    // Quota-only adapters that reuse provider-owned local state or a local
+    // service. None requires a secret to be entered into lnwdeck itself.
+    for id in [
+        "antigravity",
+        "command_code",
+        "devin",
+        "ark_coding_plan",
+        "ark_agent_plan",
+        "qoder",
+        "qoder_cn",
+    ] {
+        let descriptor = by_id.get(id).unwrap_or_else(|| panic!("{id} registered"));
+        assert_eq!(descriptor.usage_support, ChannelSupport::Unsupported);
+        assert_eq!(descriptor.quota_support, ChannelSupport::Native);
+        assert!(!descriptor.needs_credentials());
+    }
 
     for id in ["openrouter_api", "xai_grok"] {
         let descriptor = by_id.get(id).unwrap_or_else(|| panic!("{id} registered"));

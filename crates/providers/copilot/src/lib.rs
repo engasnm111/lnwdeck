@@ -4,7 +4,8 @@
 //! on the machine (`~/.copilot`, VS Code logs, Copilot application data).
 //! Logs are opened read-only and only numeric token counts, timestamps and
 //! model identifiers are extracted; log message text is never carried out.
-//! Copilot exposes no plan limit locally, so quota windows are usage-only.
+//! Subscription quota is collected separately from Copilot's authenticated
+//! account endpoint using the OAuth session already stored by Copilot.
 
 use lnwdeck_domain::{Confidence, QuotaReport, UsageBatch};
 use lnwdeck_provider_runtime::token_scan::{
@@ -16,12 +17,15 @@ use lnwdeck_provider_runtime::{
 };
 use std::path::PathBuf;
 
+mod quota_api;
+
 const PROVIDER_ID: &str = "github_copilot";
-const ADAPTER_VERSION: &str = "0.2.0";
+const ADAPTER_VERSION: &str = "0.3.0";
 const DATA_SOURCE: &str = "local_log";
 
 pub struct CopilotAdapter {
     roots: Vec<PathBuf>,
+    home: PathBuf,
     bounds: ScanBounds,
 }
 
@@ -42,14 +46,24 @@ impl CopilotAdapter {
             roots.push(appdata.join("Code").join("logs"));
             roots.push(appdata.join("GitHub Copilot"));
         }
-        Self::with_roots(roots)
+        Self::with_paths(roots, home)
     }
 
     /// Adapter pinned to explicit source roots (used by tests and by a
     /// user-configured source directory).
     pub fn with_roots(roots: Vec<PathBuf>) -> Self {
+        let home = roots
+            .first()
+            .and_then(|root| root.parent())
+            .map(PathBuf::from)
+            .unwrap_or_default();
+        Self::with_paths(roots, home)
+    }
+
+    fn with_paths(roots: Vec<PathBuf>, home: PathBuf) -> Self {
         Self {
             roots,
+            home,
             bounds: ScanBounds::default(),
         }
     }
@@ -63,7 +77,9 @@ impl CopilotAdapter {
     }
 
     fn detection(&self) -> DetectionResult {
-        let source_exists = self.any_root_exists();
+        let usage_source_exists = self.any_root_exists();
+        let has_auth = quota_api::read_oauth_token(&self.home).is_some();
+        let source_exists = usage_source_exists || has_auth;
         let mut result = DetectionResult {
             provider_id: PROVIDER_ID.to_string(),
             display_name: "Copilot".to_string(),
@@ -81,11 +97,23 @@ impl CopilotAdapter {
             result.permission_state = "not_found".to_string();
             return result;
         }
-        if self.scan().is_empty() {
-            result.permission_state = "no_sessions".to_string();
+        if !usage_source_exists {
+            result.detected = has_auth;
+            result.permission_state = "auth_only".to_string();
+        } else if self.scan().is_empty() {
+            result.detected = has_auth;
+            result.permission_state = if has_auth {
+                "read_ok_auth".to_string()
+            } else {
+                "no_sessions".to_string()
+            };
         } else {
             result.detected = true;
-            result.permission_state = "read_ok".to_string();
+            result.permission_state = if has_auth {
+                "read_ok_auth".to_string()
+            } else {
+                "read_ok".to_string()
+            };
         }
         result
     }
@@ -99,7 +127,7 @@ impl ProviderAdapter for CopilotAdapter {
             vendor: "GitHub",
             source_kind: SourceKind::LocalLog,
             usage_support: ChannelSupport::LocalEstimate,
-            quota_support: ChannelSupport::Unsupported,
+            quota_support: ChannelSupport::Native,
             auth: AuthKind::LocalFiles,
             adapter_version: ADAPTER_VERSION,
         }
@@ -122,7 +150,11 @@ impl ProviderAdapter for CopilotAdapter {
     }
 
     fn collect_quota(&self) -> Result<Option<QuotaReport>, String> {
-        Ok(None)
+        quota_api::fetch_report(&self.home, std::time::Duration::from_secs(10))
+    }
+
+    fn account_identity(&self) -> Option<String> {
+        quota_api::read_oauth_token(&self.home)
     }
 
     fn health_check(&self) -> AdapterHealth {
@@ -147,7 +179,7 @@ impl ProviderAdapter for CopilotAdapter {
     }
 
     fn required_permissions(&self) -> Vec<Permission> {
-        vec![Permission::FileSystem]
+        vec![Permission::FileSystem, Permission::Network]
     }
 
     fn detect(&self) -> Result<DetectionResult, String> {
@@ -168,13 +200,13 @@ mod tests {
     }
 
     #[test]
-    fn descriptor_is_consistent_and_declares_usage_only_support() {
+    fn descriptor_is_consistent_and_declares_native_quota_support() {
         let adapter = CopilotAdapter::with_roots(vec![PathBuf::from("Z:/missing")]);
         let descriptor = adapter.descriptor();
         descriptor.check().expect("descriptor is consistent");
         assert_eq!(descriptor.id, PROVIDER_ID);
         assert_eq!(descriptor.usage_support, ChannelSupport::LocalEstimate);
-        assert_eq!(descriptor.quota_support, ChannelSupport::Unsupported);
+        assert_eq!(descriptor.quota_support, ChannelSupport::Native);
         assert!(!descriptor.is_inert());
     }
 
@@ -189,6 +221,30 @@ mod tests {
         );
         assert!(adapter.collect_quota().expect("quota call").is_none());
         assert_eq!(adapter.health_check().status, AdapterHealthStatus::Degraded);
+    }
+
+    #[test]
+    fn auth_only_source_does_not_fake_local_usage() {
+        let dir = tempdir().expect("temp dir");
+        let auth_dir = dir.path().join(".config").join("github-copilot");
+        std::fs::create_dir_all(&auth_dir).expect("create auth dir");
+        std::fs::write(
+            auth_dir.join("apps.json"),
+            r#"{"github.com:copilot":{"oauth_token":"gho_123456789012345678901234567890"}}"#,
+        )
+        .expect("write auth");
+        let adapter = CopilotAdapter::with_paths(
+            vec![PathBuf::from("Z:/definitely/missing")],
+            dir.path().to_path_buf(),
+        );
+
+        assert!(adapter.detect().expect("detect").detected);
+        assert_eq!(
+            adapter
+                .collect_usage()
+                .expect_err("auth alone is not a local usage source"),
+            "SOURCE_UNAVAILABLE"
+        );
     }
 
     #[test]
