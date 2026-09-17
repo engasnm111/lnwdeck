@@ -5,6 +5,18 @@ import { MemoryRouter } from "react-router";
 import { AppShell } from "./AppShell";
 import * as native from "../lib/native";
 
+const windowMocks = vi.hoisted(() => ({
+  minimize: vi.fn(),
+  toggleMaximize: vi.fn(),
+  close: vi.fn(),
+  isMaximized: vi.fn().mockResolvedValue(false),
+  onResized: vi.fn().mockResolvedValue(() => {}),
+}));
+
+vi.mock("@tauri-apps/api/window", () => ({
+  getCurrentWindow: () => windowMocks,
+}));
+
 vi.mock("../lib/native", async (importOriginal) => {
   const actual = await importOriginal<typeof native>();
   return {
@@ -44,6 +56,11 @@ describe("AppShell", () => {
     vi.mocked(native.fetchAppShellStatus).mockReset();
     vi.mocked(native.fetchAppShellStatus).mockResolvedValue(shellStatus(null));
     vi.mocked(native.startRefresh).mockReset();
+    windowMocks.minimize.mockReset();
+    windowMocks.toggleMaximize.mockReset();
+    windowMocks.close.mockReset();
+    windowMocks.isMaximized.mockReset().mockResolvedValue(false);
+    windowMocks.onResized.mockReset().mockResolvedValue(() => {});
   });
 
   it("loads topbar, theme and alert metadata through one lightweight shell request", async () => {
@@ -166,5 +183,30 @@ describe("AppShell", () => {
       ).not.toBeInTheDocument(),
     );
     expect(native.fetchAppShellStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it("renders custom window chrome and drives the native window controls", async () => {
+    renderShell();
+
+    const titlebar = document.querySelector(".app-window-titlebar");
+    expect(titlebar).toHaveAttribute("data-tauri-drag-region", "");
+
+    await userEvent.click(screen.getByRole("button", { name: "Minimize window" }));
+    await userEvent.click(screen.getByRole("button", { name: "Maximize window" }));
+    await userEvent.click(screen.getByRole("button", { name: "Close window" }));
+
+    expect(windowMocks.minimize).toHaveBeenCalledTimes(1);
+    expect(windowMocks.toggleMaximize).toHaveBeenCalledTimes(1);
+    expect(windowMocks.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("toggles maximize when the custom titlebar is double-clicked", async () => {
+    renderShell();
+
+    const titlebar = document.querySelector(".app-window-titlebar");
+    expect(titlebar).not.toBeNull();
+    await userEvent.dblClick(titlebar as HTMLElement);
+
+    expect(windowMocks.toggleMaximize).toHaveBeenCalledTimes(1);
   });
 });

@@ -460,6 +460,7 @@ pub fn setup_windows(app: &tauri::App) {
         .title("lnwdeck")
         .inner_size(1280.0, 840.0)
         .min_inner_size(960.0, 640.0)
+        .decorations(false)
         // The dashboard is the only window allowed to appear on the taskbar,
         // and only when it is actually restored visible.
         .skip_taskbar(should_skip_taskbar(MAIN_LABEL, main_visible))

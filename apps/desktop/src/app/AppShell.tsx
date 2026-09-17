@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, type NavLinkRenderProps } from "react-router";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Badge, Button } from "@lnwdeck/ui";
 import {
   AlertsIcon,
@@ -27,6 +28,8 @@ import { formatRelativeTime, freshnessOf } from "../lib/freshness";
 import { useI18n } from "../lib/i18n";
 import { ALERTS_UPDATED_EVENT } from "../lib/ui-events";
 
+const appWindow = getCurrentWindow();
+
 const navItems = [
   { to: "/", key: "nav.overview", icon: OverviewIcon },
   { to: "/providers", key: "nav.providers", icon: ProvidersIcon },
@@ -51,6 +54,7 @@ const navItems = [
 export function AppShell() {
   const { t, language } = useI18n();
   const [collapsed, setCollapsed] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState<string | null>(null);
@@ -146,6 +150,31 @@ export function AppShell() {
     }
   }, []);
 
+  const minimizeWindow = useCallback(async () => {
+    try {
+      await appWindow.minimize();
+    } catch {
+      // Native window controls are optional in browser-only test/dev surfaces.
+    }
+  }, []);
+
+  const toggleWindowMaximize = useCallback(async () => {
+    try {
+      await appWindow.toggleMaximize();
+      setIsMaximized(await appWindow.isMaximized());
+    } catch {
+      // Keep the dashboard usable if a host denies a window operation.
+    }
+  }, []);
+
+  const closeWindow = useCallback(async () => {
+    try {
+      await appWindow.close();
+    } catch {
+      // CloseRequested still owns close-to-tray semantics in the Tauri host.
+    }
+  }, []);
+
   const freshness = freshnessOf(lastSync, now);
   const CurrentNavIcon = currentNav.icon;
 
@@ -156,7 +185,44 @@ export function AppShell() {
         <span className="app-backdrop-orb app-backdrop-orb-blue" />
         <span className="app-backdrop-orb app-backdrop-orb-violet" />
       </div>
-      <div className="app-layout">
+      <div className="app-window">
+        <div
+          className="app-window-titlebar"
+          data-tauri-drag-region=""
+          onDoubleClick={() => void toggleWindowMaximize()}
+        >
+          <div className="app-window-titlebar-brand" data-tauri-drag-region="">
+            <span className="app-window-titlebar-mark" aria-hidden="true" data-tauri-drag-region="" />
+            <span data-tauri-drag-region="">lnwdeck</span>
+          </div>
+          <div className="app-window-controls" onDoubleClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              className="app-window-control"
+              aria-label="Minimize window"
+              onClick={() => void minimizeWindow()}
+            >
+              <span aria-hidden="true">−</span>
+            </button>
+            <button
+              type="button"
+              className="app-window-control"
+              aria-label={isMaximized ? "Restore window" : "Maximize window"}
+              onClick={() => void toggleWindowMaximize()}
+            >
+              <span aria-hidden="true">{isMaximized ? "❐" : "□"}</span>
+            </button>
+            <button
+              type="button"
+              className="app-window-control app-window-control-close"
+              aria-label="Close window"
+              onClick={() => void closeWindow()}
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
+        </div>
+        <div className="app-layout">
       <nav
         aria-label={t("app.navAria")}
         className={`app-sidebar ${collapsed ? "app-sidebar-collapsed" : ""}`.trim()}
@@ -276,6 +342,7 @@ export function AppShell() {
         <main className="app-content">
           <Outlet />
         </main>
+      </div>
       </div>
       </div>
     </>

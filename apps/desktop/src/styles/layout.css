@@ -1,18 +1,97 @@
 /* Application shell and page layout. */
 
+.app-window {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: 36px minmax(0, 1fr);
+  height: 100%;
+  overflow: hidden;
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--accent-primary) 3%, var(--bg-app)) 0%,
+    var(--bg-app) 28%,
+    color-mix(in srgb, var(--chart-3) 2%, var(--bg-app)) 100%
+  );
+}
+
+.app-window-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  color: var(--text-muted);
+}
+
+.app-window-titlebar-brand {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+  padding-left: 0.875rem;
+  font-family: var(--font-family-display);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.app-window-titlebar-mark {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 2px;
+  background: linear-gradient(135deg, var(--accent-primary), var(--chart-3));
+  box-shadow: 0 0 8px var(--glow-cyan);
+}
+
+.app-window-controls {
+  display: flex;
+  align-self: stretch;
+  margin-left: auto;
+}
+
+.app-window-control {
+  display: grid;
+  width: 46px;
+  height: 36px;
+  place-items: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-family);
+  font-size: 1rem;
+  line-height: 1;
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.app-window-control:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.app-window-control:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: -2px;
+}
+
+.app-window-control-close:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
 .app-layout {
   position: relative;
   z-index: 1;
   display: grid;
   grid-template-columns: auto 1fr;
-  height: 100%;
+  min-height: 0;
   overflow: hidden;
-  background: linear-gradient(
-    100deg,
-    color-mix(in srgb, var(--accent-primary) 3%, transparent) 0%,
-    transparent 28%,
-    color-mix(in srgb, var(--chart-3) 2%, transparent) 100%
-  );
+  background: transparent;
 }
 
 .app-sidebar {

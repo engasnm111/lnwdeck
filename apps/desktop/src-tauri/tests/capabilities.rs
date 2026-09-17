@@ -84,6 +84,23 @@ fn main_window_can_listen_to_backend_events() {
 }
 
 #[test]
+fn main_window_can_drive_custom_chrome() {
+    let capability = read_capability("main.json");
+    let permissions = permissions_of(&capability);
+    for required in [
+        "core:window:allow-minimize",
+        "core:window:allow-toggle-maximize",
+        "core:window:allow-close",
+        "core:window:allow-start-dragging",
+    ] {
+        assert!(
+            permissions.iter().any(|p| p == required),
+            "main capability must grant {required}, got {permissions:?}"
+        );
+    }
+}
+
+#[test]
 fn widget_window_can_listen_and_drag() {
     let capability = read_capability("widget.json");
     assert_eq!(windows_of(&capability), vec!["widget".to_string()]);
