@@ -7,7 +7,7 @@ use lnwdeck_domain::{
 use lnwdeck_provider_http::{get_json, JsonRequest};
 use rusqlite::{Connection, OpenFlags};
 use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Duration;
 
 const COPILOT_USER_URL: &str = "https://api.github.com/copilot_internal/user";
