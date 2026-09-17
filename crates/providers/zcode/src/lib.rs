@@ -126,7 +126,7 @@ impl ZCodeAdapter {
             domains.push(domain.to_string());
         }
         domains.extend(selected.keys().cloned());
-        let mut result = Vec::new();
+        let mut result: Vec<String> = Vec::new();
         for domain in domains {
             let Some(raw) = selected.get(&domain).and_then(serde_json::Value::as_str) else {
                 continue;
@@ -152,12 +152,11 @@ impl ZCodeAdapter {
         let config: serde_json::Value = serde_json::from_str(&raw).ok()?;
         let providers = config.get("provider")?;
         let mut candidates = self.selected_provider_keys();
-        candidates.extend(
-            CONFIG_CANDIDATES
-                .iter()
-                .filter(|candidate| !candidates.iter().any(|value| value.as_str() == **candidate))
-                .map(|candidate| (*candidate).to_string()),
-        );
+        for candidate in CONFIG_CANDIDATES {
+            if !candidates.iter().any(|value| value == candidate) {
+                candidates.push((*candidate).to_string());
+            }
+        }
         for candidate in candidates {
             let Some(entry) = providers.get(&candidate) else {
                 continue;
