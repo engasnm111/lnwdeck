@@ -28,7 +28,7 @@ import { formatRelativeTime, freshnessOf } from "../lib/freshness";
 import { useI18n } from "../lib/i18n";
 import { ALERTS_UPDATED_EVENT } from "../lib/ui-events";
 
-const appWindow = getCurrentWindow();
+
 
 const navItems = [
   { to: "/", key: "nav.overview", icon: OverviewIcon },
@@ -152,7 +152,7 @@ export function AppShell() {
 
   const minimizeWindow = useCallback(async () => {
     try {
-      await appWindow.minimize();
+      await getCurrentWindow().minimize();
     } catch {
       // Native window controls are optional in browser-only test/dev surfaces.
     }
@@ -160,6 +160,7 @@ export function AppShell() {
 
   const toggleWindowMaximize = useCallback(async () => {
     try {
+      const appWindow = getCurrentWindow();
       await appWindow.toggleMaximize();
       setIsMaximized(await appWindow.isMaximized());
     } catch {
@@ -169,7 +170,7 @@ export function AppShell() {
 
   const closeWindow = useCallback(async () => {
     try {
-      await appWindow.close();
+      await getCurrentWindow().close();
     } catch {
       // CloseRequested still owns close-to-tray semantics in the Tauri host.
     }
@@ -210,7 +211,7 @@ export function AppShell() {
               aria-label={isMaximized ? "Restore window" : "Maximize window"}
               onClick={() => void toggleWindowMaximize()}
             >
-              <span aria-hidden="true">{isMaximized ? "❐" : "□"}</span>
+              <span aria-hidden="true">{isMaximized ? "[][]" : "[]"}</span>
             </button>
             <button
               type="button"
