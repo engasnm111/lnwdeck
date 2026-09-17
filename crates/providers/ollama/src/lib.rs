@@ -1,7 +1,7 @@
 use lnwdeck_domain::{QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope, DEFAULT_FRESHNESS};
 use lnwdeck_provider_runtime::{
-    AdapterDescriptor, AdapterHealth, AdapterHealthStatus, AuthKind, ChannelSupport, Permission,
-    ProviderAdapter, SourceKind,
+    AdapterDescriptor, AdapterHealth, AdapterHealthStatus, AuthKind, ChannelSupport,
+    DetectionResult, Permission, ProviderAdapter, SourceKind,
 };
 use std::net::{SocketAddr, TcpStream};
 use std::time::Duration;
@@ -89,6 +89,27 @@ impl ProviderAdapter for OllamaAdapter {
             }
         }
     }
+    fn detect(&self) -> Result<DetectionResult, String> {
+        let reachable = self.probe(Duration::from_millis(500));
+        let descriptor = self.descriptor();
+        Ok(DetectionResult {
+            provider_id: descriptor.id.to_string(),
+            display_name: descriptor.display_name.to_string(),
+            enabled: true,
+            detected: reachable,
+            detection_method: "local_api".to_string(),
+            source_type: descriptor.source_kind.label().to_string(),
+            source_exists: reachable,
+            permission_state: if reachable {
+                "local_service".to_string()
+            } else {
+                "not_found".to_string()
+            },
+            adapter_version: descriptor.adapter_version.to_string(),
+            last_detection_at: Some(chrono::Utc::now().to_rfc3339()),
+            detection_error_code: String::new(),
+        })
+    }
     fn required_permissions(&self) -> Vec<Permission> {
         vec![Permission::Network]
     }
@@ -122,6 +143,9 @@ mod tests {
     #[test]
     fn unreachable_local_api_reports_no_quota() {
         let adapter = OllamaAdapter::with_addr(free_addr());
+        let detection = adapter.detect().expect("detection");
+        assert!(!detection.detected);
+        assert!(!detection.source_exists);
         assert!(
             adapter.collect_quota().expect("quota call").is_none(),
             "must not fabricate quota when the local API is down"
@@ -138,6 +162,9 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
         let addr = listener.local_addr().expect("addr");
         let adapter = OllamaAdapter::with_addr(addr);
+        let detection = adapter.detect().expect("detection");
+        assert!(detection.detected);
+        assert!(detection.source_exists);
         let report = adapter
             .collect_quota()
             .expect("quota call")

@@ -49,6 +49,22 @@ fn fixture_descriptor(
     }
 }
 
+fn detected_fixture(descriptor: AdapterDescriptor) -> Result<DetectionResult, String> {
+    Ok(DetectionResult {
+        provider_id: descriptor.id.to_string(),
+        display_name: descriptor.display_name.to_string(),
+        enabled: true,
+        detected: true,
+        detection_method: "fixture".to_string(),
+        source_type: "fixture".to_string(),
+        source_exists: true,
+        permission_state: "read_ok".to_string(),
+        adapter_version: descriptor.adapter_version.to_string(),
+        last_detection_at: Some("2026-08-03T00:00:00Z".to_string()),
+        detection_error_code: String::new(),
+    })
+}
+
 struct SuccessAdapter;
 
 impl ProviderAdapter for SuccessAdapter {
@@ -144,6 +160,9 @@ impl ProviderAdapter for SlowAdapter {
     }
     fn required_permissions(&self) -> Vec<Permission> {
         vec![]
+    }
+    fn detect(&self) -> Result<DetectionResult, String> {
+        detected_fixture(self.descriptor())
     }
 }
 
@@ -290,6 +309,9 @@ impl ProviderAdapter for ViolatingAdapter {
     }
     fn required_permissions(&self) -> Vec<Permission> {
         vec![]
+    }
+    fn detect(&self) -> Result<DetectionResult, String> {
+        detected_fixture(self.descriptor())
     }
 }
 
@@ -516,6 +538,9 @@ impl ProviderAdapter for QuotaAdapter {
     fn required_permissions(&self) -> Vec<Permission> {
         vec![]
     }
+    fn detect(&self) -> Result<DetectionResult, String> {
+        detected_fixture(self.descriptor())
+    }
 }
 
 struct UsageOkQuotaFailingAdapter;
@@ -545,6 +570,9 @@ impl ProviderAdapter for UsageOkQuotaFailingAdapter {
     }
     fn required_permissions(&self) -> Vec<Permission> {
         vec![]
+    }
+    fn detect(&self) -> Result<DetectionResult, String> {
+        detected_fixture(self.descriptor())
     }
 }
 
@@ -582,6 +610,9 @@ impl ProviderAdapter for QuotaLeakingAdapter {
     }
     fn required_permissions(&self) -> Vec<Permission> {
         vec![]
+    }
+    fn detect(&self) -> Result<DetectionResult, String> {
+        detected_fixture(self.descriptor())
     }
 }
 

@@ -26,6 +26,8 @@ All notable changes to lnwdeck will be documented in this file.
   model prompt and potentially spending credits.
 - Providers whose source has been removed are detected before collection and
   are no longer polled as if they were still installed.
+- Ollama now detects its local API by reachability, so the absent-provider gate
+  still permits quota collection when the local service is running.
 
 ### Desktop polish
 
