@@ -4,7 +4,7 @@ version = "13.1.0"
 description = "lnwdeck desktop application"
 authors = ["lnwdeck contributors"]
 edition = "2021"
-rust-version = "1.77"
+rust-version = "1.89"
 
 [lib]
 name = "lnwdeck_desktop_lib"
@@ -53,7 +53,7 @@ lnwdeck-provider-command-code = { path = "../../../crates/providers/command-code
 lnwdeck-provider-devin = { path = "../../../crates/providers/devin" }
 lnwdeck-provider-ark = { path = "../../../crates/providers/ark" }
 lnwdeck-provider-qoder = { path = "../../../crates/providers/qoder" }
-rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite = { version = "0.43", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 getrandom = "0.3"
 hex = "0.4"
@@ -63,7 +63,7 @@ serde_json = "1"
 tokio = { version = "1", features = ["time"] }
 # Validates .codex-pet.zip packages for the widget pet import. Already in the
 # workspace lockfile through Tauri's bundler, so no new transitive tree.
-zip = "4"
+zip = "9"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

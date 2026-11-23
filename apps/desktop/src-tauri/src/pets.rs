@@ -328,7 +328,10 @@ fn read_zip_entries(bytes: &[u8]) -> Result<(Vec<u8>, Vec<u8>), String> {
         let file = archive
             .by_index(index)
             .map_err(|error| format!("Invalid pet package: {error}"))?;
-        let name = file.name().to_string();
+        let name = file
+            .name()
+            .map_err(|error| format!("Invalid pet package: {error}"))?
+            .to_string();
         let limit = match name.as_str() {
             PET_MANIFEST => {
                 if manifest.is_some() {

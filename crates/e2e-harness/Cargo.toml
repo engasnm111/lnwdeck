@@ -15,6 +15,6 @@ lnwdeck-domain = { path = "../domain" }
 lnwdeck-provider-claude = { path = "../providers/claude" }
 lnwdeck-provider-runtime = { path = "../provider-runtime" }
 lnwdeck-storage = { path = "../storage" }
-rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite = { version = "0.43", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

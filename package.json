@@ -14,6 +14,6 @@
     "release:test": "node --test scripts/check-release-version.test.mjs scripts/generate-updater-json.test.mjs scripts/release-metadata.test.mjs scripts/ci-workflow.test.mjs"
   },
   "devDependencies": {
-    "vitest": "^3"
+    "vitest": "^5"
   }
 }

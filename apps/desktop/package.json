@@ -17,23 +17,24 @@
   },
   "dependencies": {
     "@lnwdeck/ui": "workspace:*",
-    "@tauri-apps/api": "^2",
-    "react": "^19",
-    "react-dom": "^19",
-    "react-router": "^8.3.0"
+    "@tauri-apps/api": "^2.12",
+    "react": "^19.3",
+    "react-dom": "^19.3",
+    "react-router": "^8.5.2"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2",
-    "@testing-library/jest-dom": "^6",
+    "@tauri-apps/cli": "^2.12",
+    "@testing-library/jest-dom": "^8",
     "@testing-library/react": "^16",
     "@testing-library/user-event": "^14",
+    "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@vitejs/plugin-react": "^4",
-    "jsdom": "^26",
-    "typescript": "~5.7",
-    "vite": "^6",
-    "vitest": "^3",
-    "@playwright/test": "^1"
+    "@vitejs/plugin-react": "^6.3",
+    "jsdom": "^31",
+    "typescript": "~6.0.3",
+    "vite": "^8.3",
+    "vitest": "^5",
+    "@playwright/test": "^1.65"
   }
 }

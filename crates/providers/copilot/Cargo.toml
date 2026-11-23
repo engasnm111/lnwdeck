@@ -9,7 +9,7 @@ lnwdeck-domain = { path = "../../domain" }
 lnwdeck-provider-runtime = { path = "../../provider-runtime" }
 lnwdeck-provider-http = { path = "../../provider-http" }
 chrono = { version = "0.4" }
-rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite = { version = "0.43", features = ["bundled"] }
 serde_json = "1"
 
 [dev-dependencies]

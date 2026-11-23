@@ -175,20 +175,26 @@ impl<'a> DiagnosticsRepository<'a> {
         )?;
         let rows = stmt.query_map([], |row| {
             let warnings: String = row.get(13)?;
+            // rusqlite no longer implements `FromSql` for `u64`; the pipeline
+            // counters are written from non-negative integers, so read them as
+            // i64 and clamp the impossible negative value instead of wrapping.
+            let counter = |index: usize| -> rusqlite::Result<u64> {
+                Ok(row.get::<_, i64>(index)?.max(0) as u64)
+            };
             Ok(CollectorRunRow {
-                id: row.get(0)?,
+                id: counter(0)?,
                 provider_id: row.get(1)?,
                 collector_mode: row.get(2)?,
                 started_at: row.get(3)?,
                 finished_at: row.get(4)?,
-                duration_ms: row.get(5)?,
-                source_records_seen: row.get(6)?,
-                records_parsed: row.get(7)?,
-                events_normalized: row.get(8)?,
-                events_rejected: row.get(9)?,
-                duplicates_skipped: row.get(10)?,
-                events_inserted: row.get(11)?,
-                quota_snapshots_inserted: row.get(12)?,
+                duration_ms: counter(5)?,
+                source_records_seen: counter(6)?,
+                records_parsed: counter(7)?,
+                events_normalized: counter(8)?,
+                events_rejected: counter(9)?,
+                duplicates_skipped: counter(10)?,
+                events_inserted: counter(11)?,
+                quota_snapshots_inserted: counter(12)?,
                 warning_codes: warnings
                     .split(',')
                     .filter(|w| !w.is_empty())

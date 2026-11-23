@@ -10,7 +10,7 @@ lnwdeck-provider-http = { path = "../../provider-http" }
 lnwdeck-provider-runtime = { path = "../../provider-runtime" }
 lnwdeck-security = { path = "../../security" }
 lnwdeck-windows-integration = { path = "../../windows-integration" }
-rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite = { version = "0.43", features = ["bundled"] }
 serde_json = "1"
 chrono = { version = "0.4", features = ["serde"] }
 

@@ -14,7 +14,7 @@ use lnwdeck_provider_runtime::{
     DetectionResult, Permission, ProviderAdapter, SourceKind,
 };
 use serde_json::Value;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 const ADAPTER_VERSION: &str = "0.1.0";
@@ -178,7 +178,7 @@ fn tier_from_plans(payload: &Value, product: ArkProduct) -> Option<String> {
         .and_then(|entry| tier_label(entry.get("tier")))
 }
 
-fn run_json(binary: &PathBuf, args: &[&str], timeout: Duration) -> Result<Value, String> {
+fn run_json(binary: &Path, args: &[&str], timeout: Duration) -> Result<Value, String> {
     let output = run_command(binary, args, timeout)?;
     if output.timed_out {
         return Err("PROVIDER_TIMEOUT".to_string());
