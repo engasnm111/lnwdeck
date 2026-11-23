@@ -28,6 +28,12 @@ use lnwdeck_domain::{
     DEFAULT_FRESHNESS,
 };
 use lnwdeck_provider_http::{get_json, JsonRequest};
+
+mod credentials;
+pub use credentials::{
+    credential_secret, decrypt_credential_value, node_platform, parse_account_provider_credential,
+    AccountCredential, CredentialStore, TeamContext,
+};
 use lnwdeck_provider_runtime::opencode_fork::{self, MessageSample};
 use lnwdeck_provider_runtime::token_scan::{usage_events, ScanBounds};
 use lnwdeck_provider_runtime::{
@@ -60,11 +66,22 @@ const EXCLUDED_PROVIDERS: &[&str] = &["anthropic", "openai", "google"];
 struct MonitorCredential {
     endpoint: &'static str,
     key: String,
+    team: Option<TeamContext>,
+}
+
+/// A plan selected in ZCode's settings, with its optional team scope.
+#[derive(Debug, Clone)]
+struct SelectedPlan {
+    provider_key: String,
+    team: Option<TeamContext>,
 }
 
 pub struct ZCodeAdapter {
     home: PathBuf,
     timeout: Duration,
+    /// Test-only override so credential decryption can be exercised without
+    /// the OS-derived secret. Production always loads the store lazily.
+    credentials: Option<CredentialStore>,
 }
 
 impl Default for ZCodeAdapter {
@@ -88,6 +105,16 @@ impl ZCodeAdapter {
         Self {
             home,
             timeout: Duration::from_secs(10),
+            credentials: None,
+        }
+    }
+
+    /// Adapter pinned to a decoded credential store (used by tests).
+    pub fn with_credentials(home: PathBuf, credentials: CredentialStore) -> Self {
+        Self {
+            home,
+            timeout: Duration::from_secs(10),
+            credentials: Some(credentials),
         }
     }
 
@@ -103,84 +130,212 @@ impl ZCodeAdapter {
         self.home.join("v2").join("logs")
     }
 
-    fn selected_provider_keys(&self) -> Vec<String> {
-        let raw = match std::fs::read_to_string(self.home.join("v2").join("setting.json")) {
-            Ok(raw) => raw,
-            Err(_) => return Vec::new(),
-        };
-        let setting: serde_json::Value = match serde_json::from_str(&raw) {
-            Ok(setting) => setting,
-            Err(_) => return Vec::new(),
-        };
-        let Some(selected) = setting
-            .get("modelProviderFamilySelectedKeys")
-            .and_then(serde_json::Value::as_object)
-        else {
+    fn credential_store(&self) -> CredentialStore {
+        match &self.credentials {
+            Some(store) => store.clone(),
+            None => CredentialStore::load(&self.home),
+        }
+    }
+
+    fn setting(&self) -> Option<serde_json::Value> {
+        let raw = std::fs::read_to_string(self.home.join("v2").join("setting.json")).ok()?;
+        serde_json::from_str(&raw).ok()
+    }
+
+    /// Plans the user selected, active region first. ZCode 3.14+ records the
+    /// choice as `providerFamilyConnectionSelections` instead of
+    /// `modelProviderFamilySelectedKeys`; both formats are honored.
+    fn selected_plans(&self) -> Vec<SelectedPlan> {
+        let Some(setting) = self.setting() else {
             return Vec::new();
         };
         let active_domain = setting
             .get("providerFamilyDomain")
             .and_then(serde_json::Value::as_str);
-        let mut domains = Vec::new();
-        if let Some(domain) = active_domain {
-            domains.push(domain.to_string());
-        }
-        domains.extend(selected.keys().cloned());
-        let mut result: Vec<String> = Vec::new();
-        for domain in domains {
-            let Some(raw) = selected.get(&domain).and_then(serde_json::Value::as_str) else {
-                continue;
-            };
-            if let Some(candidate) = CONFIG_CANDIDATES
-                .iter()
-                .find(|candidate| raw.contains(**candidate))
-            {
-                if !result.iter().any(|value| value.as_str() == *candidate) {
-                    result.push((*candidate).to_string());
-                }
+        let mut plans: Vec<SelectedPlan> = Vec::new();
+        fn push_plan(
+            plans: &mut Vec<SelectedPlan>,
+            provider_key: String,
+            team: Option<TeamContext>,
+        ) {
+            if !plans.iter().any(|plan| plan.provider_key == provider_key) {
+                plans.push(SelectedPlan { provider_key, team });
             }
         }
-        result
+
+        if let Some(selected) = setting
+            .get("modelProviderFamilySelectedKeys")
+            .and_then(serde_json::Value::as_object)
+        {
+            let mut domains: Vec<&str> = active_domain.into_iter().collect();
+            domains.extend(selected.keys().map(String::as_str));
+            for domain in domains {
+                let Some(raw) = selected.get(domain).and_then(serde_json::Value::as_str) else {
+                    continue;
+                };
+                let Some(candidate) = CONFIG_CANDIDATES
+                    .iter()
+                    .find(|candidate| raw.contains(**candidate))
+                else {
+                    continue;
+                };
+                push_plan(
+                    &mut plans,
+                    (*candidate).to_string(),
+                    team_context_from_selection(raw),
+                );
+            }
+            if !plans.is_empty() {
+                return plans;
+            }
+        }
+
+        if let Some(selections) = setting
+            .get("providerFamilyConnectionSelections")
+            .and_then(serde_json::Value::as_object)
+        {
+            let mut families: Vec<&str> = active_domain.into_iter().collect();
+            families.extend(selections.keys().map(String::as_str));
+            for family in families {
+                if family != "bigmodel" && family != "zai" {
+                    continue;
+                }
+                let Some(kind) = selections
+                    .get(family)
+                    .and_then(|entry| entry.get("kind"))
+                    .and_then(serde_json::Value::as_str)
+                else {
+                    continue;
+                };
+                let Some(plan_kind) = plan_kind_from_id(kind) else {
+                    continue;
+                };
+                push_plan(
+                    &mut plans,
+                    format!("builtin:{family}-{plan_kind}-plan"),
+                    None,
+                );
+            }
+        }
+        plans
     }
 
-    /// Reads the first usable coding-plan API key from ZCode's config.
-    /// Selected plans are tried before stale but still-present provider entries,
-    /// matching current ZCode behavior. Encrypted keys still fall back to the
-    /// local billing log instead of being sent to the wrong account endpoint.
+    /// Region whose plan should be served first: the model settings domain the
+    /// user picked, falling back to the OAuth login region.
+    fn active_region(&self, store: &CredentialStore) -> Option<String> {
+        if let Some(domain) = self
+            .setting()
+            .and_then(|setting| {
+                setting
+                    .get("providerFamilyDomain")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_string)
+            })
+            .filter(|domain| domain == "bigmodel" || domain == "zai")
+        {
+            return Some(domain);
+        }
+        store
+            .get("oauth:active_provider")
+            .filter(|provider| *provider == "bigmodel" || *provider == "zai")
+            .map(str::to_string)
+    }
+
+    fn login_account_id(&self, store: &CredentialStore, family: &str) -> Option<String> {
+        let raw = store.get(&format!("oauth:{family}:user_info"))?;
+        let info: serde_json::Value = serde_json::from_str(raw).ok()?;
+        info.get("id")
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+            .map(str::to_string)
+    }
+
+    fn config_key(providers: Option<&serde_json::Value>, candidate: &str) -> Option<String> {
+        let key = providers?
+            .get(candidate)?
+            .get("options")?
+            .get("apiKey")?
+            .as_str()?
+            .trim();
+        if key.is_empty() || key.starts_with("enc:v1:") {
+            return None;
+        }
+        Some(key.to_string())
+    }
+
+    /// Picks the best usable coding-plan credential.
+    ///
+    /// Coding plans precede promotional start-plan grants; within each plan
+    /// kind the active region's provider comes first so switching regions never
+    /// keeps serving the previous region's plan. Keys come from ZCode 3.14+
+    /// `credentials.json` first, then from a legacy `config.json` entry. Start
+    /// plans publish no monitor quota, so they keep the local-log fallback.
     fn api_key(&self) -> Option<MonitorCredential> {
-        let raw = std::fs::read_to_string(self.config_path()).ok()?;
-        let config: serde_json::Value = serde_json::from_str(&raw).ok()?;
-        let providers = config.get("provider")?;
-        let mut candidates = self.selected_provider_keys();
-        for candidate in CONFIG_CANDIDATES {
-            if !candidates.iter().any(|value| value == candidate) {
-                candidates.push((*candidate).to_string());
+        let store = self.credential_store();
+        let config = std::fs::read_to_string(self.config_path())
+            .ok()
+            .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok());
+        let providers = config.as_ref().and_then(|config| config.get("provider"));
+        let active_region = self.active_region(&store);
+
+        let mut candidates = self.selected_plans();
+        for default in CONFIG_CANDIDATES {
+            if !candidates.iter().any(|plan| plan.provider_key == *default) {
+                candidates.push(SelectedPlan {
+                    provider_key: (*default).to_string(),
+                    team: None,
+                });
             }
         }
-        for candidate in candidates {
-            let Some(entry) = providers.get(&candidate) else {
-                continue;
-            };
-            let Some(key) = entry
-                .get("options")
-                .and_then(|options| options.get("apiKey"))
-                .and_then(serde_json::Value::as_str)
-            else {
-                continue;
-            };
-            let key = key.trim();
-            if key.is_empty() || key.starts_with("enc:v1:") || !candidate.ends_with("coding-plan") {
+        let region_rank = |provider_key: &str| {
+            let family = provider_family(provider_key);
+            usize::from(
+                active_region
+                    .as_deref()
+                    .is_some_and(|active| active != family),
+            )
+        };
+        candidates.sort_by_key(|plan| {
+            (
+                usize::from(!plan.provider_key.ends_with("coding-plan")),
+                region_rank(&plan.provider_key),
+            )
+        });
+
+        for plan in candidates {
+            if !plan.provider_key.ends_with("coding-plan") {
                 continue;
             }
-            let endpoint = if candidate.starts_with("builtin:zai-") {
+            let family = provider_family(&plan.provider_key);
+            let endpoint = if family == "zai" {
                 ZAI_MONITOR_QUOTA_URL
             } else {
                 BIGMODEL_MONITOR_QUOTA_URL
             };
-            return Some(MonitorCredential {
-                endpoint,
-                key: key.to_string(),
+            let login_account = self.login_account_id(&store, family);
+            let mut accounts: Vec<AccountCredential> = store
+                .account_credentials()
+                .into_iter()
+                .filter(|account| account.provider_key == plan.provider_key)
+                .collect();
+            accounts.sort_by_key(|account| {
+                usize::from(login_account.as_deref() != Some(account.account_id.as_str()))
             });
+            if let Some(account) = accounts.into_iter().next() {
+                return Some(MonitorCredential {
+                    endpoint,
+                    key: account.api_key,
+                    team: account.team.or(plan.team),
+                });
+            }
+            if let Some(key) = Self::config_key(providers, &plan.provider_key) {
+                return Some(MonitorCredential {
+                    endpoint,
+                    key,
+                    team: plan.team,
+                });
+            }
         }
         None
     }
@@ -210,11 +365,26 @@ impl ZCodeAdapter {
     /// `Ok(None)` means the payload carried no usable windows; an expired
     /// credential or a rate limit is reported so the UI does not mask a real
     /// signal behind a local estimate.
-    fn monitor_quota(&self, endpoint: &str, key: &str) -> Result<Option<QuotaReport>, String> {
-        let response = get_json(JsonRequest {
+    fn monitor_quota(&self, credential: &MonitorCredential) -> Result<Option<QuotaReport>, String> {
+        let mut url = credential.endpoint.to_string();
+        let mut headers: Vec<(&str, &str)> = Vec::new();
+        if let Some(team) = &credential.team {
+            // Team subscriptions are selected with `type=2` plus the scope
+            // headers; the credential itself stays the same.
+            url.push_str("?type=2");
+            headers.push(("bigmodel-organization", team.organization_id.as_str()));
+            headers.push(("bigmodel-project", team.project_id.as_str()));
+        }
+        let request = JsonRequest {
             timeout: self.timeout,
-            ..JsonRequest::new(endpoint).raw_auth(key)
-        })?;
+            ..JsonRequest::new(&url).raw_auth(&credential.key)
+        };
+        let request = if headers.is_empty() {
+            request
+        } else {
+            request.with_headers(&headers)
+        };
+        let response = get_json(request)?;
         let Some((windows, plan)) = windows_from_monitor_payload(&response.body)? else {
             return Ok(None);
         };
@@ -254,7 +424,7 @@ impl ZCodeAdapter {
     /// balance. Local token totals are usage history, not quota evidence.
     fn quota_estimate(&self) -> Result<Option<QuotaReport>, String> {
         if let Some(credential) = self.api_key() {
-            match self.monitor_quota(credential.endpoint, &credential.key) {
+            match self.monitor_quota(&credential) {
                 Ok(Some(report)) => return Ok(Some(report)),
                 Ok(None) => {}
                 Err(code) if code == "AUTH_EXPIRED" || code == "RATE_LIMITED" => return Err(code),
@@ -331,21 +501,21 @@ pub fn windows_from_monitor_payload(
 
     let named = [
         window_from_limit(
-            find_limit(limits, "TOKENS_LIMIT", 3, Some(5)),
+            find_limit(limits, &["TOKENS_LIMIT", "CREDIT_LIMIT"], 3, Some(5)),
             "5h",
             "5-hour",
             QuotaWindowScope::Rolling,
             QuotaKind::Credits,
         ),
         window_from_limit(
-            find_limit(limits, "TOKENS_LIMIT", 6, None),
+            find_limit(limits, &["TOKENS_LIMIT", "CREDIT_LIMIT"], 6, None),
             "7d",
             "Weekly",
             QuotaWindowScope::Weekly,
             QuotaKind::Credits,
         ),
         window_from_limit(
-            find_limit(limits, "TIME_LIMIT", 5, Some(1)),
+            find_limit(limits, &["TIME_LIMIT"], 5, Some(1)),
             "tools",
             "Tool calls",
             QuotaWindowScope::Other,
@@ -382,13 +552,14 @@ pub fn windows_from_monitor_payload(
 
 fn find_limit<'a>(
     limits: &'a [serde_json::Value],
-    limit_type: &str,
+    limit_types: &[&str],
     unit: i64,
     number: Option<i64>,
 ) -> Option<&'a serde_json::Value> {
     limits.iter().find(|limit| {
-        limit.get("type").and_then(|value| value.as_str()) == Some(limit_type)
-            && limit.get("unit").and_then(|value| value.as_i64()) == Some(unit)
+        limit_types.iter().any(|limit_type| {
+            limit.get("type").and_then(|value| value.as_str()) == Some(*limit_type)
+        }) && limit.get("unit").and_then(|value| value.as_i64()) == Some(unit)
             && (number.is_none() || limit.get("number").and_then(|value| value.as_i64()) == number)
     })
 }
@@ -466,6 +637,48 @@ fn plan_label(level: &str) -> String {
         }
     }
     level.to_string()
+}
+
+/// Region a built-in plan provider belongs to.
+fn provider_family(provider_key: &str) -> &str {
+    if provider_key.starts_with("builtin:zai-") {
+        "zai"
+    } else {
+        "bigmodel"
+    }
+}
+
+/// Plan class ("coding" | "start") a plan id serves.
+fn plan_kind_from_id(plan_id: &str) -> Option<&'static str> {
+    if plan_id.ends_with("coding-plan") {
+        Some("coding")
+    } else if plan_id == "start-plan" {
+        Some("start")
+    } else {
+        None
+    }
+}
+
+/// Decodes the team scope ZCode stores in a selection:
+/// `team-plan:builtin:<family>-coding-plan:<product>:<org>:<project>`.
+fn team_context_from_selection(selection: &str) -> Option<TeamContext> {
+    let rest = selection.trim().strip_prefix("team-plan:builtin:")?;
+    let mut parts = rest.split(':');
+    let plan = parts.next()?;
+    if !plan.ends_with("-coding-plan") {
+        return None;
+    }
+    let product = credentials::percent_decode(parts.next()?.trim());
+    let organization = credentials::percent_decode(parts.next()?.trim());
+    let project = credentials::percent_decode(parts.next()?.trim());
+    if parts.next().is_some() || product.is_empty() || organization.is_empty() || project.is_empty()
+    {
+        return None;
+    }
+    Some(TeamContext {
+        organization_id: organization,
+        project_id: project,
+    })
 }
 
 /// Extracts credit windows from ZCode's local `billing/balance` log records.
@@ -890,6 +1103,137 @@ mod tests {
         assert_eq!(plan_label("zcode-v3-start-plan-0615"), "Start");
         assert_eq!(plan_label("zcode-v3-pro-plan-202608"), "Pro");
         assert_eq!(plan_label("something-else"), "something-else");
+    }
+
+    #[test]
+    fn credit_limit_rows_map_to_the_named_windows() {
+        let payload = serde_json::json!({
+            "code": 0,
+            "data": {
+                "level": "zcode-v3-pro-plan",
+                "limits": [
+                    {"type": "CREDIT_LIMIT", "unit": 3, "number": 5, "percentage": 42.0,
+                     "nextResetTime": 1_790_000_000_i64},
+                    {"type": "CREDIT_LIMIT", "unit": 6, "number": 7, "percentage": 80.0,
+                     "nextResetTime": 1_790_100_000_i64}
+                ]
+            }
+        });
+        let (windows, plan) = windows_from_monitor_payload(&payload)
+            .expect("payload")
+            .expect("windows");
+        assert_eq!(windows.len(), 2);
+        assert_eq!(windows[0].window_key, "5h");
+        assert_eq!(windows[0].used_percent, Some(42.0));
+        assert_eq!(windows[1].window_key, "7d");
+        assert_eq!(windows[1].used_percent, Some(80.0));
+        assert_eq!(plan.as_deref(), Some("Pro"));
+    }
+
+    #[test]
+    fn credentials_file_supplies_the_coding_plan_key() {
+        let home = tempfile::tempdir().expect("temp");
+        let v2 = home.path().join("v2");
+        std::fs::create_dir_all(&v2).expect("v2 dir");
+        std::fs::write(
+            v2.join("credentials.json"),
+            serde_json::json!({
+                "account-provider:coding-plan:account:zai-individual-coding-plan:account:acct-1:api-key":
+                    "enc:v1:AAECAwQFBgcICQoL.YvjzoOrcSzdrRVYgmQRkEg.NPLn7_S0QvHoyjqjaaQIBgQ"
+            })
+            .to_string(),
+        )
+        .expect("credentials");
+        let store = CredentialStore::load_with_secret(home.path(), "test-secret");
+        let adapter = ZCodeAdapter::with_credentials(home.path().to_path_buf(), store);
+        let credential = adapter.api_key().expect("credential");
+        assert_eq!(credential.endpoint, ZAI_MONITOR_QUOTA_URL);
+        assert_eq!(credential.key, "sk-zcode-test-key");
+        assert!(credential.team.is_none());
+    }
+
+    #[test]
+    fn team_plan_selection_adds_the_quota_scope() {
+        let home = tempfile::tempdir().expect("temp");
+        let v2 = home.path().join("v2");
+        std::fs::create_dir_all(&v2).expect("v2 dir");
+        std::fs::write(
+            v2.join("credentials.json"),
+            serde_json::json!({
+                "account-provider:coding-plan:account:zai-individual-coding-plan:account:acct-1:api-key":
+                    "enc:v1:AAECAwQFBgcICQoL.YvjzoOrcSzdrRVYgmQRkEg.NPLn7_S0QvHoyjqjaaQIBgQ"
+            })
+            .to_string(),
+        )
+        .expect("credentials");
+        std::fs::write(
+            v2.join("setting.json"),
+            serde_json::json!({
+                "providerFamilyDomain": "zai",
+                "modelProviderFamilySelectedKeys": {
+                    "zai": "team-plan:builtin:zai-coding-plan:prod-1:org-9:proj-2"
+                }
+            })
+            .to_string(),
+        )
+        .expect("setting");
+        let store = CredentialStore::load_with_secret(home.path(), "test-secret");
+        let adapter = ZCodeAdapter::with_credentials(home.path().to_path_buf(), store);
+        let credential = adapter.api_key().expect("credential");
+        assert_eq!(
+            credential.team,
+            Some(TeamContext {
+                organization_id: "org-9".to_string(),
+                project_id: "proj-2".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn connection_selections_choose_the_coding_plan() {
+        let home = tempfile::tempdir().expect("temp");
+        let v2 = home.path().join("v2");
+        std::fs::create_dir_all(&v2).expect("v2 dir");
+        std::fs::write(
+            v2.join("credentials.json"),
+            serde_json::json!({
+                "account-provider:coding-plan:account:bigmodel-individual-coding-plan:account:acct-b:api-key":
+                    "enc:v1:AAECAwQFBgcICQoL.YvjzoOrcSzdrRVYgmQRkEg.NPLn7_S0QvHoyjqjaaQIBgQ",
+                "account-provider:coding-plan:account:zai-individual-coding-plan:account:acct-z:api-key":
+                    "enc:v1:AAECAwQFBgcICQoL.YvjzoOrcSzdrRVYgmQRkEg.NPLn7_S0QvHoyjqjaaQIBgQ"
+            })
+            .to_string(),
+        )
+        .expect("credentials");
+        std::fs::write(
+            v2.join("setting.json"),
+            serde_json::json!({
+                "providerFamilyDomain": "zai",
+                "providerFamilyConnectionSelections": {
+                    "zai": {"kind": "individual-coding-plan"}
+                }
+            })
+            .to_string(),
+        )
+        .expect("setting");
+        let store = CredentialStore::load_with_secret(home.path(), "test-secret");
+        let adapter = ZCodeAdapter::with_credentials(home.path().to_path_buf(), store);
+        let credential = adapter.api_key().expect("credential");
+        assert_eq!(credential.endpoint, ZAI_MONITOR_QUOTA_URL);
+    }
+
+    #[test]
+    fn team_context_is_only_read_from_team_selections() {
+        assert_eq!(
+            team_context_from_selection(
+                "team-plan:builtin:bigmodel-coding-plan:prod-1:org%3A9:proj%2F2"
+            ),
+            Some(TeamContext {
+                organization_id: "org:9".to_string(),
+                project_id: "proj/2".to_string(),
+            })
+        );
+        assert_eq!(team_context_from_selection("builtin:zai-coding-plan"), None);
     }
 
     #[test]
