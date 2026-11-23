@@ -1,4 +1,4 @@
-# lnwdeck v13.1.0
+# lnwdeck v13.2.0
 
 Universal AI usage and quota tracker for Windows. lnwdeck reads the local
 artifacts already written by AI tools, records token counts and costs, and
@@ -20,6 +20,29 @@ sync is required.
 - Provides budgets, alerts, diagnostics and sanitized JSON export.
 - Includes a floating quota widget and a transparent desktop pet, both using
   the same live provider data as the dashboard.
+
+## v13.2.0 quota sources, dependency refresh and audit fixes
+
+- **ZCode 3.14+ quota restored.** ZCode stopped writing `v2/config.json`; the
+  adapter now decrypts `v2/credentials.json` in memory, uses the per-account
+  coding-plan key that owns the current login, honors the active region, and
+  sends team scope when the plan is a team subscription. Start plans keep the
+  local billing-log fallback. ZCode 3.17.1's `CREDIT_LIMIT` window rows are
+  accepted alongside `TOKENS_LIMIT`.
+- **Qoder Desktop 0.4.x quota.** The account summary moved to `main.log` under
+  the bundle-id profile; both the old and new log layouts and the `qoderUsage`
+  snapshot (including add-on credits) are read. Qoder CN uses its current
+  `qoder.cn` endpoint.
+- **Dependency refresh.** rusqlite 0.43 with bundled SQLite 3.54.1 (fixes
+  CVE-2026-119375), zip 9.8.1 (fixes the ZIP extraction advisories), Tauri
+  2.12.7 with updater 2.14.1, and Vite 8 / Vitest 5 / TypeScript 6 / React 19.3
+  on the JavaScript side.
+- **Security gates are clean.** `pnpm audit --audit-level high` reports no known
+  vulnerabilities and `cargo audit` no longer fails; the documented
+  informational advisories remain in `audit.toml`.
+
+See [CHANGELOG.md](CHANGELOG.md) and the
+[provider setup guide](docs/PROVIDER_QUOTA_SETUP.md) for source-specific details.
 
 ## v13.1.0 provider refresh and desktop shell
 

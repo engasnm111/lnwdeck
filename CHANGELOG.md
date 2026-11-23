@@ -2,6 +2,48 @@
 
 All notable changes to lnwdeck will be documented in this file.
 
+## [13.2.0] - 2026-11-23
+
+### Provider quota sources refreshed against TokenTracker
+
+- ZCode 3.14+ no longer writes `v2/config.json`, so the old quota lookup found
+  no credential and reported no limits. lnwdeck now reads the login from
+  `v2/credentials.json`, decrypts each `enc:v1:` value in memory with the
+  account-derived AES-256-GCM key (or `ZCODE_CREDENTIAL_SECRET` when set), and
+  selects the active region's coding plan. Per-account keys written by ZCode
+  3.14+ are supported, the account that owns the current login is preferred,
+  and team plans send the `bigmodel-organization` / `bigmodel-project` scope
+  with `type=2`. Start plans keep the local `billing/balance` log fallback.
+- ZCode 3.17.1 renamed the token-window rows to `CREDIT_LIMIT`; the 5-hour and
+  weekly windows now accept both `TOKENS_LIMIT` and `CREDIT_LIMIT`.
+- Qoder Desktop 0.4.x moved the account usage summary to `main.log` under the
+  bundle-id profile (`%APPDATA%\com.qoder.app.stable`, or
+  `com.qodercn.app.stable` for Qoder CN). The adapter scans both the old
+  product-name and new bundle-id log roots and parses the `qoderUsage`
+  snapshot, including add-on credits and the no-expiry sentinel.
+- Qoder CN now uses its current `qoder.cn` account endpoint while keeping the
+  existing cookie-based fallback.
+
+### Dependency and toolchain refresh
+
+- Rust: rusqlite 0.43 with bundled SQLite 3.54.1 (fixes CVE-2026-119375),
+  zip 9.8.1 (fixes RUSTSEC-2026-0367/0368/0369/0429 and follow-ups),
+  tauri 2.12.7 and tauri-plugin-updater 2.14.1.
+- JavaScript: Vite 8, Vitest 5, jsdom 31, Testing Library jest-dom 8,
+  TypeScript 6, React 19.3, React Router 8.5 and the current Tauri CLI/API.
+- `pnpm audit --audit-level high` reports no known vulnerabilities and
+  `cargo audit` no longer reports vulnerabilities; the remaining informational
+  advisories are the GTK/proc-macro crates documented in `audit.toml`.
+
+### Verification
+
+- New unit tests cover ZCode credential decryption, per-account key mapping,
+  team scoping, the 3.14+ settings format and `CREDIT_LIMIT` windows, plus the
+  Qoder `main.log` summary and bundle-id log roots.
+- Workspace gates: `cargo fmt --check`, `cargo clippy --workspace
+  --all-targets --all-features -- -D warnings`, `cargo test --workspace`,
+  `pnpm -r run typecheck`, `pnpm -r run test` and the release-script tests.
+
 ## [13.1.0] - 2026-09-17
 
 ### Provider quota coverage

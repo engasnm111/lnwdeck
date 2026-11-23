@@ -110,15 +110,15 @@ lnwdeck จึงไม่ใช้ local token total เป็น quota โด�
 | Gemini | session/log | Gemini CLI Cloud Code quota API | ล็อกอิน Gemini CLI; OAuth token อยู่ใน `~/.gemini/oauth_creds.json` |
 | Antigravity | ไม่มี usage channel แยก | Antigravity IDE Language Server บน loopback | ติดตั้งและเปิด Antigravity IDE |
 | OpenCode Go | OpenCode SQLite | official Go usage API เมื่อมี `OPENCODE_GO_API_KEY`; workspace dashboard เป็น compatibility fallback | API key หรือคู่ workspace id + auth cookie |
-| ZCode | ZCode SQLite | Z.AI/BigModel monitor API หรือ `billing/balance` log ที่ ZCode เขียนเอง | coding-plan credential ของ ZCode ถ้ามี |
+| ZCode | ZCode SQLite | Z.AI/BigModel monitor API ด้วย key จาก `~/.zcode/v2/credentials.json` (3.14+) หรือ `v2/config.json` (รูปแบบเก่า); `billing/balance` log เป็น fallback | ล็อกอิน ZCode; ตั้ง `ZCODE_CREDENTIAL_SECRET` เพิ่มถ้า ZCode ใช้ค่านี้ |
 | Kimi Code | `wire.jsonl` | `https://api.kimi.com/coding/v1/usages` และ OAuth refresh | ล็อกอิน Kimi; รองรับ `KIMI_HOME`/`KIMI_CODE_HOME` |
 | Grok | ไม่มี usage channel ในตัว | Grok Build billing API จาก session ใน `~/.grok/auth.json`; xAI rate-limit headers เป็น fallback สำหรับ API key | ล็อกอิน Grok Build หรือใส่ xAI key ใน Settings |
 | Command Code | ไม่มี usage channel ในตัว | Command Code `whoami`, credits และ subscriptions API | `COMMAND_CODE_API_KEY` หรือ `~/.commandcode/auth.json` |
 | Devin | ไม่มี usage channel ในตัว | Devin seat-management `GetPlanStatus` | ล็อกอิน Devin CLI (`devin auth login`) |
 | Ark Coding Plan | ไม่มี usage channel แยก | `arkcli usage plan --format json` | ติดตั้งและล็อกอิน `arkcli` |
 | Ark Agent Plan | ไม่มี usage channel แยก | `arkcli usage plan --format json` | ติดตั้งและล็อกอิน `arkcli` |
-| Qoder | ไม่มี usage channel แยก | local `renderer.log`; Qoder usage API เมื่อกำหนด `QODER_COOKIE` | ล็อกอิน Qoder; cookie เป็น fallback แบบ user-managed |
-| Qoder CN | ไม่มี usage channel แยก | local `renderer.log`; Qoder CN usage API เมื่อกำหนด `QODER_CN_COOKIE` | ล็อกอิน Qoder CN; cookie เป็น fallback แบบ user-managed |
+| Qoder | ไม่มี usage channel แยก | `main.log` (Desktop 0.4+) หรือ `renderer.log`; Qoder usage API เมื่อกำหนด `QODER_COOKIE` | ล็อกอิน Qoder; cookie เป็น fallback แบบ user-managed |
+| Qoder CN | ไม่มี usage channel แยก | `main.log`/`renderer.log`; `https://qoder.cn` usage API เมื่อกำหนด `QODER_CN_COOKIE` | ล็อกอิน Qoder CN; cookie เป็น fallback แบบ user-managed |
 | OpenRouter | ไม่มี usage channel ในตัว | OpenRouter credits/limits API | ใส่ key ใน Settings |
 | Ollama | ไม่มี usage channel ในตัว | local API probe; แสดง unlimited เฉพาะเมื่อ API ตอบ | เปิด Ollama ที่เครื่องนั้น |
 | GitHub Copilot | local artifact | `https://api.github.com/copilot_internal/user` | ล็อกอิน Copilot CLI/extension; รองรับ plaintext auth และ auth.db schema 0 |
@@ -184,6 +184,49 @@ Gemini CLI กับ Antigravity ใช้คนละ session จึงแย�
 
 Gemini OAuth refresh จะอ่าน OAuth client metadata จาก Gemini CLI ที่ติดตั้งอยู่
 ในเครื่อง ไม่มี client secret ฝังอยู่ใน source code ของ lnwdeck
+
+## ZCode 3.14+ และ Qoder Desktop 0.4.x
+
+สอง provider นี้เปลี่ยนที่เก็บข้อมูลในปี 2026 ทำให้วิธีเดิมอ่านไม่พบ; ตั้งแต่
+13.2.0 lnwdeck อ่านรูปแบบใหม่ตามพฤติกรรมของ TokenTracker
+
+### ZCode: `credentials.json` แทน `config.json`
+
+ZCode 3.14 หยุดเขียน `~/.zcode/v2/config.json` และย้าย login ไปที่
+`~/.zcode/v2/credentials.json` โดยเก็บค่าเป็น
+`enc:v1:<iv>.<tag>.<ciphertext>`
+
+- lnwdeck ถอดรหัสเฉพาะในหน่วยความจำ ด้วย AES-256-GCM และกุญแจ SHA-256 ของ
+  secret ที่มาจาก `ZCODE_CREDENTIAL_SECRET` หรือตัวตนผู้ใช้ Windows
+  (`zcode-credential-fallback:<platform>:<home>:<username>`)
+- ถ้า ZCode ของคุณตั้ง `ZCODE_CREDENTIAL_SECRET` เอง (เช่น portable install)
+  ต้องตั้ง environment variable เดียวกันให้ lnwdeck เห็นด้วย ถ้าไม่ตรงกันจะ
+  ถอดรหัสไม่ได้และ quota จะว่าง โดย lnwdeck จะไม่เดาค่าแทน
+- key ที่อ่านได้: per-account coding-plan key, key ที่ผูกกับทีม และ
+  `zcodejwttoken` สำหรับ start plan
+- 5-hour และ weekly windows รับทั้ง `TOKENS_LIMIT` (เดิม) และ `CREDIT_LIMIT`
+  (ZCode 3.17.1+)
+- แผนแบบทีมจะส่ง `bigmodel-organization` / `bigmodel-project` พร้อม `type=2`
+- ถ้าไม่มี key ที่ใช้ได้ จะ fallback ไปที่ log `billing/balance` ที่ ZCode
+  เขียนเอง; ตัวเลข token ในเครื่องยังไม่ถูกใช้เป็น quota
+
+### Qoder: `main.log` และ bundle-id profile
+
+Qoder Desktop 0.4.x เขียน account usage summary ลง `main.log` ใต้โฟลเดอร์
+bundle id (`%APPDATA%\com.qoder.app.stable\logs`) แทน `Qoder\logs` อย่างเดียว
+
+- lnwdeck สแกนทั้ง `%APPDATA%\Qoder\logs` และ
+  `%APPDATA%\com.qoder.app.stable\logs` (Qoder CN: `QoderCN` และ
+  `com.qodercn.app.stable`) แล้วอ่าน snapshot `qoderUsage` ล่าสุด
+- snapshot มี plan, เครดิตที่ใช้/ทั้งหมด/คงเหลือ และ add-on credits
+- บัญชีที่ไม่มีวันหมดอายุจะได้ `9999-12-31` จาก provider ซึ่ง lnwdeck ไม่แสดง
+  เป็นวันรีเซ็ต
+- add-on credits ไม่มีวันต่ออายุ จึงแสดงเป็นหน้าต่างที่ไม่มี reset
+- ถ้ามี `QODER_COOKIE` หรือ `QODER_CN_COOKIE` จะยังใช้ usage API ได้เหมือนเดิม
+  และ Qoder CN ใช้ `https://qoder.cn` เป็น endpoint ปัจจุบัน
+
+ทั้งสองกรณีอ่านแบบ passive: lnwdeck ไม่เขียนทับไฟล์ของ provider, ไม่ส่ง
+credential ออกนอกเครื่อง และไม่เก็บ plaintext ของ key ลง SQLite, UI หรือ log
 
 ## การแก้ปัญหาโดยดูสถานะ
 
