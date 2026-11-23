@@ -5,7 +5,7 @@
 //! process environment, lnwdeck can also call Qoder's read-only account usage
 //! endpoint. Secrets are never persisted or surfaced in diagnostics.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use lnwdeck_domain::{
     Confidence, QuotaKind, QuotaReport, QuotaWindow, QuotaWindowScope, DEFAULT_FRESHNESS,
 };
@@ -64,14 +64,23 @@ impl Site {
     fn origin(self) -> &'static str {
         match self {
             Self::International => "https://qoder.com",
-            Self::China => "https://qoder.com.cn",
+            Self::China => "https://qoder.cn",
         }
     }
 
     fn usage_url(self) -> &'static str {
         match self {
             Self::International => "https://qoder.com/api/v2/me/usages/big_model_credits",
-            Self::China => "https://qoder.com.cn/api/v2/me/usages/big_model_credits",
+            Self::China => "https://qoder.cn/api/v2/me/usages/big_model_credits",
+        }
+    }
+
+    /// Electron profile directory Qoder Desktop 0.4+ uses instead of the
+    /// product-name directory.
+    fn bundle_id(self) -> &'static str {
+        match self {
+            Self::International => "com.qoder.app.stable",
+            Self::China => "com.qodercn.app.stable",
         }
     }
 }
@@ -315,7 +324,126 @@ pub fn quota_from_renderer_log(text: &str, provider_id: &str) -> Option<QuotaRep
     latest
 }
 
-fn recent_renderer_logs(root: &Path) -> Vec<PathBuf> {
+/// Parses the account usage summary Qoder Desktop 0.4.x appends to `main.log`.
+///
+/// The line carries a `qoderUsage` object with the same quota summary the
+/// desktop renders, so the adapter can show limits without the old
+/// `renderer.log` snapshot.
+pub fn quota_from_account_usage_log(text: &str, provider_id: &str) -> Option<QuotaReport> {
+    for line in text.lines().rev() {
+        if !line.contains("\"qoderUsage\"") {
+            continue;
+        }
+        if let Some(report) = account_usage_report_from_line(line, provider_id) {
+            return Some(report);
+        }
+    }
+    None
+}
+
+fn account_usage_report_from_line(line: &str, provider_id: &str) -> Option<QuotaReport> {
+    let start = line.find('{')?;
+    let candidate = &line[start..];
+    let payload: Value = serde_json::from_str(candidate)
+        .ok()
+        .or_else(|| serde_json::from_str(&candidate[..=candidate.rfind('}')?]).ok())?;
+    let usage = payload.get("qoderUsage")?.as_object()?;
+    let quota = usage.get("userQuota");
+    let addon = usage.get("addOnQuota");
+    if quota.is_none() && addon.is_none() {
+        return None;
+    }
+    let mut windows = Vec::new();
+    if let Some(quota) = quota {
+        let used = number(quota.get("used"))?;
+        let total = number(quota.get("total"))?;
+        let remaining = number(quota.get("remaining")).unwrap_or((total - used).max(0.0));
+        if used < 0.0 || total < 0.0 || remaining < 0.0 {
+            return None;
+        }
+        let unit = quota
+            .get("unit")
+            .and_then(Value::as_str)
+            .unwrap_or("credits");
+        let (key, label, kind) = if unit == "calls" {
+            ("calls", "Calls", QuotaKind::Requests)
+        } else {
+            ("credits", "Credits", QuotaKind::Credits)
+        };
+        let exceeded = usage
+            .get("isQuotaExceeded")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let percent = if total > 0.0 {
+            (used / total * 100.0).clamp(0.0, 100.0)
+        } else {
+            0.0
+        };
+        let percent = if exceeded { 100.0 } else { percent };
+        let reset = expiry_reset(usage.get("expiresAt"));
+        let window = match std::num::NonZeroU64::new(total.round() as u64) {
+            Some(limit) => QuotaWindow::with_limit(
+                key,
+                label,
+                QuotaWindowScope::Monthly,
+                kind,
+                used.round().clamp(0.0, total) as u64,
+                limit,
+                reset,
+                Confidence::High,
+            ),
+            None => QuotaWindow::from_percent(
+                key,
+                label,
+                QuotaWindowScope::Monthly,
+                kind,
+                percent,
+                reset,
+                Confidence::High,
+            ),
+        };
+        windows.push(window);
+    }
+    if let Some(addon) = addon {
+        let used = number(addon.get("used"))?;
+        let total = number(addon.get("total"))?;
+        if used < 0.0 || total <= 0.0 {
+            return None;
+        }
+        windows.push(QuotaWindow::with_limit(
+            "addon",
+            "Add-on credits",
+            QuotaWindowScope::Monthly,
+            QuotaKind::Credits,
+            used.round().clamp(0.0, total) as u64,
+            std::num::NonZeroU64::new(total.round() as u64)?,
+            None,
+            Confidence::High,
+        ));
+    }
+    if windows.is_empty() {
+        return None;
+    }
+    let mut report = QuotaReport::new(provider_id, "local_log", windows, DEFAULT_FRESHNESS);
+    report.plan = usage
+        .get("userType")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    Some(report)
+}
+
+/// Qoder writes `9999-12-31` for accounts without an expiry; that sentinel
+/// must not become a real reset date.
+fn expiry_reset(value: Option<&Value>) -> Option<DateTime<Utc>> {
+    let raw = value?.as_str()?.trim();
+    let parsed = DateTime::parse_from_rfc3339(raw).ok()?.with_timezone(&Utc);
+    if parsed.year() >= 2100 {
+        return None;
+    }
+    Some(parsed)
+}
+
+fn recent_quota_logs(root: &Path) -> Vec<PathBuf> {
     let mut stack = vec![(root.to_path_buf(), 0usize)];
     let mut files = Vec::new();
     while let Some((dir, depth)) = stack.pop() {
@@ -329,7 +457,10 @@ fn recent_renderer_logs(root: &Path) -> Vec<PathBuf> {
             let path = entry.path();
             if path.is_dir() && depth < 4 {
                 stack.push((path, depth + 1));
-            } else if path.file_name().and_then(|name| name.to_str()) == Some("renderer.log") {
+            } else if matches!(
+                path.file_name().and_then(|name| name.to_str()),
+                Some("renderer.log") | Some("main.log")
+            ) {
                 let modified = entry
                     .metadata()
                     .ok()
@@ -338,7 +469,7 @@ fn recent_renderer_logs(root: &Path) -> Vec<PathBuf> {
             }
         }
     }
-    files.sort_by(|a, b| b.1.cmp(&a.1));
+    files.sort_by_key(|(_, modified)| std::cmp::Reverse(*modified));
     files
         .into_iter()
         .take(MAX_RENDERER_LOGS)
@@ -391,36 +522,35 @@ impl QoderCore {
         }
     }
 
-    fn log_root(&self) -> PathBuf {
+    /// Every log directory this Qoder edition may write to. Qoder Desktop
+    /// 0.4+ moved its Electron profile to the bundle-id directory, so the old
+    /// product-name directory alone is no longer enough.
+    fn log_roots(&self) -> Vec<PathBuf> {
         let prefix = self.site.env_prefix();
         if let Ok(value) = std::env::var(format!("{prefix}_LOG_ROOT")) {
             let value = value.trim();
             if !value.is_empty() {
-                return PathBuf::from(value);
+                return vec![PathBuf::from(value)];
             }
         }
         if let Ok(value) = std::env::var(format!("{prefix}_HOME")) {
             let value = value.trim();
             if !value.is_empty() {
-                return PathBuf::from(value).join("logs");
+                return vec![PathBuf::from(value).join("logs")];
             }
         }
-        if cfg!(target_os = "macos") {
-            return self
-                .home
-                .join("Library")
-                .join("Application Support")
-                .join(self.site.app_dir())
-                .join("logs");
+        let base = if cfg!(target_os = "macos") {
+            self.home.join("Library").join("Application Support")
+        } else if cfg!(target_os = "linux") {
+            self.home.join(".config")
+        } else {
+            self.appdata.clone()
+        };
+        let mut roots = vec![base.join(self.site.app_dir()).join("logs")];
+        if cfg!(target_os = "windows") {
+            roots.push(base.join(self.site.bundle_id()).join("logs"));
         }
-        if cfg!(target_os = "linux") {
-            return self
-                .home
-                .join(".config")
-                .join(self.site.app_dir())
-                .join("logs");
-        }
-        self.appdata.join(self.site.app_dir()).join("logs")
+        roots
     }
 
     fn cookie(&self) -> Option<String> {
@@ -431,12 +561,17 @@ impl QoderCore {
     }
 
     fn log_quota(&self) -> Option<QuotaReport> {
-        for path in recent_renderer_logs(&self.log_root()) {
-            let Some(text) = read_tail(&path) else {
-                continue;
-            };
-            if let Some(report) = quota_from_renderer_log(&text, self.site.provider_id()) {
-                return Some(report);
+        for root in self.log_roots() {
+            for path in recent_quota_logs(&root) {
+                let Some(text) = read_tail(&path) else {
+                    continue;
+                };
+                if let Some(report) = quota_from_account_usage_log(&text, self.site.provider_id()) {
+                    return Some(report);
+                }
+                if let Some(report) = quota_from_renderer_log(&text, self.site.provider_id()) {
+                    return Some(report);
+                }
             }
         }
         None
@@ -478,7 +613,7 @@ impl QoderCore {
     }
 
     fn detection(&self) -> DetectionResult {
-        let log_exists = self.log_root().is_dir();
+        let log_exists = self.log_roots().iter().any(|root| root.is_dir());
         let cookie = self.cookie().is_some();
         let detected = log_exists || cookie;
         DetectionResult {
@@ -641,5 +776,44 @@ mod tests {
         let adapter =
             QoderCore::with_roots(Site::International, root.path().to_path_buf(), appdata);
         assert!(adapter.detection().detected);
+    }
+
+    #[test]
+    fn account_usage_log_yields_plan_and_addon_windows() {
+        let text = r#"[2026-11-20T10:00:00.000Z] INFO account {"qoderUsage":{"userType":"Professional","expiresAt":"2026-12-01T00:00:00.000Z","isQuotaExceeded":false,"totalUsagePercentage":30,"userQuota":{"used":300,"total":1000,"remaining":700,"unit":"credits"},"addOnQuota":{"used":50,"total":100,"remaining":50,"unit":"credits"}}}"#;
+        let report = quota_from_account_usage_log(text, "qoder").expect("quota");
+        assert_eq!(report.plan.as_deref(), Some("Professional"));
+        assert_eq!(report.windows.len(), 2);
+        assert_eq!(report.windows[0].used, 300);
+        assert_eq!(report.windows[0].limit, Some(1000));
+        assert_eq!(report.windows[0].used_percent, Some(30.0));
+        assert!(report.windows[0].reset_at.is_some());
+        assert_eq!(report.windows[1].used, 50);
+        assert_eq!(report.windows[1].limit, Some(100));
+        assert_eq!(report.source, "local_log");
+    }
+
+    #[test]
+    fn account_usage_log_ignores_unrelated_and_no_expiry_lines() {
+        let unrelated = "INFO renderer ready";
+        assert!(quota_from_account_usage_log(unrelated, "qoder").is_none());
+        let free = r#"{"qoderUsage":{"userType":"Free","expiresAt":"9999-12-31T00:00:00.000Z","userQuota":{"used":0,"total":0,"remaining":0}}}"#;
+        let report = quota_from_account_usage_log(free, "qoder").expect("quota");
+        assert_eq!(report.windows[0].used_percent, Some(0.0));
+        assert!(report.windows[0].reset_at.is_none());
+    }
+
+    #[test]
+    fn log_roots_include_the_desktop_bundle_id_profile() {
+        let root = tempfile::tempdir().expect("temp");
+        let appdata = root.path().join("AppData");
+        let core = QoderCore::with_roots(
+            Site::International,
+            root.path().to_path_buf(),
+            appdata.clone(),
+        );
+        let roots = core.log_roots();
+        assert!(roots.contains(&appdata.join("Qoder").join("logs")));
+        assert!(roots.contains(&appdata.join("com.qoder.app.stable").join("logs")));
     }
 }
